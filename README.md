@@ -17,6 +17,7 @@ A full-stack web + desktop application for programming the **ITECH PV6000 DC Pow
 | **BDT** | Bypass Diode Thermal | IEC 62979:2017 | 1.35×Isc for 1h |
 | **RCO** | Reverse Current Overload | IEC 61730-2 MST26 | 135% fuse rating |
 | **GCT** | Ground Continuity | IEC 61730-2 MST13 | 25A, R < 0.1Ω |
+| **DH** | Damp Heat | IEC 61215-2 MQT 13 | 85°C / 85%RH, 1000h |
 
 ---
 
@@ -37,20 +38,59 @@ cd agnipariksha
 ```bash
 cd frontend
 npm install
-cp ../.env.example .env.local  # Edit with your API keys
-npm run dev
+cp ../.env.example .env.local        # edit with your API keys
+npm run dev                          # auto-kills any orphan on :3000, then starts Next.js
 # Open http://localhost:3000
 ```
 
-### 3. Backend (Optional — needed for real hardware)
+`npm run dev` runs `kill-port 3000 && next dev --turbopack -p 3000`, so a
+stale Node from a previous session (the source of both `EADDRINUSE :::3000`
+and the `EPERM ... @next/swc-win32-x64-msvc ... next-swc.win32-x64-msvc.node`
+during reinstall) is reaped before the new server starts. If you ever need
+the old behaviour, use `npm run dev:noclean`.
+
+There are also platform-specific wrappers that do the same thing plus walk
+listeners via `lsof` / `Get-NetTCPConnection`:
+
+```bash
+bash frontend/scripts/dev.sh         # Git Bash / macOS / Linux
+pwsh frontend/scripts/dev.ps1        # Windows PowerShell
+```
+
+### 3. Backend (FastAPI — needed for live hardware)
+The ASGI app is `main:app` (i.e. `backend/main.py`), **not** `app.main:app`.
+
 ```bash
 cd backend
 pip install -r requirements.txt
-python main.py
+python -m uvicorn main:app --host 0.0.0.0 --port 8000     # canonical
+# or use the wrapper scripts:
+bash backend/run.sh                                       # Git Bash / macOS / Linux
+pwsh backend/run.ps1                                      # Windows PowerShell
+# or, from the repo root:
+python -m backend                                         # equivalent fallback
 # Runs on http://localhost:8000
 ```
 
-### 4. Desktop App (Tauri)
+### 4. Run both, one liner
+
+Git Bash on Windows:
+```bash
+cd ~/agnipariksha \
+  && (bash frontend/scripts/dev.sh &) \
+  && bash backend/run.sh
+```
+
+…or two separate terminals:
+```bash
+# Terminal 1 — frontend
+cd ~/agnipariksha/frontend && npm run dev
+
+# Terminal 2 — backend
+cd ~/agnipariksha/backend && python -m uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+### 5. Desktop App (Tauri)
 ```bash
 cd frontend
 npm run tauri
