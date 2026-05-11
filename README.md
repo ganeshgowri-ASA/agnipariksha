@@ -7,6 +7,45 @@ A full-stack web + desktop application for programming the **ITECH PV6000 DC Pow
 
 ---
 
+## ⚡ One-Click Deploy
+
+From a fresh clone (or any time you want to restart cleanly), run **one** command:
+
+```bash
+# Git Bash / WSL / macOS / Linux
+bash ~/agnipariksha/deploy.sh
+```
+
+```powershell
+# Windows PowerShell
+pwsh C:\path\to\agnipariksha\deploy.ps1
+```
+
+`deploy.sh` / `deploy.ps1`:
+
+1. fast-forwards `main` (skipped if you're on a feature branch),
+2. frees ports `:8000` (backend) and `:3000` (frontend), killing recorded pids and any squatters,
+3. runs `pip install -r backend/requirements.txt` and `npm install`,
+4. starts the FastAPI backend (`python -m uvicorn main:app`) and Next.js frontend (`npm run dev:noclean`) in the background,
+5. waits up to 30 s / 60 s for `GET /health` and `GET /` to return `200`, then prints **PASS / FAIL** with PIDs and log paths.
+
+Logs land at `logs/backend.log` and `logs/frontend.log`. Pids at `logs/{backend,frontend}.pid`.
+
+Shortcuts:
+
+| Action | Bash | PowerShell | Make |
+|--------|------|------------|------|
+| Full deploy            | `bash deploy.sh` | `pwsh deploy.ps1` | `make deploy` |
+| Restart backend only   | `bash backend/start.sh` | `pwsh backend/start.ps1` | `make backend` |
+| Restart frontend only  | `bash frontend/start.sh` | `pwsh frontend/start.ps1` | `make frontend` |
+| Stop everything        | — | — | `make stop` |
+| Tail logs              | `tail -f logs/*.log` | `Get-Content -Wait logs\*.log` | `make logs` |
+| Status (pids + ports + health) | — | — | `make status` |
+
+Skip-flags: `bash deploy.sh --no-pull` (don't `git pull`) · `--no-install` (skip `pip` / `npm install`).
+
+---
+
 ## 🧪 Test Suite
 
 | Tab | Test | Standard | Key Parameters |
