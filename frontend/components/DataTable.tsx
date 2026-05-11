@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import type { LiveReading } from '@/app/page';
+import type { LiveReading } from '@/types/test-session';
 
 interface DataTableProps {
   readings: LiveReading[];

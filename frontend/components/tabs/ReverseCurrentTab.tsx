@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
-import type { TestSession, LiveReading } from '@/app/page';
+import type { TestSession, LiveReading } from '@/types/test-session';
 
 interface Props {
   readings: LiveReading[];

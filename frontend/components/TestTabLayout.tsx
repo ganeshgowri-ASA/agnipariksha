@@ -1,11 +1,16 @@
 'use client';
 
-import { useState } from 'react';
-import type { TestSession, TestStatus, LiveReading } from '@/app/page';
+import { useCallback, useState } from 'react';
+import {
+  Play, Pause, Square, OctagonAlert, RefreshCw, Settings, Activity, Table2, BarChart3, FileText,
+} from 'lucide-react';
+import type { TestSession, TestStatus, LiveReading } from '@/types/test-session';
 import LiveChart from './LiveChart';
 import AnalogGauge from './AnalogGauge';
 import DataTable from './DataTable';
 import ReportGenerator from './ReportGenerator';
+import AnalysisPanel from './AnalysisPanel';
+import { useNotifications } from './notifications/NotificationsStore';
 
 interface TestTabLayoutProps {
   testKey: string;
@@ -23,87 +28,156 @@ interface TestTabLayoutProps {
   onStartTest: () => void;
   onStopTest: () => void;
   onPauseTest: () => void;
+  onResumeTest?: () => void;
+  onEmergencyStop?: () => void;
 }
 
-type SubTab = 'setup' | 'monitor' | 'data' | 'report';
+type SubTab = 'setup' | 'monitor' | 'data' | 'analysis' | 'report';
+
+const SUB_TABS: Array<{ key: SubTab; label: string; icon: typeof Settings }> = [
+  { key: 'setup',    label: 'Setup',        icon: Settings },
+  { key: 'monitor',  label: 'Live Monitor', icon: Activity },
+  { key: 'data',     label: 'Data Table',   icon: Table2 },
+  { key: 'analysis', label: 'Analysis',     icon: BarChart3 },
+  { key: 'report',   label: 'Report',       icon: FileText },
+];
+
+async function postControl(testId: string, action: string): Promise<void> {
+  try {
+    await fetch(`/api/tests/${encodeURIComponent(testId)}/control`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action }),
+    });
+  } catch {
+    /* surfaced via notifications by callers */
+  }
+}
 
 export default function TestTabLayout({
   testKey, testName, standard, color, readings, session,
-  limits, setupPanel, extraStats = [], onStartTest, onStopTest, onPauseTest, demoMode,
+  onSessionUpdate, sendCommand, demoMode,
+  limits, setupPanel, extraStats = [],
+  onStartTest, onStopTest, onPauseTest, onResumeTest, onEmergencyStop,
 }: TestTabLayoutProps) {
   const [subTab, setSubTab] = useState<SubTab>('monitor');
+  const { push } = useNotifications();
 
   const latest = readings[readings.length - 1];
   const sessionReadings = session?.readings || [];
 
   const statusColor: Record<TestStatus, string> = {
-    idle: 'text-gray-400', running: 'text-green-400 animate-pulse',
-    paused: 'text-yellow-400', pass: 'text-green-400',
-    fail: 'text-red-400', aborted: 'text-gray-500',
+    idle:    'text-gray-400',
+    running: 'text-green-400 animate-pulse',
+    paused:  'text-yellow-400',
+    pass:    'text-green-400',
+    fail:    'text-red-400',
+    aborted: 'text-gray-500',
   };
 
-  const subTabs: SubTab[] = ['setup', 'monitor', 'data', 'report'];
+  const isRunning = session?.status === 'running';
+  const isPaused  = session?.status === 'paused';
+
+  const fireControl = useCallback(
+    (action: 'start' | 'pause' | 'resume' | 'stop' | 'emergency_stop') => {
+      if (session?.id) void postControl(session.id, action);
+    },
+    [session?.id],
+  );
+
+  const handleStart = () => {
+    onStartTest();
+    push({ severity: 'info', source: 'user', title: `Started ${testName}`, message: standard });
+    fireControl('start');
+  };
+  const handlePause = () => {
+    onPauseTest();
+    push({ severity: 'warning', source: 'user', title: `${testName} paused`, message: 'Awaiting resume' });
+    fireControl('pause');
+  };
+  const handleResume = () => {
+    if (!session) return;
+    if (onResumeTest) onResumeTest();
+    else onSessionUpdate({ ...session, status: 'running' });
+    push({ severity: 'info', source: 'user', title: `${testName} resumed`, message: '' });
+    fireControl('resume');
+  };
+  const handleStop = () => {
+    onStopTest();
+    push({ severity: 'info', source: 'user', title: `${testName} stopped`, message: '' });
+    fireControl('stop');
+  };
+  const handleEStop = () => {
+    sendCommand('OUTP OFF');
+    sendCommand('SYST:LOC');
+    if (onEmergencyStop) onEmergencyStop();
+    else if (session) onSessionUpdate({ ...session, status: 'aborted', endTime: Date.now() });
+    push({
+      severity: 'error', source: 'system',
+      title: `EMERGENCY STOP — ${testName}`,
+      message: 'Output disabled, instrument returned to local',
+    });
+    fireControl('emergency_stop');
+  };
 
   return (
     <div className="flex flex-col h-full bg-gray-950">
-      {/* Test Header */}
-      <div className="bg-gray-900 border-b border-gray-700 px-4 py-2 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      {/* Test Header + control bar */}
+      <div className="bg-gray-900 border-b border-gray-700 px-4 py-2 flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3 min-w-0">
           <span className={`text-sm font-bold ${color}`}>{testName}</span>
-          <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">{standard}</span>
+          <span className="text-[10px] text-gray-500 bg-gray-800 px-2 py-0.5 rounded">{standard}</span>
           {session && (
             <span className={`text-xs font-medium ${statusColor[session.status]}`}>
               ● {session.status.toUpperCase()}
             </span>
           )}
+          {demoMode && <span className="text-[10px] text-yellow-400 bg-yellow-900/30 px-1.5 py-0.5 rounded">DEMO</span>}
         </div>
-        <div className="flex gap-2">
-          <button onClick={onStartTest} disabled={session?.status === 'running'}
-            className="px-3 py-1 bg-green-700 hover:bg-green-600 disabled:opacity-40 text-white text-xs rounded font-medium transition-colors">
-            ▶ Start
-          </button>
-          <button onClick={onPauseTest} disabled={session?.status !== 'running'}
-            className="px-3 py-1 bg-yellow-700 hover:bg-yellow-600 disabled:opacity-40 text-white text-xs rounded font-medium transition-colors">
-            ⏸ Pause
-          </button>
-          <button onClick={onStopTest} disabled={!session || session.status === 'idle'}
-            className="px-3 py-1 bg-red-700 hover:bg-red-600 disabled:opacity-40 text-white text-xs rounded font-medium transition-colors">
-            ■ Stop
-          </button>
+        <div className="flex flex-wrap gap-1.5">
+          <ControlBtn label="Start"   icon={Play}         onClick={handleStart}  disabled={isRunning} variant="green" />
+          <ControlBtn label="Pause"   icon={Pause}        onClick={handlePause}  disabled={!isRunning} variant="yellow" />
+          <ControlBtn label="Resume"  icon={RefreshCw}    onClick={handleResume} disabled={!isPaused} variant="blue" />
+          <ControlBtn label="Stop"    icon={Square}       onClick={handleStop}   disabled={!session || session.status === 'idle'} variant="red" />
+          <ControlBtn label="E-STOP"  icon={OctagonAlert} onClick={handleEStop}  disabled={!session} variant="estop" />
         </div>
       </div>
 
       {/* Sub-tabs */}
-      <div className="flex border-b border-gray-800 bg-gray-900">
-        {subTabs.map(st => (
-          <button key={st} onClick={() => setSubTab(st)}
-            className={`px-4 py-2 text-xs capitalize font-medium transition-colors border-b-2 ${
-              subTab === st ? `border-${color.split('-')[1]}-400 text-white` : 'border-transparent text-gray-500 hover:text-gray-300'
-            }`}>
-            {st === 'setup' ? '⚙️ Setup' : st === 'monitor' ? '📡 Live Monitor' : st === 'data' ? '📋 Data Table' : '📄 Report'}
-          </button>
-        ))}
+      <div className="flex border-b border-gray-800 bg-gray-900 overflow-x-auto">
+        {SUB_TABS.map(({ key, label, icon: Icon }) => {
+          const active = subTab === key;
+          return (
+            <button
+              key={key} type="button"
+              onClick={() => setSubTab(key)}
+              className={`inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium transition-colors border-b-2 ${
+                active
+                  ? 'border-orange-400 text-white bg-gray-800/50'
+                  : 'border-transparent text-gray-500 hover:text-gray-200'
+              }`}
+              aria-current={active ? 'page' : undefined}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {label}
+            </button>
+          );
+        })}
       </div>
 
       {/* Sub-tab Content */}
       <div className="flex-1 overflow-auto p-4">
-        {subTab === 'setup' && (
-          <div className="max-w-2xl">{setupPanel}</div>
-        )}
+        {subTab === 'setup' && <div className="max-w-2xl">{setupPanel}</div>}
 
         {subTab === 'monitor' && (
           <div className="space-y-4">
-            {/* Gauges Row */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <AnalogGauge label="Voltage" value={latest?.voltage || 0} max={limits.maxVoltage} unit="V" color="#60a5fa" />
-              <AnalogGauge label="Current" value={latest?.current || 0} max={limits.maxCurrent} unit="A" color="#34d399" />
-              <AnalogGauge label="Power" value={latest?.power || 0} max={limits.maxPower} unit="W" color="#f59e0b" />
-              {latest?.temperature !== undefined && (
-                <AnalogGauge label="Temperature" value={latest.temperature} max={limits.maxTemp || 100} unit="°C" color="#f87171" />
-              )}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <AnalogGauge label="Voltage"     value={latest?.voltage ?? 0} max={limits.maxVoltage} unit="V"  color="#60a5fa" />
+              <AnalogGauge label="Current"     value={latest?.current ?? 0} max={limits.maxCurrent} unit="A"  color="#34d399" />
+              <AnalogGauge label="Power"       value={latest?.power   ?? 0} max={limits.maxPower}   unit="W"  color="#f59e0b" />
+              <AnalogGauge label="Temperature" value={latest?.temperature ?? 0} max={limits.maxTemp || 100} unit="°C" color="#f87171" />
             </div>
 
-            {/* Extra stats */}
             {extraStats.length > 0 && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {extraStats.map(s => (
@@ -117,11 +191,10 @@ export default function TestTabLayout({
               </div>
             )}
 
-            {/* Live Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <LiveChart readings={readings} metric="voltage" color="#60a5fa" label="Voltage (V)" />
               <LiveChart readings={readings} metric="current" color="#34d399" label="Current (A)" />
-              <LiveChart readings={readings} metric="power" color="#f59e0b" label="Power (W)" />
+              <LiveChart readings={readings} metric="power"   color="#f59e0b" label="Power (W)" />
               {readings.some(r => r.temperature !== undefined) && (
                 <LiveChart readings={readings} metric="temperature" color="#f87171" label="Temperature (°C)" />
               )}
@@ -130,7 +203,14 @@ export default function TestTabLayout({
         )}
 
         {subTab === 'data' && (
-          <DataTable readings={sessionReadings.length > 0 ? sessionReadings : readings} testName={testName} />
+          <DataTable
+            readings={sessionReadings.length > 0 ? sessionReadings : readings}
+            testName={testName}
+          />
+        )}
+
+        {subTab === 'analysis' && (
+          <AnalysisPanel session={session} testName={testName} standard={standard} />
         )}
 
         {subTab === 'report' && (
@@ -138,5 +218,31 @@ export default function TestTabLayout({
         )}
       </div>
     </div>
+  );
+}
+
+function ControlBtn({
+  label, icon: Icon, onClick, disabled, variant,
+}: {
+  label: string;
+  icon: typeof Play;
+  onClick: () => void;
+  disabled?: boolean;
+  variant: 'green' | 'yellow' | 'blue' | 'red' | 'estop';
+}) {
+  const cls = {
+    green:  'bg-green-700 hover:bg-green-600',
+    yellow: 'bg-yellow-700 hover:bg-yellow-600',
+    blue:   'bg-blue-700 hover:bg-blue-600',
+    red:    'bg-red-700 hover:bg-red-600',
+    estop:  'bg-red-900 hover:bg-red-800 ring-1 ring-red-500/60',
+  }[variant];
+  return (
+    <button
+      type="button" onClick={onClick} disabled={disabled}
+      className={`inline-flex items-center gap-1 px-2.5 py-1 text-white text-xs rounded font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${cls}`}
+    >
+      <Icon className="w-3.5 h-3.5" /> {label}
+    </button>
   );
 }
