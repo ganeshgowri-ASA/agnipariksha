@@ -1,0 +1,44 @@
+{
+  "$schema": "https://schema.tauri.app/config/2.0.0",
+  "productName": "Agnipariksha",
+  "version": "1.0.0",
+  "identifier": "com.shreshtata.agnipariksha",
+  "build": {
+    "frontendDist": "../frontend/out",
+    "devUrl": "http://localhost:3000",
+    "beforeDevCommand": "cd ../frontend && npm run dev",
+    "beforeBuildCommand": "cd ../frontend && TAURI_BUILD=1 npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Agnipariksha — PV Reliability Test Station",
+        "width": 1440,
+        "height": 900,
+        "minWidth": 1200,
+        "minHeight": 700,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "wix": {
+        "language": "en-US"
+      }
+    }
+  }
+}

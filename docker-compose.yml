@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: agnipariksha_db
+    environment:
+      POSTGRES_DB: agnipariksha
+      POSTGRES_USER: agnipariksha
+      POSTGRES_PASSWORD: agnipariksha
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescaledb_data:/var/lib/postgresql/data
+      - ./backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agnipariksha"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: agnipariksha_backend
+    environment:
+      - DATABASE_URL=postgresql://agnipariksha:agnipariksha@timescaledb:5432/agnipariksha
+      - ITECH_IP=${ITECH_IP:-192.168.200.100}
+      - ITECH_PORT=${ITECH_PORT:-30000}
+      - DEMO_MODE=${DEMO_MODE:-false}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    ports:
+      - "8000:8000"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    volumes:
+      - ./reports:/app/reports
+    restart: unless-stopped
+
+volumes:
+  timescaledb_data:
