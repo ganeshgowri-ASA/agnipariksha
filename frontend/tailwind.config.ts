@@ -1,4 +1,4 @@
-import type { Config } from 'tailwindcss'
+import type { Config } from 'tailwindcss';
 
 const config: Config = {
   content: [
@@ -10,19 +10,15 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        'instrument-green': '#10b981',
-        'instrument-amber': '#f59e0b',
-        'instrument-red': '#ef4444',
-        'instrument-blue': '#3b82f6',
+        'agni-orange': '#f97316',
+        'agni-dark': '#030712',
       },
       fontFamily: {
-        mono: ['JetBrains Mono', 'Courier New', 'monospace'],
+        mono: ['Courier New', 'Consolas', 'monospace'],
       },
     },
   },
-  plugins: [
-    require('@tailwindcss/forms'),
-  ],
-}
+  plugins: [],
+};
 
-export default config
+export default config;
