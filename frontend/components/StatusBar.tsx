@@ -1,6 +1,6 @@
 'use client';
 
-import type { TestSession } from '@/app/page';
+import type { TestSession } from '@/types/test-session';
 
 export default function StatusBar({ wsStatus, demoMode, sessions }: {
   wsStatus: string;

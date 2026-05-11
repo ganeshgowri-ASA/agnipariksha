@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { LiveReading } from '@/app/page';
+import type { LiveReading } from '@/types/test-session';
 
 type WsStatus = 'connecting' | 'connected' | 'disconnected' | 'demo';
 

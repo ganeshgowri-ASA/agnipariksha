@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import type { TestSession } from '@/app/page';
+import type { TestSession } from '@/types/test-session';
 
 interface Props {
   sessions: Record<string, TestSession | null>;

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { TestSession, TestStatus, LiveReading } from '@/app/page';
+import type { TestSession, TestStatus, LiveReading } from '@/types/test-session';
 import LiveChart from './LiveChart';
 import AnalogGauge from './AnalogGauge';
 import DataTable from './DataTable';

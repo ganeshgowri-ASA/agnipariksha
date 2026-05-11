@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { TestSession } from '@/app/page';
+import type { TestSession } from '@/types/test-session';
 
 interface ReportGeneratorProps {
   session: TestSession | null;

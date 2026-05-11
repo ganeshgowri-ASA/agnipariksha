@@ -12,27 +12,7 @@ import ResultsDashboard from '@/components/ResultsDashboard';
 import AIAssistant from '@/components/AIAssistant';
 import StatusBar from '@/components/StatusBar';
 import { useWebSocket } from '@/hooks/useWebSocket';
-
-export type TestStatus = 'idle' | 'running' | 'paused' | 'pass' | 'fail' | 'aborted';
-
-export interface LiveReading {
-  timestamp: number;
-  voltage: number;
-  current: number;
-  power: number;
-  temperature?: number;
-}
-
-export interface TestSession {
-  id: string;
-  testType: string;
-  startTime: number;
-  endTime?: number;
-  status: TestStatus;
-  readings: LiveReading[];
-  result?: 'PASS' | 'FAIL';
-  notes?: string;
-}
+import type { TestSession } from '@/types/test-session';
 
 export default function AgniparikshaDashboard() {
   const [activeTab, setActiveTab] = useState('tc');

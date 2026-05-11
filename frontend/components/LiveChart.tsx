@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
-import type { LiveReading } from '@/app/page';
+import type { LiveReading } from '@/types/test-session';
 
 interface LiveChartProps {
   readings: LiveReading[];

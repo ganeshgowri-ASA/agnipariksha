@@ -1,6 +1,6 @@
 'use client';
 import { useState, useRef } from 'react';
-import type { TestSession, LiveReading } from '@/app/page';
+import type { TestSession, LiveReading } from '@/types/test-session';
 
 interface Props {
   sessions: Record<string, TestSession | null>;
