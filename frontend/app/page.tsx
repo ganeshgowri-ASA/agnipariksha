@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ThermalCyclingTab from '@/components/tabs/ThermalCyclingTab';
 import HumidityFreezeTab from '@/components/tabs/HumidityFreezeTab';
@@ -24,6 +24,15 @@ function Dashboard() {
   });
   const [demoMode, setDemoMode] = useState(true);
   const { readings, wsStatus, sendCommand } = useWebSocket(demoMode);
+
+  // Honour ?tab=<key> from deep-link redirects (e.g. /tests/damp-heat).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const t = new URLSearchParams(window.location.search).get('tab');
+    if (!t) return;
+    const valid = new Set([...TABS.map(x => x.key), 'results', 'ai']);
+    if (valid.has(t as TestKey)) setActiveTab(t);
+  }, []);
 
   const handleSessionUpdate = useCallback((tabKey: TestKey, session: TestSession | null) => {
     setSessions(prev => ({ ...prev, [tabKey]: session }));
