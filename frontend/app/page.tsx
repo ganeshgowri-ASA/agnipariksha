@@ -8,8 +8,8 @@ import LeTIDTab from '@/components/tabs/LeTIDTab';
 import BypassDiodeTab from '@/components/tabs/BypassDiodeTab';
 import ReverseCurrentTab from '@/components/tabs/ReverseCurrentTab';
 import GroundContinuityTab from '@/components/tabs/GroundContinuityTab';
-import ResultsDashboard from '@/components/ResultsDashboard';
-import AIAssistant from '@/components/AIAssistant';
+import ResultsDashboard from '@/components/tabs/ResultsDashboard';
+import AIAssistant from '@/components/tabs/AIAssistant';
 import StatusBar from '@/components/StatusBar';
 import { useWebSocket } from '@/hooks/useWebSocket';
 
