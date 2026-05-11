@@ -44,6 +44,27 @@ Shortcuts:
 
 Skip-flags: `bash deploy.sh --no-pull` (don't `git pull`) · `--no-install` (skip `pip` / `npm install`).
 
+#### Stale RSC / Webpack errors in the browser
+
+If `http://localhost:3000` still shows
+`Module not found: Can't resolve 'react-server-dom-webpack/server'` (or any
+mismatched-Next-version error) after pulling, an orphan dev server has
+left a half-built `.next` while `node_modules` was on a different version.
+Reset:
+
+```bash
+bash frontend/scripts/clean.sh        # rm .next, node_modules, lock; reinstall; build
+bash deploy.sh --no-install           # restart services with the fresh modules
+# or:  make clean-frontend && make deploy
+```
+
+PowerShell:
+
+```powershell
+pwsh frontend/scripts/clean.ps1
+pwsh deploy.ps1 -NoInstall
+```
+
 ---
 
 ## 🧪 Test Suite

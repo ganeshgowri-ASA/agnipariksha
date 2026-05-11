@@ -1,4 +1,4 @@
-.PHONY: deploy backend frontend stop logs status help
+.PHONY: deploy backend frontend stop logs status help clean-frontend
 
 REPO := $(shell pwd)
 LOG_DIR := $(REPO)/logs
@@ -8,9 +8,10 @@ help:
 	@echo '  make deploy     # one-click: pull, install, restart, smoke-test'
 	@echo '  make backend    # restart backend only (no pull / install)'
 	@echo '  make frontend   # restart frontend only (no pull / install)'
-	@echo '  make stop       # kill recorded backend + frontend pids'
-	@echo '  make logs       # tail both logs'
-	@echo '  make status     # show pids + ports + last health'
+	@echo '  make stop            # kill recorded backend + frontend pids'
+	@echo '  make logs            # tail both logs'
+	@echo '  make status          # show pids + ports + last health'
+	@echo '  make clean-frontend  # wipe frontend/.next + node_modules + lock, reinstall, rebuild'
 
 deploy:
 	@bash $(REPO)/deploy.sh
@@ -38,6 +39,9 @@ logs:
 	@mkdir -p $(LOG_DIR)
 	@touch $(LOG_DIR)/backend.log $(LOG_DIR)/frontend.log
 	@tail -n 40 -f $(LOG_DIR)/backend.log $(LOG_DIR)/frontend.log
+
+clean-frontend:
+	@bash $(REPO)/frontend/scripts/clean.sh
 
 status:
 	@printf 'backend.pid:  '; [ -f $(LOG_DIR)/backend.pid  ] && cat $(LOG_DIR)/backend.pid  || echo '(none)'
