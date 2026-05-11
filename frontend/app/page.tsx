@@ -1,122 +1,154 @@
-'use client'
-import { useState, useEffect } from 'react'
-import LiveMonitor from '@/components/LiveMonitor'
-import AnalogGauge from '@/components/AnalogGauge'
-import AIAssistant from '@/components/AIAssistant'
+'use client';
 
-const TESTS = [
-  { id: 'tc',    label: 'TC',    name: 'Thermal Cycling',        standard: 'IEC 61215-2 MQT 11', color: 'bg-orange-600' },
-  { id: 'hf',    label: 'HF',    name: 'Humidity Freeze',         standard: 'IEC 61215-2 MQT 12', color: 'bg-blue-600' },
-  { id: 'letid', label: 'LeTID', name: 'LeTID',                   standard: 'IEC TS 63342:2022',  color: 'bg-yellow-600' },
-  { id: 'bdt',   label: 'BDT',   name: 'Bypass Diode Thermal',    standard: 'IEC 62979:2017',     color: 'bg-red-600' },
-  { id: 'rco',   label: 'RCO',   name: 'Reverse Current Overload',standard: 'IEC 61730-2 MST 26', color: 'bg-purple-600' },
-  { id: 'gct',   label: 'GCT',   name: 'Ground Continuity',       standard: 'IEC 61730-2 MST 13', color: 'bg-green-600' },
-]
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import ThermalCyclingTab from '@/components/tabs/ThermalCyclingTab';
+import HumidityFreezeTab from '@/components/tabs/HumidityFreezeTab';
+import LeTIDTab from '@/components/tabs/LeTIDTab';
+import BypassDiodeTab from '@/components/tabs/BypassDiodeTab';
+import ReverseCurrentTab from '@/components/tabs/ReverseCurrentTab';
+import GroundContinuityTab from '@/components/tabs/GroundContinuityTab';
+import ResultsDashboard from '@/components/ResultsDashboard';
+import AIAssistant from '@/components/AIAssistant';
+import StatusBar from '@/components/StatusBar';
+import { useWebSocket } from '@/hooks/useWebSocket';
 
-export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState('tc')
-  const [connected, setConnected] = useState(false)
-  const [liveData, setLiveData] = useState({ voltage: 0, current: 0, power: 0 })
-  const [showAI, setShowAI] = useState(false)
+export type TestStatus = 'idle' | 'running' | 'paused' | 'pass' | 'fail' | 'aborted';
 
-  useEffect(() => {
-    const ws = new WebSocket(process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/ws')
-    ws.onopen = () => setConnected(true)
-    ws.onmessage = (e) => setLiveData(JSON.parse(e.data))
-    ws.onclose = () => setConnected(false)
-    return () => ws.close()
-  }, [])
+export interface LiveReading {
+  timestamp: number;
+  voltage: number;
+  current: number;
+  power: number;
+  temperature?: number;
+}
 
-  const activeTest = TESTS.find(t => t.id === activeTab)!
+export interface TestSession {
+  id: string;
+  testType: string;
+  startTime: number;
+  endTime?: number;
+  status: TestStatus;
+  readings: LiveReading[];
+  result?: 'PASS' | 'FAIL';
+  notes?: string;
+}
+
+export default function AgniparikshaDashboard() {
+  const [activeTab, setActiveTab] = useState('tc');
+  const [sessions, setSessions] = useState<Record<string, TestSession | null>>({
+    tc: null, hf: null, letid: null, bdt: null, rco: null, gct: null,
+  });
+  const [deviceConnected, setDeviceConnected] = useState(false);
+  const [demoMode, setDemoMode] = useState(true);
+  const { readings, wsStatus, sendCommand } = useWebSocket(demoMode);
+
+  const handleSessionUpdate = useCallback((tabKey: string, session: TestSession | null) => {
+    setSessions(prev => ({ ...prev, [tabKey]: session }));
+  }, []);
+
+  const tabConfig = [
+    { key: 'tc',    label: 'Thermal Cycling',       short: 'TC',  color: 'text-orange-400',  std: 'IEC 61215 MQT11' },
+    { key: 'hf',    label: 'Humidity Freeze',        short: 'HF',  color: 'text-blue-400',    std: 'IEC 61215 MQT12' },
+    { key: 'letid', label: 'LeTID',                  short: 'LID', color: 'text-purple-400',  std: 'IEC TS 63342' },
+    { key: 'bdt',   label: 'Bypass Diode',           short: 'BDT', color: 'text-yellow-400',  std: 'IEC 62979' },
+    { key: 'rco',   label: 'Reverse Current',        short: 'RCO', color: 'text-red-400',     std: 'IEC 61730 MST26' },
+    { key: 'gct',   label: 'Ground Continuity',      short: 'GCT', color: 'text-green-400',   std: 'IEC 61730 MST13' },
+  ];
+
+  const statusCounts = {
+    running: Object.values(sessions).filter(s => s?.status === 'running').length,
+    pass: Object.values(sessions).filter(s => s?.status === 'pass').length,
+    fail: Object.values(sessions).filter(s => s?.status === 'fail').length,
+  };
 
   return (
-    <div className="min-h-screen bg-gray-950 flex flex-col">
+    <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col">
       {/* Header */}
-      <header className="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-white">🔥 Agnipariksha</h1>
-          <p className="text-xs text-gray-500">PV Reliability Test Station · Shreshtata Power Supplies</p>
+      <header className="bg-gray-900 border-b border-gray-700 px-6 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center text-white font-bold text-sm">🔥</div>
+          <div>
+            <h1 className="text-lg font-bold text-white tracking-tight">Agnipariksha</h1>
+            <p className="text-xs text-gray-400">PV Reliability Test Station · ITECH PV6000 · v1.0.0</p>
+          </div>
         </div>
         <div className="flex items-center gap-4">
-          <span className={`text-xs px-2 py-1 rounded ${connected ? 'bg-green-900 text-green-400' : 'bg-red-900 text-red-400'}`}>
-            {connected ? '● ITECH Connected' : '○ Disconnected'}
-          </span>
-          <button onClick={() => setShowAI(!showAI)} className="btn-primary text-sm">
-            🤖 AI Assistant
+          <div className="flex gap-2 text-xs">
+            <span className="px-2 py-1 bg-blue-900/50 text-blue-300 rounded">{statusCounts.running} Running</span>
+            <span className="px-2 py-1 bg-green-900/50 text-green-300 rounded">{statusCounts.pass} Pass</span>
+            <span className="px-2 py-1 bg-red-900/50 text-red-300 rounded">{statusCounts.fail} Fail</span>
+          </div>
+          <button
+            onClick={() => setDemoMode(!demoMode)}
+            className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+              demoMode ? 'bg-yellow-600 text-yellow-100' : 'bg-gray-700 text-gray-300'
+            }`}
+          >
+            {demoMode ? '🎭 DEMO MODE' : '🔌 LIVE'}
           </button>
+          <div className={`w-3 h-3 rounded-full ${
+            wsStatus === 'connected' ? 'bg-green-400 animate-pulse' : 'bg-red-400'
+          }`} title={wsStatus} />
         </div>
       </header>
 
-      {/* Live Metrics Bar */}
-      <div className="bg-gray-900 border-b border-gray-800 px-6 py-2 flex gap-8">
-        <div>
-          <span className="text-xs text-gray-500">POWER</span>
-          <div className="metric-display">{liveData.power.toFixed(2)} <span className="text-xs">kW</span></div>
-        </div>
-        <div>
-          <span className="text-xs text-gray-500">VOLTAGE</span>
-          <div className="metric-display">{liveData.voltage.toFixed(3)} <span className="text-xs">V</span></div>
-        </div>
-        <div>
-          <span className="text-xs text-gray-500">CURRENT</span>
-          <div className="metric-display">{liveData.current.toFixed(3)} <span className="text-xs">A</span></div>
-        </div>
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-xs text-gray-400">ITECH IT6000C · 192.168.200.100:30000</span>
-          <span className="text-xs text-gray-500">IT9000 PV6000 v1.0.3.3</span>
-        </div>
-      </div>
+      {/* Main Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+        <TabsList className="bg-gray-900 border-b border-gray-700 rounded-none px-4 h-12 gap-1 justify-start">
+          {tabConfig.map(tab => {
+            const session = sessions[tab.key];
+            const statusDot = session?.status === 'running' ? '🟢' :
+                              session?.status === 'pass' ? '✅' :
+                              session?.status === 'fail' ? '❌' : '';
+            return (
+              <TabsTrigger
+                key={tab.key}
+                value={tab.key}
+                className={`data-[state=active]:bg-gray-700 data-[state=active]:text-white text-gray-400 px-3 py-1 rounded text-xs font-medium transition-all`}
+              >
+                <span className={tab.color}>{tab.short}</span>
+                <span className="hidden sm:inline ml-1 text-gray-300">{statusDot}</span>
+              </TabsTrigger>
+            );
+          })}
+          <TabsTrigger value="results" className="data-[state=active]:bg-gray-700 text-gray-400 px-3 py-1 rounded text-xs ml-auto">
+            📊 Results
+          </TabsTrigger>
+          <TabsTrigger value="ai" className="data-[state=active]:bg-gray-700 text-gray-400 px-3 py-1 rounded text-xs">
+            🤖 AI
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Test Tabs */}
-      <div className="bg-gray-900 border-b border-gray-800 px-6 flex gap-1 pt-2">
-        {TESTS.map(test => (
-          <button
-            key={test.id}
-            onClick={() => setActiveTab(test.id)}
-            className={`px-4 py-2 rounded-t text-sm font-semibold border-b-2 transition-all
-              ${activeTab === test.id
-                ? 'bg-gray-800 text-white border-blue-500'
-                : 'bg-transparent text-gray-400 border-transparent hover:text-white'
-              }`}
-          >
-            <span className={`inline-block w-2 h-2 rounded-full mr-2 ${test.color}`}></span>
-            {test.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Main Content */}
-      <main className="flex-1 p-6">
-        <div className="mb-4">
-          <h2 className="text-lg font-bold text-white">{activeTest.name}</h2>
-          <p className="text-sm text-gray-400">{activeTest.standard}</p>
+        <div className="flex-1 overflow-auto">
+          <TabsContent value="tc" className="mt-0 h-full">
+            <ThermalCyclingTab readings={readings} session={sessions.tc} onSessionUpdate={(s) => handleSessionUpdate('tc', s)} sendCommand={sendCommand} demoMode={demoMode} />
+          </TabsContent>
+          <TabsContent value="hf" className="mt-0 h-full">
+            <HumidityFreezeTab readings={readings} session={sessions.hf} onSessionUpdate={(s) => handleSessionUpdate('hf', s)} sendCommand={sendCommand} demoMode={demoMode} />
+          </TabsContent>
+          <TabsContent value="letid" className="mt-0 h-full">
+            <LeTIDTab readings={readings} session={sessions.letid} onSessionUpdate={(s) => handleSessionUpdate('letid', s)} sendCommand={sendCommand} demoMode={demoMode} />
+          </TabsContent>
+          <TabsContent value="bdt" className="mt-0 h-full">
+            <BypassDiodeTab readings={readings} session={sessions.bdt} onSessionUpdate={(s) => handleSessionUpdate('bdt', s)} sendCommand={sendCommand} demoMode={demoMode} />
+          </TabsContent>
+          <TabsContent value="rco" className="mt-0 h-full">
+            <ReverseCurrentTab readings={readings} session={sessions.rco} onSessionUpdate={(s) => handleSessionUpdate('rco', s)} sendCommand={sendCommand} demoMode={demoMode} />
+          </TabsContent>
+          <TabsContent value="gct" className="mt-0 h-full">
+            <GroundContinuityTab readings={readings} session={sessions.gct} onSessionUpdate={(s) => handleSessionUpdate('gct', s)} sendCommand={sendCommand} demoMode={demoMode} />
+          </TabsContent>
+          <TabsContent value="results" className="mt-0 h-full">
+            <ResultsDashboard sessions={sessions} />
+          </TabsContent>
+          <TabsContent value="ai" className="mt-0 h-full">
+            <AIAssistant sessions={sessions} readings={readings} />
+          </TabsContent>
         </div>
+      </Tabs>
 
-        <div className="grid grid-cols-3 gap-6">
-          {/* Live Charts — spans 2 cols */}
-          <div className="col-span-2">
-            <LiveMonitor liveData={liveData} testId={activeTab} />
-          </div>
-
-          {/* Gauges + Controls */}
-          <div className="flex flex-col gap-4">
-            <div className="card p-4">
-              <h3 className="text-sm text-gray-400 mb-3">Live Gauges</h3>
-              <AnalogGauge label="Vs (V)" value={liveData.voltage} min={0} max={100} unit="V" />
-              <AnalogGauge label="I+ (A)" value={liveData.current} min={0} max={150} unit="A" />
-            </div>
-            <div className="card p-4 flex flex-col gap-2">
-              <h3 className="text-sm text-gray-400 mb-1">Test Control</h3>
-              <button className="btn-success w-full">▶ Start Test</button>
-              <button className="btn-danger w-full">⬛ E-STOP</button>
-              <button className="btn-primary w-full">📄 Generate Report</button>
-            </div>
-          </div>
-        </div>
-      </main>
-
-      {/* AI Assistant Sidebar */}
-      {showAI && <AIAssistant onClose={() => setShowAI(false)} />}
+      <StatusBar wsStatus={wsStatus} demoMode={demoMode} sessions={sessions} />
     </div>
-  )
+  );
 }
