@@ -1,0 +1,33 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log
+.pnpm-debug.log
+
+# Next.js
+.next/
+out/
+next-env.d.ts.bak
+*.tsbuildinfo
+
+# Tauri / Rust
+src-tauri/target/
+**/target/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
