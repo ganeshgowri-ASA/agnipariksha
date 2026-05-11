@@ -1,0 +1,51 @@
+{
+  "name": "agnipariksha",
+  "displayName": "Agnipariksha — PV Test Station",
+  "version": "1.0.0",
+  "description": "MCP server for the Agnipariksha PV module reliability test station. Exposes tools to inspect live measurements, start/stop IEC tests (TC, HF, LeTID, BDT, RCO, GCT), run LeTID analysis, detect anomalies in session data, and generate compliance reports.",
+  "vendor": "Shreshtata / Agnipariksha",
+  "license": "MIT",
+  "homepage": "https://github.com/ganeshgowri-ASA/agnipariksha",
+  "transport": {
+    "type": "stdio",
+    "command": "node",
+    "args": ["dist/index.js"]
+  },
+  "env": {
+    "AGNIPARIKSHA_BACKEND_URL": {
+      "description": "Base URL of the FastAPI backend. Defaults to http://localhost:8000.",
+      "required": false,
+      "default": "http://localhost:8000"
+    }
+  },
+  "tools": [
+    {
+      "name": "get_session_data",
+      "description": "Fetch the full data log for a completed or in-progress test session."
+    },
+    {
+      "name": "get_live_measurement",
+      "description": "Get the most recent live V/I/P/T sample from the active test."
+    },
+    {
+      "name": "start_test",
+      "description": "Start one of the 6 IEC tests (TC, HF, LeTID, BDT, RCO, GCT) with the given parameters."
+    },
+    {
+      "name": "stop_test",
+      "description": "Stop the currently running test and turn the DC source output OFF."
+    },
+    {
+      "name": "analyze_letid",
+      "description": "Compute IEC TS 63342 LeTID indicators (Idark = Isc - Imp at 75 °C) for a session."
+    },
+    {
+      "name": "detect_anomalies",
+      "description": "Scan a session's V/I/T traces for out-of-band excursions and thermal runaway markers."
+    },
+    {
+      "name": "generate_report",
+      "description": "Render a PDF / Markdown compliance report for the given session and IEC standard."
+    }
+  ]
+}
