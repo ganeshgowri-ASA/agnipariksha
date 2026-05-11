@@ -1,118 +1,81 @@
-"""Agnipariksha Backend — FastAPI Server"""
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
+"""FastAPI backend for Agnipariksha PV test station.
+Runs WebSocket server that bridges SCPI commands to ITECH PV6000.
+"""
 import asyncio
 import json
-import os
-from dotenv import load_dotenv
+import time
+import random
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
-from scpi_driver import SCPIDriver
-from database import init_db
-from models import TestSession, TestReading, TestResult
-
-load_dotenv()
-
-scpi = SCPIDriver(
-    host=os.getenv("ITECH_IP", "192.168.200.100"),
-    port=int(os.getenv("ITECH_PORT", 30000)),
-    demo_mode=os.getenv("DEMO_MODE", "false").lower() == "true"
-)
-
-active_connections: list[WebSocket] = []
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    await init_db()
-    yield
-    await scpi.disconnect()
-
-app = FastAPI(
-    title="Agnipariksha API",
-    description="PV Reliability Test Station by Shreshtata Power Supplies",
-    version="1.0.0",
-    lifespan=lifespan
-)
+app = FastAPI(title="Agnipariksha Backend", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("CORS_ORIGINS", "http://localhost:3000").split(","),
-    allow_credentials=True,
+    allow_origins=["http://localhost:3000", "http://localhost:1420"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# --- WebSocket for live data ---
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    active_connections.append(websocket)
-    try:
-        while True:
-            if scpi.is_connected:
-                data = await scpi.measure_all()
-                await websocket.send_json(data)
-            await asyncio.sleep(0.5)  # 2 Hz update
-    except WebSocketDisconnect:
-        active_connections.remove(websocket)
+# --- In-memory state ---
+connected_clients: list[WebSocket] = []
+demo_mode = True  # Set False when real hardware connected
 
-# --- REST API Endpoints ---
+
 @app.get("/health")
 async def health():
-    return {"status": "ok", "hardware": scpi.is_connected, "demo": scpi.demo_mode}
+    return {"status": "ok", "demo": demo_mode, "version": "1.0.0"}
 
-@app.post("/connect")
-async def connect():
-    result = await scpi.connect()
-    return {"connected": result, "idn": await scpi.idn()}
 
-@app.post("/disconnect")
-async def disconnect():
-    await scpi.disconnect()
-    return {"connected": False}
+@app.websocket("/ws/live")
+async def websocket_live(ws: WebSocket):
+    await ws.accept()
+    connected_clients.append(ws)
+    t = 0
+    try:
+        while True:
+            # In demo mode: generate synthetic readings
+            if demo_mode:
+                t += 1
+                v = 48.0 + 5 * (t % 30) / 30 + random.gauss(0, 0.2)
+                i = 10.0 + 2 * (t % 20) / 20 + random.gauss(0, 0.05)
+                reading = {
+                    "timestamp": int(time.time() * 1000),
+                    "voltage": round(v, 3),
+                    "current": round(i, 3),
+                    "power": round(v * i / 1000, 4),
+                    "temperature": round(75 + random.gauss(0, 0.5), 1),
+                }
+                await ws.send_text(json.dumps(reading))
+                await asyncio.sleep(0.5)
 
-@app.get("/measure")
-async def measure():
-    return await scpi.measure_all()
+            # Listen for SCPI commands from frontend
+            try:
+                data = await asyncio.wait_for(ws.receive_text(), timeout=0.1)
+                msg = json.loads(data)
+                if msg.get("type") == "scpi":
+                    cmd = msg["command"]
+                    print(f"[SCPI] {cmd}")
+                    # TODO: Forward to real SCPI driver when demo_mode=False
+            except asyncio.TimeoutError:
+                pass
 
-@app.post("/output/{state}")
-async def set_output(state: str):
-    await scpi.set_output(state.upper() == "ON")
-    return {"output": state.upper()}
+    except WebSocketDisconnect:
+        connected_clients.remove(ws)
 
-@app.post("/tests/tc/start")
-async def start_thermal_cycling():
-    from test_programs.thermal_cycling import ThermalCyclingTest
-    test = ThermalCyclingTest(scpi)
-    session_id = await test.start()
-    return {"session_id": session_id, "test": "thermal_cycling", "status": "running"}
 
-@app.post("/tests/letid/start")
-async def start_letid():
-    from test_programs.letid import LeTIDTest
-    test = LeTIDTest(scpi)
-    session_id = await test.start()
-    return {"session_id": session_id, "test": "letid", "status": "running"}
+class SCPICommand(BaseModel):
+    command: str
 
-@app.post("/tests/gct/start")
-async def start_ground_continuity():
-    from test_programs.ground_continuity import GroundContinuityTest
-    test = GroundContinuityTest(scpi)
-    result = await test.run()
-    return result
 
-@app.post("/tests/{session_id}/stop")
-async def stop_test(session_id: str):
-    await scpi.emergency_stop()
-    return {"session_id": session_id, "status": "stopped"}
+@app.post("/api/scpi")
+async def send_scpi(cmd: SCPICommand):
+    # Forward to real driver in production
+    print(f"[HTTP SCPI] {cmd.command}")
+    return {"sent": cmd.command, "demo": demo_mode}
 
-@app.get("/tests/{session_id}/data")
-async def get_test_data(session_id: str, limit: int = 1000):
-    # Query TimescaleDB
-    return {"session_id": session_id, "readings": []}
 
-@app.post("/reports/{session_id}/generate")
-async def generate_report(session_id: str, format: str = "pdf"):
-    from report_generator import generate
-    path = await generate(session_id, format)
-    return {"path": path, "format": format}
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
