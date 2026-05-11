@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { LiveReading } from '@/types/test-session';
+import { useNotifications } from '@/components/notifications/NotificationsStore';
 
 type WsStatus = 'connecting' | 'connected' | 'disconnected' | 'demo';
 
@@ -19,6 +20,7 @@ export function useWebSocket(demoMode: boolean = true) {
   const wsRef = useRef<WebSocket | null>(null);
   const demoIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const tRef = useRef(0);
+  const { push: pushNotification } = useNotifications();
 
   const addReading = useCallback((r: LiveReading) => {
     setReadings(prev => {
@@ -51,25 +53,73 @@ export function useWebSocket(demoMode: boolean = true) {
         if (demoIntervalRef.current) clearInterval(demoIntervalRef.current);
       };
     } else {
-      // Real WebSocket to FastAPI backend
-      const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/ws/live';
+      // Real WebSocket to FastAPI backend (telemetry endpoint)
+      const wsUrl =
+        process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/ws/telemetry';
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
       setWsStatus('connecting');
 
-      ws.onopen = () => setWsStatus('connected');
-      ws.onclose = () => setWsStatus('disconnected');
-      ws.onerror = () => setWsStatus('disconnected');
+      ws.onopen = () => {
+        setWsStatus('connected');
+        pushNotification({
+          severity: 'success', source: 'websocket',
+          title: 'Telemetry connected',
+          message: wsUrl,
+        });
+      };
+      ws.onclose = () => {
+        setWsStatus('disconnected');
+        pushNotification({
+          severity: 'warning', source: 'websocket',
+          title: 'Telemetry disconnected',
+          message: wsUrl,
+        });
+      };
+      ws.onerror = () => {
+        setWsStatus('disconnected');
+        pushNotification({
+          severity: 'error', source: 'websocket',
+          title: 'WebSocket error',
+          message: wsUrl,
+        });
+      };
       ws.onmessage = (e) => {
         try {
-          const data = JSON.parse(e.data) as LiveReading;
-          addReading(data);
-        } catch {}
+          const data = JSON.parse(e.data);
+          if (data?.type === 'scpi_timeout') {
+            pushNotification({
+              severity: 'error', source: 'scpi',
+              title: 'SCPI timeout',
+              message: data.command ?? 'Unknown command',
+            });
+            return;
+          }
+          if (data?.type === 'gate_failure') {
+            pushNotification({
+              severity: 'error', source: 'gate',
+              title: 'Gate threshold breached',
+              message: data.message ?? 'Gate-2 ΔPmax exceeded',
+              testId: data.testId,
+            });
+            return;
+          }
+          if (
+            typeof data?.timestamp === 'number'
+            && typeof data?.voltage === 'number'
+            && typeof data?.current === 'number'
+            && typeof data?.power === 'number'
+          ) {
+            addReading(data as LiveReading);
+          }
+        } catch {
+          /* malformed frames ignored */
+        }
       };
 
       return () => { ws.close(); };
     }
-  }, [demoMode, addReading]);
+  }, [demoMode, addReading, pushNotification]);
 
   const sendCommand = useCallback((cmd: string) => {
     if (demoMode) {

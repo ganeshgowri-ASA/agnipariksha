@@ -25,12 +25,21 @@ export function TabsList({ children, className = '' }: { children: React.ReactNo
   return <div role="tablist" className={`flex ${className}`}>{children}</div>;
 }
 
-export function TabsTrigger({ value, children, className = '' }: { value: string; children: React.ReactNode; className?: string }) {
+export function TabsTrigger({
+  value, children, className = '', title,
+}: {
+  value: string;
+  children: React.ReactNode;
+  className?: string;
+  title?: string;
+}) {
   const ctx = React.useContext(TabsContext);
   const isActive = ctx.value === value;
   return (
     <button
+      type="button"
       role="tab"
+      title={title}
       aria-selected={isActive}
       data-state={isActive ? 'active' : 'inactive'}
       onClick={() => ctx.onValueChange(value)}
