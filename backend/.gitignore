@@ -1,0 +1,4 @@
+agnipariksha.db
+reports/
+__pycache__/
+.pytest_cache/
