@@ -48,21 +48,20 @@ test.describe('Thermal Cycling — IEC 61215-2 MQT 11', () => {
     await expect(page.getByText('DEMO').first()).toBeVisible();
 
     // Start the test. The Live Monitor sub-tab is the default landing tab.
-    await page.getByRole('button', { name: 'Start' }).click();
+    // Use `exact` matching so "Start" doesn't ambiguously match other names.
+    await page.getByRole('button', { name: 'Start', exact: true }).click();
 
-    // Live chart populates: wait for the live readings to accumulate
-    // enough samples to draw a recharts series.
-    // Recharts renders SVG paths inside the .recharts-wrapper container.
+    // Live chart populates: wait for recharts SVG paths to render.
     await expect(page.locator('.recharts-wrapper').first())
       .toBeVisible({ timeout: 15_000 });
     await page.waitForTimeout(2500); // collect ≥ a few demo samples
 
-    // Stop the test.
-    await page.getByRole('button', { name: 'Stop' }).click();
+    // Stop the test. `exact` keeps us off the "E-STOP" button.
+    await page.getByRole('button', { name: 'Stop', exact: true }).click();
 
-    // Move to the Report tab and click Export PDF.
-    await page.getByRole('button', { name: /Report/ }).click();
-    await page.getByRole('button', { name: /Export PDF/ }).click();
+    // Navigate to the Report sub-tab and click Export PDF.
+    await page.getByRole('button', { name: 'Report', exact: true }).click();
+    await page.getByRole('button', { name: /^Export PDF/ }).click();
 
     // Wait until the binding has the bytes.
     await expect.poll(
