@@ -47,6 +47,11 @@ backend/venv/
 logs/
 *.pid
 
+# Playwright
+frontend/test-results/
+frontend/playwright-report/
+frontend/playwright/.cache/
+
 # env files (only .env.example is committed)
 .env
 .env.local

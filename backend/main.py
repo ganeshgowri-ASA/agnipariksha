@@ -273,6 +273,80 @@ async def test_control(test_id: str, body: ControlAction) -> dict:
     return {"test_id": test_id, "action": body.action, "accepted": True, "demo": _settings.DEMO_MODE}
 
 
+# --------------------------------------------------------------------------
+# Damp Heat — IEC 61215-2 MQT 13
+# --------------------------------------------------------------------------
+try:
+    from .app.tests.damp_heat import (
+        DampHeatConfig, DampHeatSession, DampHeatSimulator,
+    )
+except ImportError:  # pragma: no cover
+    from app.tests.damp_heat import (  # type: ignore[no-redef]
+        DampHeatConfig, DampHeatSession, DampHeatSimulator,
+    )
+
+
+class DampHeatRunRequest(BaseModel):
+    duration_h: float = 1000.0
+    cadence_s: float = 60.0
+    bias_current_a: float = 0.0
+    pre_pmax_w: Optional[float] = None
+    post_pmax_w: Optional[float] = None
+    visual_defects: int = 0
+    insulation_mohm: Optional[float] = None
+    # Test/demo only: compresses 1000 h into seconds for the UI smoke run.
+    time_scale: float = 1.0
+    max_samples: Optional[int] = None
+
+
+@app.post("/api/tests/damp-heat/run")
+async def damp_heat_run(req: DampHeatRunRequest) -> dict:
+    """One-shot demo / smoke run of MQT 13.
+
+    Returns the full structured report (timeline truncated to first 240
+    samples for transport). For long-running production runs, use the
+    WebSocket telemetry channel and call :func:`damp_heat_report`.
+    """
+    cfg = DampHeatConfig(
+        duration_h=req.duration_h,
+        cadence_s=req.cadence_s,
+        bias_current_a=req.bias_current_a,
+    )
+    sim = DampHeatSimulator(
+        target_temp_c=cfg.target_temp_c,
+        target_rh_pct=cfg.target_rh_pct,
+        seed=42,
+    )
+    session = DampHeatSession(
+        config=cfg, simulator=sim, time_scale=max(1.0, req.time_scale),
+    )
+    if req.pre_pmax_w is not None:
+        session.set_pre_pmax(req.pre_pmax_w)
+    if req.post_pmax_w is not None:
+        session.set_post_pmax(req.post_pmax_w)
+
+    async def _noop_sleep(_: float) -> None:
+        return None
+
+    # Run synchronously with a no-op sleep so the request returns fast.
+    await session.run(
+        on_sample=None,
+        max_samples=req.max_samples or int(cfg.duration_h * 3600 // cfg.cadence_s) + 1,
+        sleep_fn=_noop_sleep,
+    )
+    report = session.build_report(
+        visual_defects=req.visual_defects,
+        insulation_mohm=req.insulation_mohm,
+    )
+    # Truncate timeline payload — keep head + tail so the chart still draws.
+    timeline = report["timeline"]
+    if len(timeline) > 240:
+        head, tail = timeline[:120], timeline[-120:]
+        report["timeline"] = head + tail
+        report["timeline_truncated"] = True
+    return report
+
+
 if __name__ == "__main__":  # pragma: no cover
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

@@ -9,7 +9,9 @@
     "start": "next start",
     "lint": "next lint",
     "tauri": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install --with-deps chromium"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
@@ -34,6 +36,7 @@
     "autoprefixer": "^10",
     "eslint": "^9",
     "eslint-config-next": "^15.5.18",
+    "@playwright/test": "^1.48.0",
     "kill-port": "^2.0.1",
     "postcss": "^8",
     "tailwindcss": "^3.4.0",
