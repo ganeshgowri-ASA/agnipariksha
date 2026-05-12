@@ -146,6 +146,13 @@ app.add_middleware(
 
 app.include_router(tickets_router)
 
+try:
+    from .app.reliability import reliability_router
+except ImportError:  # pragma: no cover - script-mode fallback
+    from app.reliability import reliability_router  # type: ignore[no-redef]
+
+app.include_router(reliability_router)
+
 
 # --------------------------------------------------------------------------
 # Health
