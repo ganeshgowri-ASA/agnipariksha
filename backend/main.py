@@ -280,7 +280,7 @@ try:
     from .app.tests.damp_heat import (
         DampHeatConfig, DampHeatSession, DampHeatSimulator,
     )
-except ImportError:  # pragma: no cover
+except ImportError:  # pragma: no cover - script-mode load
     from app.tests.damp_heat import (  # type: ignore[no-redef]
         DampHeatConfig, DampHeatSession, DampHeatSimulator,
     )
