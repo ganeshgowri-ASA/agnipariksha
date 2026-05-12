@@ -52,3 +52,8 @@ logs/
 .env.local
 backend/.env
 frontend/.env
+
+# release artifact binaries (regeneratable; SHA256SUMS in artifacts/ pins them)
+artifacts/*.tar.gz
+artifacts/*.pdf
+artifacts/*.zip
