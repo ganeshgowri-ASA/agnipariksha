@@ -14,6 +14,18 @@ export interface LiveReading {
   temperature?: number;
 }
 
+export interface CycleRecord {
+  cycle: number;
+  t_hot_peak_c: number;
+  t_cold_peak_c: number;
+  avg_ramp_up_c_per_h: number;
+  avg_ramp_down_c_per_h: number;
+  hot_dwell_s: number;
+  cold_dwell_s: number;
+  current_discontinuities: number;
+  voltage_discontinuities: number;
+}
+
 export interface TestSession {
   id: string;
   testType: string;
@@ -27,6 +39,8 @@ export interface TestSession {
   postMaxPower?: number;
   iecClause?: string;
   rawDataPath?: string;
+  mqt?: string;
+  cycleLog?: CycleRecord[];
 }
 
 export type TestKey =

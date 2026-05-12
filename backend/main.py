@@ -32,9 +32,19 @@ try:
     # and we fall back to absolute lookup.
     from .config import get_settings
     from .scpi_async import ScpiClient, is_scpi_reachable, run_telemetry_loop
+    from .app.tests.thermal_cycling import (
+        TCConfig,
+        analyze as tc_analyze,
+        make_demo_orchestrator,
+    )
 except ImportError:  # pragma: no cover - script-mode fallback
     from config import get_settings  # type: ignore[no-redef]
     from scpi_async import ScpiClient, is_scpi_reachable, run_telemetry_loop  # type: ignore[no-redef]
+    from app.tests.thermal_cycling import (  # type: ignore[no-redef]
+        TCConfig,
+        analyze as tc_analyze,
+        make_demo_orchestrator,
+    )
 
 
 # --------------------------------------------------------------------------
@@ -271,6 +281,113 @@ async def test_control(test_id: str, body: ControlAction) -> dict:
     if body.action not in _ALLOWED_ACTIONS:
         return {"error": "invalid_action", "test_id": test_id, "accepted": False}
     return {"test_id": test_id, "action": body.action, "accepted": True, "demo": _settings.DEMO_MODE}
+
+
+# --------------------------------------------------------------------------
+# IEC 61215-2 MQT 11 — Thermal Cycling orchestrator endpoints
+# --------------------------------------------------------------------------
+class TCStartBody(BaseModel):
+    cycles: int = 200
+    t_hot_c: float = 85.0
+    t_cold_c: float = -40.0
+    ramp_rate_c_per_h: float = 100.0
+    hot_dwell_s: int = 600
+    cold_dwell_s: int = 600
+    technology: str = "c-Si"
+    imp_a: Optional[float] = None
+    voc_v: float = 45.0
+    pre_test_pmax_w: float = 400.0
+    time_scale: float = 1.0
+    sample_interval_s: float = 0.5
+
+
+class TCAnalysisBody(BaseModel):
+    post_pmax_w: float
+
+
+_tc_sessions: dict = {}
+
+
+@app.post("/api/tests/thermal-cycling/start")
+async def tc_start(body: TCStartBody) -> dict:
+    """Configure (but do not yet run) an IEC 61215-2 MQT 11 session.
+
+    Streaming happens on ``/ws/tests/thermal-cycling`` using the session_id
+    returned here. This split keeps the WS handler stateless.
+    """
+    try:
+        cfg = TCConfig(**body.model_dump())
+    except ValueError as exc:
+        return {"error": "invalid_config", "detail": str(exc)}
+    raw_dir = Path(_settings.LOG_DIR) / "thermal_cycling"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    orch = make_demo_orchestrator(cfg=cfg, raw_csv_path=raw_dir / "pending.csv")
+    raw_path = raw_dir / f"{orch.session_id}.csv"
+    orch._raw_csv_path = raw_path  # type: ignore[attr-defined]
+    _tc_sessions[orch.session_id] = orch
+    return {
+        "session_id": orch.session_id,
+        "config": body.model_dump(),
+        "raw_csv_path": str(raw_path.resolve()),
+        "standard": "IEC 61215-2 MQT 11",
+        "clause": "4.11",
+        "gate2_threshold_percent": -5.0,
+    }
+
+
+@app.post("/api/tests/thermal-cycling/{session_id}/stop")
+async def tc_stop(session_id: str) -> dict:
+    orch = _tc_sessions.get(session_id)
+    if orch is None:
+        return {"error": "unknown_session"}
+    orch.abort()
+    return {"session_id": session_id, "state": orch.state.value}
+
+
+@app.post("/api/tests/thermal-cycling/{session_id}/analyze")
+async def tc_analyze_endpoint(session_id: str, body: TCAnalysisBody) -> dict:
+    orch = _tc_sessions.get(session_id)
+    if orch is None:
+        return {"error": "unknown_session"}
+    result = tc_analyze(orch, post_pmax_w=body.post_pmax_w)
+    return {
+        **result.to_dict(),
+        "iec_clause": "4.11",
+        "standard": "IEC 61215-2 MQT 11",
+        "cycle_log": [r.to_dict() for r in orch.cycle_log],
+        "raw_csv_path": str(getattr(orch, "_raw_csv_path", "")),
+    }
+
+
+@app.websocket("/ws/tests/thermal-cycling")
+async def ws_thermal_cycling(ws: WebSocket) -> None:
+    """Streams the MQT 11 state machine to the live chart.
+
+    Query params: session_id (required, from /start). Emits one
+    JSON ``TCSample`` per orchestrator step plus a final ``summary``.
+    """
+    await ws.accept()
+    session_id = ws.query_params.get("session_id", "")
+    orch = _tc_sessions.get(session_id)
+    if orch is None:
+        await ws.send_text(json.dumps({"error": "unknown_session"}))
+        await ws.close()
+        return
+    try:
+        async for sample in orch.stream():
+            await ws.send_text(json.dumps({"type": "sample", **sample.to_dict()}))
+        await ws.send_text(json.dumps({
+            "type": "summary",
+            **orch.summary(),
+            "cycle_log": [r.to_dict() for r in orch.cycle_log],
+        }))
+    except WebSocketDisconnect:
+        orch.abort()
+    finally:
+        try:
+            await ws.close()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":  # pragma: no cover

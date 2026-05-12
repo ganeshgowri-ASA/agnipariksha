@@ -3,6 +3,99 @@
 import { useMemo, useState } from 'react';
 import { GATE2_PMAX_DELTA_PERCENT, type TestSession } from '@/types/test-session';
 
+/**
+ * Figure 7 (IEC 61215-2 MQT 11) — temperature + current dual-trace plot.
+ * Drawn to a hidden canvas and embedded as PNG in PDF/Word reports.
+ */
+function buildFig7Png(session: TestSession, w = 720, h = 260): string | null {
+  if (typeof document === 'undefined' || session.readings.length === 0) return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  const rs = session.readings;
+  const ts = rs.map(r => r.timestamp - session.startTime);
+  const temps = rs.map(r => r.temperature ?? 25);
+  const currs = rs.map(r => r.current);
+  const tMinX = Math.min(...ts);
+  const tMaxX = Math.max(...ts);
+  const tempLo = Math.min(-40, Math.min(...temps));
+  const tempHi = Math.max(85, Math.max(...temps));
+  const iLo = Math.min(0, Math.min(...currs));
+  const iHi = Math.max(...currs);
+
+  const padL = 56, padR = 48, padT = 28, padB = 32;
+  const plotW = w - padL - padR;
+  const plotH = h - padT - padB;
+
+  ctx.fillStyle = '#0b1020'; ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = '#e5e7eb'; ctx.font = 'bold 12px Helvetica';
+  ctx.fillText('IEC 61215-2 MQT 11 — Figure 7 (T + I vs time)', padL, 16);
+
+  // Axes
+  ctx.strokeStyle = '#374151'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + plotH);
+  ctx.lineTo(padL + plotW, padT + plotH);
+  ctx.stroke();
+  // Right axis tick line
+  ctx.beginPath();
+  ctx.moveTo(padL + plotW, padT); ctx.lineTo(padL + plotW, padT + plotH);
+  ctx.stroke();
+
+  // Y ticks — left (°C)
+  ctx.fillStyle = '#9ca3af'; ctx.font = '10px Helvetica'; ctx.textAlign = 'right';
+  for (let k = 0; k <= 4; k++) {
+    const y = padT + plotH - (plotH * k) / 4;
+    const v = tempLo + ((tempHi - tempLo) * k) / 4;
+    ctx.fillText(`${v.toFixed(0)}°C`, padL - 4, y + 3);
+    ctx.strokeStyle = '#1f2937';
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y); ctx.stroke();
+  }
+  // Y ticks — right (A)
+  ctx.textAlign = 'left';
+  for (let k = 0; k <= 4; k++) {
+    const y = padT + plotH - (plotH * k) / 4;
+    const v = iLo + ((iHi - iLo) * k) / 4;
+    ctx.fillStyle = '#fbbf24';
+    ctx.fillText(`${v.toFixed(2)} A`, padL + plotW + 4, y + 3);
+  }
+
+  // Temperature trace (red)
+  ctx.strokeStyle = '#f87171'; ctx.lineWidth = 1.5; ctx.beginPath();
+  for (let i = 0; i < temps.length; i++) {
+    const x = padL + ((ts[i] - tMinX) / Math.max(1, tMaxX - tMinX)) * plotW;
+    const y = padT + plotH - ((temps[i] - tempLo) / Math.max(1e-9, tempHi - tempLo)) * plotH;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Current trace (amber)
+  ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 1.25; ctx.beginPath();
+  for (let i = 0; i < currs.length; i++) {
+    const x = padL + ((ts[i] - tMinX) / Math.max(1, tMaxX - tMinX)) * plotW;
+    const y = padT + plotH - ((currs[i] - iLo) / Math.max(1e-9, iHi - iLo)) * plotH;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Legend
+  ctx.font = '10px Helvetica';
+  ctx.fillStyle = '#f87171'; ctx.fillRect(padL + 8, padT - 18, 12, 2);
+  ctx.fillStyle = '#e5e7eb'; ctx.fillText('Temperature (°C)', padL + 24, padT - 14);
+  ctx.fillStyle = '#fbbf24'; ctx.fillRect(padL + 160, padT - 18, 12, 2);
+  ctx.fillStyle = '#e5e7eb'; ctx.fillText('Current (A) — Imp / 1 %', padL + 176, padT - 14);
+
+  // X labels (minutes)
+  const tMaxMin = (tMaxX - tMinX) / 60_000;
+  ctx.fillStyle = '#9ca3af'; ctx.textAlign = 'center';
+  ctx.fillText('0 min', padL, padT + plotH + 16);
+  ctx.fillText(`${tMaxMin.toFixed(1)} min`, padL + plotW, padT + plotH + 16);
+
+  return canvas.toDataURL('image/png');
+}
+
 interface ReportGeneratorProps {
   session: TestSession | null;
   testName: string;
@@ -204,6 +297,71 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
         doc.addImage(chart, 'PNG', 14, chartY + 4, pageW - 28, 60);
       }
 
+      // MQT 11 — Figure 7 dual-trace chart + cycle log table
+      if (session.mqt === 'MQT11' || /MQT\s*11/i.test(standard)) {
+        doc.addPage();
+        doc.setFontSize(14); doc.setFont('helvetica', 'bold'); doc.setTextColor(0, 0, 0);
+        doc.text('IEC 61215-2 MQT 11 — Figure 7 Profile', 14, 18);
+        doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
+        doc.text(
+          'Clause 4.11 — Temperature & continuity-current vs elapsed time.',
+          14, 25,
+        );
+        const fig7 = buildFig7Png(session);
+        if (fig7) {
+          doc.addImage(fig7, 'PNG', 14, 30, pageW - 28, 80);
+        }
+
+        const log = session.cycleLog ?? [];
+        if (log.length > 0) {
+          autoTable(doc, {
+            startY: 115,
+            head: [[
+              'Cycle', 'T_hot (°C)', 'T_cold (°C)',
+              'Ramp up (°C/h)', 'Ramp down (°C/h)',
+              'Hot dwell (s)', 'Cold dwell (s)',
+              'I disc.', 'V disc.',
+            ]],
+            body: log.map(r => [
+              r.cycle.toString(),
+              r.t_hot_peak_c.toFixed(2),
+              r.t_cold_peak_c.toFixed(2),
+              r.avg_ramp_up_c_per_h.toFixed(1),
+              r.avg_ramp_down_c_per_h.toFixed(1),
+              r.hot_dwell_s.toFixed(0),
+              r.cold_dwell_s.toFixed(0),
+              r.current_discontinuities.toString(),
+              r.voltage_discontinuities.toString(),
+            ]),
+            styles: { fontSize: 7, cellPadding: 1.5 },
+            headStyles: { fillColor: [17, 24, 39], textColor: [255, 165, 0] },
+            alternateRowStyles: { fillColor: [245, 245, 245] },
+          });
+        }
+
+        // Gate 2 reference band + raw CSV
+        const refY = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 200;
+        doc.setFontSize(9); doc.setFont('helvetica', 'bold'); doc.setTextColor(0, 0, 0);
+        doc.text(
+          'Pass criteria — IEC 61215-1 Gate 2: ΔPmax ≥ -5%',
+          14, refY + 8,
+        );
+        doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
+        const verdictLine = stats
+          ? `Result: ΔPmax = ${stats.delta.toFixed(2)}%  →  ${stats.gatePass ? 'PASS' : 'FAIL'} (MQT 11)`
+          : 'Result: pending';
+        doc.text(verdictLine, 14, refY + 14);
+        if (rawPath || session.rawDataPath) {
+          doc.setFont('helvetica', 'normal'); doc.setTextColor(60, 60, 60);
+          doc.text(
+            `Raw CSV (absolute): ${rawPath || session.rawDataPath}`,
+            14, refY + 20, { maxWidth: pageW - 28 },
+          );
+        }
+        doc.setTextColor(120, 120, 120);
+        doc.text('IEC clause 4.11 — Thermal Cycling Test', 14, refY + 26);
+      }
+
       if (notes) {
         const yState = doc as unknown as { lastAutoTable?: { finalY: number } };
         const notesY = (yState.lastAutoTable?.finalY ?? 200) + 80;
@@ -253,19 +411,21 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
         ['Verdict', verdict],
       ];
 
-      let chartImageRun: InstanceType<typeof ImageRun> | null = null;
-      const chart = buildPowerChartPng(session);
-      if (chart) {
-        const base64 = chart.split(',')[1];
+      const toImageRun = (dataUrl: string | null, w = 600, h = 180): InstanceType<typeof ImageRun> | null => {
+        if (!dataUrl) return null;
+        const base64 = dataUrl.split(',')[1];
         const bin = atob(base64);
         const bytes = new Uint8Array(bin.length);
         for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        chartImageRun = new ImageRun({
-          data: bytes,
-          transformation: { width: 600, height: 180 },
-          type: 'png',
+        return new ImageRun({
+          data: bytes, transformation: { width: w, height: h }, type: 'png',
         });
-      }
+      };
+
+      const chartImageRun = toImageRun(buildPowerChartPng(session));
+      const fig7ImageRun = session.mqt === 'MQT11' || /MQT\s*11/i.test(standard)
+        ? toImageRun(buildFig7Png(session), 620, 220)
+        : null;
 
       const doc = new Document({
         sections: [{
@@ -290,6 +450,14 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
             ...(chartImageRun ? [
               new Paragraph({ text: 'Power Trend', heading: HeadingLevel.HEADING_2 }),
               new Paragraph({ children: [chartImageRun] }),
+            ] : []),
+            ...(fig7ImageRun ? [
+              new Paragraph({ text: 'IEC 61215-2 MQT 11 — Figure 7', heading: HeadingLevel.HEADING_2 }),
+              new Paragraph({ children: [new TextRun({
+                text: 'Clause 4.11 — Temperature + continuity current vs time',
+                italics: true, color: '666666',
+              })] }),
+              new Paragraph({ children: [fig7ImageRun] }),
             ] : []),
             ...(notes ? [
               new Paragraph(''),
@@ -347,6 +515,58 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
           </div>
         </div>
       </div>
+
+      {session?.mqt === 'MQT11' && session.cycleLog && session.cycleLog.length > 0 && (
+        <div
+          data-testid="mqt11-cycle-log"
+          className="bg-gray-900 rounded-lg border border-gray-700 p-4 overflow-x-auto"
+        >
+          <h3 className="text-sm font-bold text-orange-400 mb-2">
+            IEC 61215-2 MQT 11 — Cycle Log (Clause 4.11)
+          </h3>
+          <p className="text-xs text-gray-400 mb-3">
+            Pass criteria: IEC 61215-1 Gate 2 — ΔPmax ≥ −5 %. Raw CSV:&nbsp;
+            <span className="font-mono text-gray-300">
+              {rawPath || session.rawDataPath || '—'}
+            </span>
+          </p>
+          <table className="text-[11px] w-full text-gray-200">
+            <thead>
+              <tr className="text-orange-300">
+                <th className="text-left">Cycle</th>
+                <th className="text-right">T_hot °C</th>
+                <th className="text-right">T_cold °C</th>
+                <th className="text-right">Ramp ↑ °C/h</th>
+                <th className="text-right">Ramp ↓ °C/h</th>
+                <th className="text-right">Hot dwell s</th>
+                <th className="text-right">Cold dwell s</th>
+                <th className="text-right">I disc</th>
+                <th className="text-right">V disc</th>
+              </tr>
+            </thead>
+            <tbody>
+              {session.cycleLog.slice(0, 10).map(r => (
+                <tr key={r.cycle} className="border-t border-gray-800">
+                  <td className="font-mono">{r.cycle}</td>
+                  <td className="text-right font-mono">{r.t_hot_peak_c.toFixed(2)}</td>
+                  <td className="text-right font-mono">{r.t_cold_peak_c.toFixed(2)}</td>
+                  <td className="text-right font-mono">{r.avg_ramp_up_c_per_h.toFixed(1)}</td>
+                  <td className="text-right font-mono">{r.avg_ramp_down_c_per_h.toFixed(1)}</td>
+                  <td className="text-right font-mono">{r.hot_dwell_s.toFixed(0)}</td>
+                  <td className="text-right font-mono">{r.cold_dwell_s.toFixed(0)}</td>
+                  <td className="text-right font-mono">{r.current_discontinuities}</td>
+                  <td className="text-right font-mono">{r.voltage_discontinuities}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {session.cycleLog.length > 10 && (
+            <p className="text-[11px] text-gray-500 mt-2">
+              … {session.cycleLog.length - 10} more rows in exported report.
+            </p>
+          )}
+        </div>
+      )}
 
       {stats && (
         <div className="bg-gray-900 rounded-lg border border-gray-700 p-4">

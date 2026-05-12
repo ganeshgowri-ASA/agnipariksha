@@ -236,6 +236,36 @@ class DemoSimulator:
         if t is None:
             t = time.monotonic() - self._t0
         v_nom, i_nom, t_lo, t_hi, period = self.PROFILES.get(mqt.upper(), self.PROFILES["MQT11"])
+
+        # MQT11 — IEC 61215-2 Figure 7 trapezoid profile with technology-aware
+        # continuity-current injection: Imp during heat-up to 80 °C, 1 % bias
+        # on the cool-down and cold dwell.
+        if mqt.upper() == "MQT11":
+            phase = (t % period) / period
+            if phase < 0.40:
+                temp = t_lo + (t_hi - t_lo) * (phase / 0.40)
+            elif phase < 0.50:
+                temp = t_hi
+            elif phase < 0.90:
+                temp = t_hi - (t_hi - t_lo) * ((phase - 0.50) / 0.40)
+            else:
+                temp = t_lo
+            temp += random.gauss(0, 0.20)
+            v = v_nom + (25.0 - temp) * 0.003 * v_nom / 48.0 + random.gauss(0, 0.05)
+            if phase < 0.50 and temp < 80.0 or 0.40 <= phase < 0.50:
+                i = i_nom + random.gauss(0, 0.02)
+            else:
+                i = 0.01 * i_nom + random.gauss(0, 0.002)
+            return Reading(
+                timestamp=int(time.time() * 1000),
+                voltage=round(v, 4),
+                current=round(i, 4),
+                power=round(v * i, 4),
+                temperature=round(temp, 2),
+                test_id=test_id,
+                mqt=mqt,
+            )
+
         phase = (t % period) / period  # 0..1
         # Triangular temperature ramp between t_lo and t_hi
         if phase < 0.5:
