@@ -1,0 +1,14 @@
+id: dmm_keysight
+name: Keysight 34465A DMM
+role: dmm
+vendor: Keysight
+model: 34465A
+description: Bench DMM used for ground continuity and reverse current overload.
+transport:
+  kind: scpi_usbtmc
+  resource: USB0::0x2A8D::0x0101::INSTR
+  timeout_s: 2.0
+demo: true
+standards:
+  - IEC 61730 MST13
+  - IEC 61730 MST26

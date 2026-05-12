@@ -1,0 +1,16 @@
+id: itech_pv6000
+name: ITECH PV6000
+role: dc_source
+vendor: ITECH
+model: PV6000
+description: Programmable solar array simulator for IEC 61215 / 61730 tests.
+transport:
+  kind: scpi_tcp
+  host: 192.168.200.100
+  port: 30000
+  timeout_s: 1.5
+demo: true
+standards:
+  - IEC 61215
+  - IEC 61730
+  - IEC TS 63342

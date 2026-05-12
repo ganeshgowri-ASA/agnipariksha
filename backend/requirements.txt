@@ -11,6 +11,9 @@ loguru>=0.7.2
 pyserial>=3.5
 pyvisa-py>=0.7.2
 
+# Device registry manifests
+PyYAML>=6.0
+
 # Report generation (server-side)
 python-docx>=1.1.2
 reportlab>=4.2.0
