@@ -5,13 +5,14 @@ import { Bell, BellOff, Loader2 } from 'lucide-react';
 
 type Status = 'unsupported' | 'denied' | 'idle' | 'pending' | 'subscribed';
 
-function urlBase64ToUint8Array(b64: string): Uint8Array {
+function urlBase64ToArrayBuffer(b64: string): ArrayBuffer {
   const padding = '='.repeat((4 - (b64.length % 4)) % 4);
   const base64 = (b64 + padding).replace(/-/g, '+').replace(/_/g, '/');
   const raw = atob(base64);
-  const out = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
-  return out;
+  const buf = new ArrayBuffer(raw.length);
+  const view = new Uint8Array(buf);
+  for (let i = 0; i < raw.length; i++) view[i] = raw.charCodeAt(i);
+  return buf;
 }
 
 async function getRegistration(): Promise<ServiceWorkerRegistration | null> {
@@ -65,7 +66,7 @@ export default function PushOptIn(): React.ReactElement | null {
       const existing = await reg.pushManager.getSubscription();
       const sub = existing || await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(key),
+        applicationServerKey: urlBase64ToArrayBuffer(key),
       });
 
       const subJson = sub.toJSON() as { endpoint?: string; keys?: { p256dh: string; auth: string } };
