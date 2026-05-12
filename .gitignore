@@ -71,3 +71,8 @@ backups/
 
 # Alembic compiled cache
 backend/alembic/versions/__pycache__/
+
+# playwright
+frontend/test-results/
+frontend/playwright-report/
+frontend/.playwright/
