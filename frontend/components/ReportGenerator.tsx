@@ -11,84 +11,51 @@ interface ReportGeneratorProps {
 
 const BRAND_LAB = 'Shreshtata Power Supplies — ASA PV Testing Laboratory';
 
-function buildPowerChartPng(session: TestSession, w = 720, h = 220): string | null {
-  if (typeof document === 'undefined' || session.readings.length === 0) return null;
-  const canvas = document.createElement('canvas');
-  canvas.width = w; canvas.height = h;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return null;
+const SECTIONS: ReadonlyArray<{ id: string; label: string }> = [
+  { id: 'header',           label: 'Header' },
+  { id: 'test_description', label: 'Test Description' },
+  { id: 'iec_clause',       label: 'IEC Clause' },
+  { id: 'parameters',       label: 'Parameters' },
+  { id: 'graphs',           label: 'Graphs' },
+  { id: 'tables',           label: 'Tables' },
+  { id: 'pass_fail',        label: 'Pass / Fail' },
+  { id: 'raw_data_path',    label: 'Raw Data Path' },
+  { id: 'error_log',        label: 'Error Log' },
+  { id: 'troubleshooting',  label: 'Troubleshooting' },
+  { id: 'signature',        label: 'Signature' },
+  { id: 'photos',           label: 'Photos' },
+];
 
-  const ps = session.readings.map(r => r.power);
-  const ts = session.readings.map(r => r.timestamp - session.startTime);
-  const pMin = Math.min(...ps);
-  const pMax = Math.max(...ps);
-  const tMin = Math.min(...ts);
-  const tMax = Math.max(...ts);
-  const padL = 48, padR = 12, padT = 16, padB = 28;
-  const plotW = w - padL - padR;
-  const plotH = h - padT - padB;
+const GRAPHS: ReadonlyArray<{ id: string; label: string }> = [
+  { id: 'voltage',      label: 'Voltage' },
+  { id: 'current',      label: 'Current' },
+  { id: 'power',        label: 'Power' },
+  { id: 'temperature',  label: 'Temperature' },
+  { id: 'rh',           label: 'RH' },
+  { id: 'tj',           label: 'Tj' },
+  { id: 'vf_vs_t',      label: 'Vf vs T' },
+];
 
-  // Background
-  ctx.fillStyle = '#0b1020'; ctx.fillRect(0, 0, w, h);
-  // Title
-  ctx.fillStyle = '#e5e7eb'; ctx.font = 'bold 12px Helvetica';
-  ctx.fillText('Power trend (W vs elapsed minutes)', padL, 12);
-  // Axes
-  ctx.strokeStyle = '#374151'; ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(padL, padT); ctx.lineTo(padL, padT + plotH); ctx.lineTo(padL + plotW, padT + plotH);
-  ctx.stroke();
+const TABLES: ReadonlyArray<{ id: string; label: string }> = [
+  { id: 'raw',       label: 'Raw' },
+  { id: 'decimated', label: 'Decimated' },
+  { id: 'summary',   label: 'Summary' },
+];
 
-  // Y ticks
-  ctx.fillStyle = '#9ca3af'; ctx.font = '10px Helvetica'; ctx.textAlign = 'right';
-  for (let i = 0; i <= 4; i++) {
-    const y = padT + plotH - (plotH * i) / 4;
-    const v = pMin + ((pMax - pMin) * i) / 4;
-    ctx.fillText(v.toFixed(2), padL - 4, y + 3);
-    ctx.strokeStyle = '#1f2937';
-    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y); ctx.stroke();
-  }
-  ctx.textAlign = 'left';
-
-  // Gate-2 floor
-  if (session.preMaxPower != null || ps.length > 0) {
-    const pre = session.preMaxPower ?? ps[0];
-    const floor = pre * (1 + GATE2_PMAX_DELTA_PERCENT / 100);
-    if (floor >= pMin && floor <= pMax) {
-      const y = padT + plotH - ((floor - pMin) / Math.max(1e-9, pMax - pMin)) * plotH;
-      ctx.strokeStyle = '#ef4444'; ctx.setLineDash([4, 4]);
-      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + plotW, y); ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = '#ef4444'; ctx.fillText('Gate-2 floor', padL + 4, y - 3);
-    }
-  }
-
-  // Power line
-  ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 1.5; ctx.beginPath();
-  for (let i = 0; i < ps.length; i++) {
-    const x = padL + ((ts[i] - tMin) / Math.max(1, tMax - tMin)) * plotW;
-    const y = padT + plotH - ((ps[i] - pMin) / Math.max(1e-9, pMax - pMin)) * plotH;
-    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-  }
-  ctx.stroke();
-
-  // X-axis labels (minutes)
-  ctx.fillStyle = '#9ca3af'; ctx.textAlign = 'center';
-  const tMaxMin = (tMax - tMin) / 60_000;
-  ctx.fillText('0 min', padL, padT + plotH + 14);
-  ctx.fillText(`${tMaxMin.toFixed(1)} min`, padL + plotW, padT + plotH + 14);
-  ctx.textAlign = 'left';
-
-  return canvas.toDataURL('image/png');
-}
+const DEFAULT_API = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000').replace(/\/$/, '');
 
 export default function ReportGenerator({ session, testName, standard }: ReportGeneratorProps) {
-  const [loading, setLoading] = useState<'pdf' | 'word' | null>(null);
+  const [loading, setLoading] = useState<'pdf' | 'docx' | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [operatorName, setOperatorName] = useState('');
   const [labName, setLabName] = useState(BRAND_LAB);
   const [moduleId, setModuleId] = useState('');
   const [notes, setNotes] = useState('');
   const [rawPath, setRawPath] = useState('');
+
+  const [sections, setSections] = useState<Set<string>>(() => new Set(SECTIONS.map(s => s.id)));
+  const [graphs, setGraphs]     = useState<Set<string>>(() => new Set(GRAPHS.map(g => g.id)));
+  const [tables, setTables]     = useState<Set<string>>(() => new Set(TABLES.map(t => t.id)));
 
   const stats = useMemo(() => {
     if (!session || session.readings.length === 0) return null;
@@ -102,8 +69,6 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
       avgV: rs.reduce((a, r) => a + r.voltage, 0) / rs.length,
       avgI: rs.reduce((a, r) => a + r.current, 0) / rs.length,
       avgP: ps.reduce((a, b) => a + b, 0) / ps.length,
-      maxV: Math.max(...rs.map(r => r.voltage)),
-      minV: Math.min(...rs.map(r => r.voltage)),
       pre, post, delta,
       gatePass: delta >= GATE2_PMAX_DELTA_PERCENT,
       duration: session.endTime
@@ -116,210 +81,68 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
     ? 'IN PROGRESS'
     : session?.result ?? (stats.gatePass ? 'PASS' : 'FAIL');
 
-  const generatePDF = async () => {
+  function toggle(setFn: (s: Set<string>) => void, current: Set<string>, id: string) {
+    const next = new Set(current);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setFn(next);
+  }
+
+  async function generate(format: 'pdf' | 'docx') {
     if (!session) return;
-    setLoading('pdf');
+    setLoading(format);
+    setError(null);
     try {
-      const { default: jsPDF } = await import('jspdf');
-      const { default: autoTable } = await import('jspdf-autotable');
+      const body = {
+        run_id: session.id,
+        testName,
+        standard,
+        iec_clause: session.iecClause ?? standard,
+        operator: operatorName,
+        moduleId,
+        lab_name: labName,
+        notes,
+        raw_data_path: rawPath || session.rawDataPath || '',
+        result: verdict,
+        pre_max_power: stats?.pre ?? null,
+        post_max_power: stats?.post ?? null,
+        delta_pmax_percent: stats?.delta ?? null,
+        threshold_percent: GATE2_PMAX_DELTA_PERCENT,
+        sections: Array.from(sections),
+        graphs: Array.from(graphs),
+        tables: Array.from(tables),
+        format,
+        readings: session.readings.map(r => ({
+          timestamp: r.timestamp - session.startTime,
+          voltage: r.voltage,
+          current: r.current,
+          power: r.power,
+          temperature: r.temperature ?? null,
+        })),
+        qr_base_url: typeof window !== 'undefined' ? window.location.origin : '',
+      };
 
-      const doc = new jsPDF();
-      const pageW = doc.internal.pageSize.getWidth();
-
-      // Header band
-      doc.setFillColor(17, 24, 39); doc.rect(0, 0, pageW, 40, 'F');
-      doc.setTextColor(255, 165, 0);
-      doc.setFontSize(20); doc.setFont('helvetica', 'bold');
-      doc.text('AGNIPARIKSHA', 14, 16);
-      doc.setTextColor(200, 200, 200);
-      doc.setFontSize(10); doc.setFont('helvetica', 'normal');
-      doc.text('PV Module Reliability Test Report', 14, 24);
-      doc.text(labName, pageW - 14, 24, { align: 'right' });
-
-      // Test title
-      doc.setTextColor(0, 0, 0);
-      doc.setFontSize(14); doc.setFont('helvetica', 'bold');
-      doc.text(testName, 14, 52);
-      doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
-      doc.text(`Standard: ${standard}  ·  Clause: ${session.iecClause ?? standard}`, 14, 59);
-
-      autoTable(doc, {
-        startY: 65,
-        head: [['Parameter', 'Value']],
-        body: [
-          ['Test Type', testName],
-          ['Standard', standard],
-          ['IEC Clause', session.iecClause ?? standard],
-          ['Module ID', moduleId || 'N/A'],
-          ['Operator', operatorName || 'N/A'],
-          ['Date', new Date(session.startTime).toLocaleDateString()],
-          ['Start Time', new Date(session.startTime).toLocaleTimeString()],
-          ['Duration (min)', stats?.duration ?? 'N/A'],
-          ['Total Readings', stats?.count.toString() ?? '0'],
-          ['Raw data file', rawPath || session.rawDataPath || 'N/A'],
-        ],
-        styles: { fontSize: 9, cellPadding: 3 },
-        headStyles: { fillColor: [17, 24, 39], textColor: [255, 165, 0] },
-        alternateRowStyles: { fillColor: [245, 245, 245] },
+      const r = await fetch(`${DEFAULT_API}/api/reports/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       });
-
-      if (stats) {
-        const finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
-        autoTable(doc, {
-          startY: finalY,
-          head: [['Measurement', 'Min', 'Average', 'Max']],
-          body: [
-            ['Voltage (V)', stats.minV.toFixed(4), stats.avgV.toFixed(4), stats.maxV.toFixed(4)],
-            ['Current (A)', '—', stats.avgI.toFixed(4), '—'],
-            ['Power (W)',   '—', stats.avgP.toFixed(4), '—'],
-          ],
-          styles: { fontSize: 9, cellPadding: 3 },
-          headStyles: { fillColor: [17, 24, 39], textColor: [255, 165, 0] },
-        });
-
-        const gateY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
-        autoTable(doc, {
-          startY: gateY,
-          head: [['Gate Check', 'Pre Pmax', 'Post Pmax', 'ΔPmax %', 'Threshold', 'Verdict']],
-          body: [[
-            'IEC 61215-2 Gate 2',
-            stats.pre.toFixed(3),
-            stats.post.toFixed(3),
-            stats.delta.toFixed(2),
-            `${GATE2_PMAX_DELTA_PERCENT}%`,
-            stats.gatePass ? 'PASS' : 'FAIL',
-          ]],
-          styles: { fontSize: 9, cellPadding: 3 },
-          headStyles: { fillColor: [17, 24, 39], textColor: [255, 165, 0] },
-          bodyStyles: { textColor: stats.gatePass ? [21, 128, 61] : [185, 28, 28] },
-        });
-      }
-
-      // Embed power-trend chart
-      const chart = buildPowerChartPng(session);
-      if (chart) {
-        const chartY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
-        doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(0, 0, 0);
-        doc.text('Power Trend', 14, chartY);
-        doc.addImage(chart, 'PNG', 14, chartY + 4, pageW - 28, 60);
-      }
-
-      if (notes) {
-        const yState = doc as unknown as { lastAutoTable?: { finalY: number } };
-        const notesY = (yState.lastAutoTable?.finalY ?? 200) + 80;
-        doc.setFontSize(11); doc.setFont('helvetica', 'bold');
-        doc.text('Notes', 14, notesY);
-        doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-        doc.text(notes, 14, notesY + 7, { maxWidth: pageW - 28 });
-      }
-
-      // Footer + verdict band
-      const pageCount = doc.getNumberOfPages();
-      for (let i = 1; i <= pageCount; i++) {
-        doc.setPage(i);
-        doc.setFontSize(8); doc.setTextColor(150, 150, 150);
-        doc.text(
-          `Agnipariksha · ${labName} · Page ${i} of ${pageCount}`,
-          pageW / 2, doc.internal.pageSize.getHeight() - 8, { align: 'center' },
-        );
-      }
-
-      doc.save(`${testName.replace(/\s+/g, '_')}_Report_${Date.now()}.pdf`);
-    } catch (e) {
-      console.error(e);
-    }
-    setLoading(null);
-  };
-
-  const generateWord = async () => {
-    if (!session) return;
-    setLoading('word');
-    try {
-      const docx = await import('docx');
-      const {
-        Document, Paragraph, TextRun, Table, TableRow, TableCell,
-        HeadingLevel, Packer, WidthType, ImageRun,
-      } = docx;
-
-      const rows: Array<[string, string]> = [
-        ['Test Type', testName], ['Standard', standard],
-        ['IEC Clause', session.iecClause ?? standard],
-        ['Module ID', moduleId || 'N/A'],
-        ['Operator', operatorName || 'N/A'],
-        ['Date', new Date(session.startTime).toLocaleDateString()],
-        ['Duration (min)', stats?.duration ?? 'N/A'],
-        ['Total Readings', stats?.count.toString() ?? '0'],
-        ['Raw data file', rawPath || session.rawDataPath || 'N/A'],
-        ['Verdict', verdict],
-      ];
-
-      let chartImageRun: InstanceType<typeof ImageRun> | null = null;
-      const chart = buildPowerChartPng(session);
-      if (chart) {
-        const base64 = chart.split(',')[1];
-        const bin = atob(base64);
-        const bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        chartImageRun = new ImageRun({
-          data: bytes,
-          transformation: { width: 600, height: 180 },
-          type: 'png',
-        });
-      }
-
-      const doc = new Document({
-        sections: [{
-          children: [
-            new Paragraph({ text: 'AGNIPARIKSHA', heading: HeadingLevel.TITLE }),
-            new Paragraph({ text: 'PV Module Reliability Test Report', heading: HeadingLevel.HEADING_2 }),
-            new Paragraph({ children: [new TextRun({ text: labName, italics: true, color: '666666' })] }),
-            new Paragraph(''),
-            new Paragraph({ text: testName, heading: HeadingLevel.HEADING_1 }),
-            new Paragraph({ children: [new TextRun({ text: `Standard: ${standard}`, italics: true, color: '666666' })] }),
-            new Paragraph(''),
-            new Table({
-              width: { size: 100, type: WidthType.PERCENTAGE },
-              rows: rows.map(([k, v]) => new TableRow({
-                children: [
-                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: k, bold: true })] })] }),
-                  new TableCell({ children: [new Paragraph(v)] }),
-                ],
-              })),
-            }),
-            new Paragraph(''),
-            ...(chartImageRun ? [
-              new Paragraph({ text: 'Power Trend', heading: HeadingLevel.HEADING_2 }),
-              new Paragraph({ children: [chartImageRun] }),
-            ] : []),
-            ...(notes ? [
-              new Paragraph(''),
-              new Paragraph({ text: 'Notes', heading: HeadingLevel.HEADING_2 }),
-              new Paragraph(notes),
-            ] : []),
-            new Paragraph(''),
-            new Paragraph({ children: [new TextRun({
-              text: `Generated by Agnipariksha on ${new Date().toLocaleString()}`,
-              italics: true, color: '888888', size: 18,
-            })] }),
-          ],
-        }],
-      });
-
-      const blob = await Packer.toBlob(doc);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const blob = await r.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${testName.replace(/\s+/g, '_')}_Report_${Date.now()}.docx`;
+      a.download = `${testName.replace(/\s+/g, '_')}_${session.id}.${format}`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      console.error(e);
+      setError(e instanceof Error ? e.message : 'failed');
+    } finally {
+      setLoading(null);
     }
-    setLoading(null);
-  };
+  }
 
   return (
-    <div className="max-w-2xl space-y-4">
+    <div className="max-w-3xl space-y-4">
       <div className="bg-gray-900 rounded-lg border border-gray-700 p-4 space-y-3">
         <h3 className="text-sm font-bold text-gray-200">Report Configuration</h3>
         <div className="grid grid-cols-2 gap-3">
@@ -340,13 +163,37 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
           <div className="col-span-2">
             <label className="text-xs text-gray-400 block mb-1">Notes</label>
             <textarea
-              value={notes} onChange={e => setNotes(e.target.value)} rows={3}
+              value={notes} onChange={e => setNotes(e.target.value)} rows={2}
               placeholder="Observations, deviations..."
               className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-200 resize-none"
             />
           </div>
         </div>
       </div>
+
+      <CheckboxGroup
+        title="Sections"
+        items={SECTIONS}
+        selected={sections}
+        onToggle={(id) => toggle(setSections, sections, id)}
+        testId="rg-sections"
+      />
+      <CheckboxGroup
+        title="Graphs"
+        items={GRAPHS}
+        selected={graphs}
+        onToggle={(id) => toggle(setGraphs, graphs, id)}
+        disabled={!sections.has('graphs')}
+        testId="rg-graphs"
+      />
+      <CheckboxGroup
+        title="Tables"
+        items={TABLES}
+        selected={tables}
+        onToggle={(id) => toggle(setTables, tables, id)}
+        disabled={!sections.has('tables')}
+        testId="rg-tables"
+      />
 
       {stats && (
         <div className="bg-gray-900 rounded-lg border border-gray-700 p-4">
@@ -370,21 +217,64 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
         </div>
       )}
 
+      {error && (
+        <div className="text-xs text-red-400 bg-red-900/30 border border-red-700/50 rounded px-3 py-2">
+          Export failed: {error}
+        </div>
+      )}
+
       <div className="flex gap-3">
         <button
-          type="button" onClick={generatePDF}
+          type="button" onClick={() => generate('pdf')}
           disabled={loading !== null || !session}
+          data-testid="rg-export-pdf"
           className="flex-1 py-2 bg-red-700 hover:bg-red-600 disabled:opacity-50 text-white text-sm rounded font-medium transition-colors"
         >
           {loading === 'pdf' ? 'Generating…' : 'Export PDF'}
         </button>
         <button
-          type="button" onClick={generateWord}
+          type="button" onClick={() => generate('docx')}
           disabled={loading !== null || !session}
+          data-testid="rg-export-docx"
           className="flex-1 py-2 bg-blue-700 hover:bg-blue-600 disabled:opacity-50 text-white text-sm rounded font-medium transition-colors"
         >
-          {loading === 'word' ? 'Generating…' : 'Export Word'}
+          {loading === 'docx' ? 'Generating…' : 'Export Word'}
         </button>
+      </div>
+    </div>
+  );
+}
+
+function CheckboxGroup({
+  title, items, selected, onToggle, disabled, testId,
+}: {
+  title: string;
+  items: ReadonlyArray<{ id: string; label: string }>;
+  selected: Set<string>;
+  onToggle: (id: string) => void;
+  disabled?: boolean;
+  testId?: string;
+}) {
+  return (
+    <div
+      className={`bg-gray-900 rounded-lg border border-gray-700 p-3 ${disabled ? 'opacity-50' : ''}`}
+      data-testid={testId}
+    >
+      <h4 className="text-xs font-bold text-gray-300 mb-2">{title}</h4>
+      <div className="grid grid-cols-3 gap-1.5">
+        {items.map(it => (
+          <label key={it.id} className="flex items-center gap-2 text-xs text-gray-300">
+            <input
+              type="checkbox"
+              checked={selected.has(it.id)}
+              onChange={() => onToggle(it.id)}
+              disabled={disabled}
+              data-testid={`${testId}-${it.id}`}
+              className="accent-orange-500"
+            />
+            {it.label}
+          </label>
+        ))}
       </div>
     </div>
   );

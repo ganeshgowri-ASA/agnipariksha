@@ -20,8 +20,9 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 try:
@@ -32,9 +33,19 @@ try:
     # and we fall back to absolute lookup.
     from .config import get_settings
     from .scpi_async import ScpiClient, is_scpi_reachable, run_telemetry_loop
+    from .reports import (
+        ALL_GRAPHS, ALL_SECTIONS, ALL_TABLES,
+        GRAPH_LABELS, SECTION_LABELS, TABLE_LABELS,
+        ReportRequest, build_docx, build_pdf,
+    )
 except ImportError:  # pragma: no cover - script-mode fallback
     from config import get_settings  # type: ignore[no-redef]
     from scpi_async import ScpiClient, is_scpi_reachable, run_telemetry_loop  # type: ignore[no-redef]
+    from reports import (  # type: ignore[no-redef]
+        ALL_GRAPHS, ALL_SECTIONS, ALL_TABLES,
+        GRAPH_LABELS, SECTION_LABELS, TABLE_LABELS,
+        ReportRequest, build_docx, build_pdf,
+    )
 
 
 # --------------------------------------------------------------------------
@@ -271,6 +282,54 @@ async def test_control(test_id: str, body: ControlAction) -> dict:
     if body.action not in _ALLOWED_ACTIONS:
         return {"error": "invalid_action", "test_id": test_id, "accepted": False}
     return {"test_id": test_id, "action": body.action, "accepted": True, "demo": _settings.DEMO_MODE}
+
+
+# --------------------------------------------------------------------------
+# Report Engine v2 — selectable sections, PDF + DOCX
+# --------------------------------------------------------------------------
+@app.get("/api/reports/sections")
+async def report_sections() -> dict:
+    """Surface the section / graph / table registry to the front-end."""
+    return {
+        "sections": [{"id": s, "label": SECTION_LABELS[s]} for s in ALL_SECTIONS],
+        "graphs":   [{"id": g, "label": GRAPH_LABELS[g]}   for g in ALL_GRAPHS],
+        "tables":   [{"id": t, "label": TABLE_LABELS[t]}   for t in ALL_TABLES],
+    }
+
+
+_REPORT_MIME = {
+    "pdf":  "application/pdf",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
+
+
+@app.post("/api/reports/generate")
+async def generate_report(req: ReportRequest) -> Response:
+    """Generate a PDF or DOCX report with user-selected sections.
+
+    Request shape: {run_id, sections[], graphs[], tables[], format, ...metadata}.
+    Legacy fields (testId, testName, moduleId) are accepted via aliases so
+    older clients keep working unchanged.
+    """
+    fmt = (req.format or "pdf").lower()
+    if fmt not in _REPORT_MIME:
+        raise HTTPException(status_code=400, detail=f"unsupported format: {fmt}")
+
+    blob = await asyncio.get_event_loop().run_in_executor(
+        None,
+        build_pdf if fmt == "pdf" else build_docx,
+        req,
+    )
+    safe = "".join(c if c.isalnum() or c in "._-" else "_" for c in req.effective_run_id)
+    filename = f"agnipariksha-{safe or 'run'}.{fmt}"
+    return Response(
+        content=blob,
+        media_type=_REPORT_MIME[fmt],
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover
