@@ -7,7 +7,7 @@ export async function GET(): Promise<Response> {
   const ts = new Date().toISOString();
 
   try {
-    const upstream = await fetch(`${BACKEND_BASE}/health`, {
+    const upstream = await fetch(`${BACKEND_BASE}/api/health`, {
       cache: 'no-store',
       signal: AbortSignal.timeout(2000),
     });
