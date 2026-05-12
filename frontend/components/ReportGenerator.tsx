@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { GATE2_PMAX_DELTA_PERCENT, type TestSession } from '@/types/test-session';
+import AskAIButton from './AskAIButton';
 
 interface ReportGeneratorProps {
   session: TestSession | null;
@@ -350,7 +351,19 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
 
       {stats && (
         <div className="bg-gray-900 rounded-lg border border-gray-700 p-4">
-          <h3 className="text-sm font-bold text-gray-200 mb-3">Test Summary</h3>
+          <div className="flex items-baseline justify-between mb-3">
+            <h3 className="text-sm font-bold text-gray-200">Test Summary</h3>
+            <div className="flex flex-wrap gap-1">
+              <AskAIButton
+                prompt={`Draft an IEC-compliant narrative summary for this ${testName} run (${standard}). Include the active module's datasheet limits and call out which clause governs the verdict.`}
+                label="Draft narrative"
+              />
+              <AskAIButton
+                prompt={`Why did this run get the verdict ${verdict}? Walk through the Gate 2 check step by step.`}
+                label={verdict === 'FAIL' ? 'Why did this fail?' : 'Why this verdict?'}
+              />
+            </div>
+          </div>
           <div className="grid grid-cols-3 gap-3 text-center">
             <Stat label="Avg Voltage" value={stats.avgV.toFixed(3)} unit="V" color="text-blue-400" />
             <Stat label="Avg Current" value={stats.avgI.toFixed(3)} unit="A" color="text-green-400" />

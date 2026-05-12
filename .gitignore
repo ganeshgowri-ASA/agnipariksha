@@ -47,6 +47,15 @@ backend/venv/
 logs/
 *.pid
 
+# AI assistant SQLite store (created at runtime in repo-root/data/)
+/data/
+*.db
+*.db-journal
+
+# Playwright
+test-results/
+playwright-report/
+
 # env files (only .env.example is committed)
 .env
 .env.local

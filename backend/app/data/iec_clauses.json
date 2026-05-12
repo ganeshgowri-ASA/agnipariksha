@@ -1,0 +1,119 @@
+{
+  "MQT11": {
+    "clause_id": "MQT11",
+    "standard": "IEC 61215-2:2021",
+    "title": "Thermal Cycling Test (MQT 11)",
+    "test_type": "tc",
+    "summary": "Thermal cycling between -40 °C and +85 °C. 200 cycles for qualification, 50 for prequalification. Ramp rate <= 100 °C/h with dwell times >= 10 min at the extremes. Isc (or, optionally, the maximum power current) flows through the cells whenever the module temperature is above +25 °C.",
+    "pass_fail": "Module passes if: (a) no major visual defects per MQT 01; (b) post-test Pmax retained >= 95% of pre-stress Pmax (Gate 2, delta <= 5%); (c) wet leakage and dry insulation resistance still meet MQT 03 / MQT 15 limits; (d) no breaks in the bypass diode circuit during the test.",
+    "key_parameters": {
+      "temp_min_c": -40,
+      "temp_max_c": 85,
+      "cycles_qual": 200,
+      "cycles_prequal": 50,
+      "max_ramp_c_per_h": 100,
+      "min_dwell_min": 10,
+      "pmax_degradation_pct": 5.0
+    }
+  },
+  "MQT12": {
+    "clause_id": "MQT12",
+    "standard": "IEC 61215-2:2021",
+    "title": "Humidity Freeze Test (MQT 12)",
+    "test_type": "hf",
+    "summary": "10 cycles alternating between +85 °C / 85 %RH (>= 20 h) and -40 °C (>= 0.5 h), with controlled transitions. Tests moisture ingress robustness through freeze stress on absorbed water.",
+    "pass_fail": "Module passes if Pmax retention >= 95% (Gate 2), no major visual defects, and wet leakage / insulation resistance limits per MQT 15 / MQT 03 are met after recovery.",
+    "key_parameters": {
+      "hot_temp_c": 85,
+      "rh_pct": 85,
+      "cold_temp_c": -40,
+      "cycles": 10,
+      "hot_dwell_h": 20,
+      "pmax_degradation_pct": 5.0
+    }
+  },
+  "MQT13": {
+    "clause_id": "MQT13",
+    "standard": "IEC 61215-2:2021",
+    "title": "Damp Heat Test (MQT 13)",
+    "test_type": "dh",
+    "summary": "Continuous 1000 h soak at +85 °C / 85 %RH. Targets long-term moisture-driven degradation: encapsulant adhesion loss, corrosion, ionic drift.",
+    "pass_fail": "Pmax retention >= 95% after recovery (Gate 2). No major visual defects per MQT 01. Wet leakage current must still meet MQT 15 limit. Insulation resistance per MQT 03.",
+    "key_parameters": {
+      "temp_c": 85,
+      "rh_pct": 85,
+      "duration_h": 1000,
+      "pmax_degradation_pct": 5.0
+    }
+  },
+  "MQT18": {
+    "clause_id": "MQT18",
+    "standard": "IEC 61215-2:2021 + IEC 62979:2017",
+    "title": "Bypass Diode Thermal Test (MQT 18)",
+    "test_type": "bdt",
+    "summary": "Module heated to +75 °C; each bypass diode forced to conduct at 1.0 x Isc for 1 h, then at 1.25 x Isc for one further hour. Diode junction temperature Tj is calculated from the forward-voltage drop using the diode datasheet's Vf(Tj) characteristic (or the -2 mV/°C silicon slope when only Vf at one Tj is known): Tj = Tj_ref + (Vf_ref - Vf_measured) / |dVf/dTj|. Tj must be obtained while current is flowing.",
+    "pass_fail": "Diode passes if Tj at the end of the stress remains below the manufacturer's maximum-rated Tj (typically <= 128 °C for standard Si Schottky/PN diodes per IEC 62979). The diode must remain functional (forward voltage stable, no open/short) and the module must still meet the safety requirements of IEC 61730.",
+    "key_parameters": {
+      "ambient_c": 75,
+      "test_current_multiplier_isc": [1.0, 1.25],
+      "duration_per_step_h": 1,
+      "tj_max_default_c": 128,
+      "vf_temp_coefficient_mV_per_C": -2.0
+    }
+  },
+  "MQT21": {
+    "clause_id": "MQT21",
+    "standard": "IEC 61215-2:2021",
+    "title": "Light & elevated Temperature Induced Degradation pre-conditioning (MQT 21 — references IEC TS 63342)",
+    "test_type": "letid",
+    "summary": "Stabilises the module against LeTID using the dark-current-injection variant: inject Idark = Isc - Imp at 75 °C +/- 5 °C for >= 162 h. Measure Pmax at STC every 24 h (minimum every 54 h) to trace the degradation/recovery curve.",
+    "pass_fail": "Used as a pre-conditioning step rather than a hard pass/fail. Performance assessment per IEC TS 63342: total relative Pmax loss <= 2% from the pre-stress reference value, with the degradation curve having flattened (delta within 0.5%/24 h on the final measurement interval).",
+    "key_parameters": {
+      "temp_c": 75,
+      "duration_h": 162,
+      "inject_current_formula": "Idark = Isc - Imp",
+      "measure_interval_h": 24,
+      "pmax_loss_pct": 2.0
+    }
+  },
+  "TS63342": {
+    "clause_id": "TS63342",
+    "standard": "IEC TS 63342:2022",
+    "title": "LeTID Susceptibility Test for crystalline silicon modules",
+    "test_type": "letid",
+    "summary": "Standalone susceptibility procedure. Recommends dark current injection at Idark = Isc - Imp at module temperature 75 °C +/- 5 °C for at least 162 h, with intermediate STC IV sweeps. Reports the maximum observed Pmax loss (Gate value) and the time to peak degradation.",
+    "pass_fail": "Module is reported as compliant if maximum Pmax loss vs. pre-stress reference is <= 2% and the recovery branch is observed (Pmax stops decreasing within the test duration).",
+    "key_parameters": {
+      "temp_c": 75,
+      "duration_h": 162,
+      "pmax_loss_pct": 2.0
+    }
+  },
+  "MST13": {
+    "clause_id": "MST13",
+    "standard": "IEC 61730-2:2016",
+    "title": "Ground Continuity Test (MST 13)",
+    "test_type": "gct",
+    "summary": "Verifies the bonding path between every accessible conductive part and the module's grounding terminal. Force a current equal to 2.5 x the rated overcurrent protection (or 25 A, whichever is lower) for at least 2 minutes; measure the voltage drop across the path.",
+    "pass_fail": "PASS if the calculated resistance R = V/I is < 0.1 Ohm AND the measured voltage drop across the bond is <= 2.5 V at the test current.",
+    "key_parameters": {
+      "test_current_a": 25,
+      "duration_min": 2,
+      "max_resistance_ohm": 0.1,
+      "max_voltage_drop_v": 2.5
+    }
+  },
+  "MST26": {
+    "clause_id": "MST26",
+    "standard": "IEC 61730-2:2016",
+    "title": "Reverse Current Overload Test (MST 26)",
+    "test_type": "rco",
+    "summary": "Module subjected to a reverse current equal to 135% of the rated overcurrent protective-device current for 2 hours, with the module placed on cheesecloth/tissue to detect ignition.",
+    "pass_fail": "PASS if no flame, no sustained arcing, no rupture of the module, and the tissue is not charred or ignited. The module is not required to remain electrically functional afterwards.",
+    "key_parameters": {
+      "current_multiplier": 1.35,
+      "duration_h": 2,
+      "no_fire_required": true
+    }
+  }
+}

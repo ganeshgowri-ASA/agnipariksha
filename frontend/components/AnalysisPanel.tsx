@@ -5,6 +5,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts';
 import { GATE2_PMAX_DELTA_PERCENT, type TestSession } from '@/types/test-session';
+import AskAIButton from './AskAIButton';
 
 interface AnalysisPanelProps {
   session: TestSession | null;
@@ -101,10 +102,28 @@ export default function AnalysisPanel({ session, testName, standard }: AnalysisP
       </div>
 
       <div className="bg-gray-900 border border-gray-700 rounded-lg p-3">
-        <h3 className="text-xs font-semibold text-gray-300 mb-2">AI / MCP Summary</h3>
+        <div className="flex items-baseline justify-between mb-2">
+          <h3 className="text-xs font-semibold text-gray-300">AI summary</h3>
+          <div className="flex flex-wrap gap-1">
+            <AskAIButton
+              prompt={`Explain how ΔPmax was computed for the active ${testName} run and call out which IEC clause governs the threshold.`}
+              label="Explain ΔPmax"
+            />
+            <AskAIButton
+              prompt={`Why did this ${testName} run end with the verdict ${stats.pass == null ? 'INDETERMINATE' : stats.pass ? 'PASS' : 'FAIL'}? Reference the Gate-2 floor.`}
+              label="Why this verdict?"
+            />
+            {testName.toLowerCase().includes('diode') && (
+              <AskAIButton
+                prompt="Explain the Tj calculation for this bypass-diode run, including the Vf slope (-2 mV/°C) and the datasheet limit."
+                label="Explain Tj"
+              />
+            )}
+          </div>
+        </div>
         <p className="text-xs text-gray-300 font-mono leading-relaxed">{summaryLine}</p>
         <p className="text-[10px] text-gray-500 mt-1">
-          Auto-generated draft. Connect ANTHROPIC_API_KEY in .env.local for richer narrative analysis.
+          Auto-generated draft. Open the AI side panel for a tool-grounded, IEC-cited write-up.
         </p>
       </div>
     </div>
