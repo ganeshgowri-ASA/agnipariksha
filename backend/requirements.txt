@@ -24,6 +24,13 @@ sqlmodel>=0.0.16
 SQLAlchemy>=2.0.30
 alembic>=1.13.1
 
+# Auth + Web Push (V2-S7)
+PyJWT>=2.8.0
+pywebpush>=2.0.0
+
+# QR generation (used by labels router + reportlab fallbacks)
+qrcode[pil]>=7.4.2
+
 # Tests
 pytest>=8.0.0
 pytest-asyncio>=0.23.0

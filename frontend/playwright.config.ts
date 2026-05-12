@@ -1,14 +1,14 @@
 import { defineConfig, devices } from '@playwright/test';
 
-// Three e2e roots after PR #29 / #30 / #31 merge:
-//   tests/e2e/  — overview (PR #31)
+// e2e roots after PR #29 / #30 / #31 / #32 merge:
+//   tests/e2e/  — overview (PR #31), responsive audit (PR #32)
 //   e2e/        — tickets (PR #30), scheduler (PR #29)
 // Honour PW_BASE_URL, PLAYWRIGHT_BASE_URL, and E2E_BASE_URL conventions.
 export default defineConfig({
   testDir: '.',
-  testMatch: ['tests/e2e/**/*.spec.ts', 'e2e/**/*.spec.ts'],
-  // Bumped from 30s → 90s after PR #29: turbopack first-compile for
-  // /dashboard and /schedule on the CI runner regularly takes 15-30s.
+  testMatch: ['tests/e2e/**/*.spec.ts', 'tests/responsive/**/*.spec.ts', 'e2e/**/*.spec.ts'],
+  // Bumped from 30s → 90s: turbopack first-compile for /dashboard and
+  // /schedule on the CI runner regularly takes 15-30s.
   timeout: 90_000,
   fullyParallel: false,
   workers: 1,
@@ -28,6 +28,17 @@ export default defineConfig({
   },
   projects: [
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    // V2-S7 mobile / tablet responsive audit viewports.
+    {
+      name: 'phone-360x640',
+      testMatch: 'tests/responsive/**/*.spec.ts',
+      use: { ...devices['Pixel 5'], viewport: { width: 360, height: 640 } },
+    },
+    {
+      name: 'tablet-768x1024',
+      testMatch: 'tests/responsive/**/*.spec.ts',
+      use: { ...devices['iPad (gen 7)'], viewport: { width: 768, height: 1024 } },
+    },
   ],
   webServer:
     (process.env.PW_NO_SERVER ||
