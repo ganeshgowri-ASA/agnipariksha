@@ -57,3 +57,17 @@ frontend/.env
 artifacts/*.tar.gz
 artifacts/*.pdf
 artifacts/*.zip
+
+# V2-S2 — SQLite DB + backups are runtime data
+data/*
+!data/runs/
+data/runs/*
+!data/runs/.gitkeep
+backups/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Alembic compiled cache
+backend/alembic/versions/__pycache__/

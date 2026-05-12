@@ -39,6 +39,15 @@ class Settings(BaseSettings):
     # CORS — comma-separated list
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:1420"
 
+    # --- Persistence (V2-S2) ---
+    # SQLite default at <cwd>/data/agnipariksha.db. Postgres optional via
+    # DATABASE_URL=postgresql+psycopg://user:pw@host:5432/dbname.
+    DATABASE_URL: str = "sqlite:///./data/agnipariksha.db"
+    # Directory scanned by the startup backfill for historical CSV runs.
+    CSV_RUNS_DIR: str = "data/runs"
+    # Disable the startup backfill (e.g. during tests) by setting false.
+    DB_BACKFILL_ON_STARTUP: bool = True
+
     if _HAS_PSETTINGS:
         model_config = SettingsConfigDict(  # type: ignore[misc]
             env_file=".env",

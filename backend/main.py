@@ -34,11 +34,15 @@ try:
     from .scpi_async import ScpiClient, is_scpi_reachable, run_telemetry_loop
     from .app.devices_api import router as devices_router
     from .app.health import start_background_health, stop_background_health
+    from .db.backfill import backfill_csv_runs
+    from .db.session import init_db
 except ImportError:  # pragma: no cover - script-mode fallback
     from config import get_settings  # type: ignore[no-redef]
     from scpi_async import ScpiClient, is_scpi_reachable, run_telemetry_loop  # type: ignore[no-redef]
     from app.devices_api import router as devices_router  # type: ignore[no-redef]
     from app.health import start_background_health, stop_background_health  # type: ignore[no-redef]
+    from db.backfill import backfill_csv_runs  # type: ignore[no-redef]
+    from db.session import init_db  # type: ignore[no-redef]
 
 
 # --------------------------------------------------------------------------
@@ -76,8 +80,46 @@ _settings = get_settings()
 _started_at = time.time()
 
 
+async def _startup_backfill() -> None:
+    """Mirror existing CSV runs into the DB. Best-effort: failures do not
+    block the app since the CSV write path is the source of truth."""
+    s = _settings
+    try:
+        init_db(s.DATABASE_URL)
+    except Exception as exc:  # pragma: no cover - logged for ops
+        try:
+            from loguru import logger
+            logger.warning("db init failed: {}", exc)
+        except ImportError:
+            import logging
+            logging.getLogger(__name__).warning("db init failed: %s", exc)
+        return
+    if not s.DB_BACKFILL_ON_STARTUP:
+        return
+    try:
+        inserted = await asyncio.get_event_loop().run_in_executor(
+            None, backfill_csv_runs, s.CSV_RUNS_DIR
+        )
+        try:
+            from loguru import logger
+            logger.info("csv backfill: {} new test_run rows", inserted)
+        except ImportError:
+            import logging
+            logging.getLogger(__name__).info("csv backfill: %d new test_run rows", inserted)
+    except Exception as exc:  # pragma: no cover - logged for ops
+        try:
+            from loguru import logger
+            logger.warning("csv backfill failed: {}", exc)
+        except ImportError:
+            import logging
+            logging.getLogger(__name__).warning("csv backfill failed: %s", exc)
+
+
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
+    # DB backfill first (idempotent CSV → SQLite mirror), then start the
+    # background device-health probe; tear down health on shutdown.
+    await _startup_backfill()
     start_background_health()
     try:
         yield
