@@ -32,9 +32,27 @@ try:
     # and we fall back to absolute lookup.
     from .config import get_settings
     from .scpi_async import ScpiClient, is_scpi_reachable, run_telemetry_loop
+    from .app.tests.humidity_freeze import (
+        HFConfig,
+        HFResult,
+        HumidityFreezeRunner,
+        ProfileSample,
+        analyse_profile,
+        generate_figure9_profile,
+        grade,
+    )
 except ImportError:  # pragma: no cover - script-mode fallback
     from config import get_settings  # type: ignore[no-redef]
     from scpi_async import ScpiClient, is_scpi_reachable, run_telemetry_loop  # type: ignore[no-redef]
+    from app.tests.humidity_freeze import (  # type: ignore[no-redef]
+        HFConfig,
+        HFResult,
+        HumidityFreezeRunner,
+        ProfileSample,
+        analyse_profile,
+        generate_figure9_profile,
+        grade,
+    )
 
 
 # --------------------------------------------------------------------------
@@ -271,6 +289,88 @@ async def test_control(test_id: str, body: ControlAction) -> dict:
     if body.action not in _ALLOWED_ACTIONS:
         return {"error": "invalid_action", "test_id": test_id, "accepted": False}
     return {"test_id": test_id, "action": body.action, "accepted": True, "demo": _settings.DEMO_MODE}
+
+
+# --------------------------------------------------------------------------
+# IEC 61215-2 MQT 12 Humidity Freeze endpoints
+# --------------------------------------------------------------------------
+class HFRunRequest(BaseModel):
+    cycles: int = 10
+    t_hot_c: float = 85.0
+    t_cold_c: float = -40.0
+    rh_hot_percent: float = 85.0
+    hot_dwell_hours: float = 20.0
+    cold_dwell_minutes: float = 30.0
+    i_mp_stc_a: float = 9.0
+    v_oc_stc_v: float = 45.0
+    time_compression: float = 1.0
+
+
+def _hf_cfg(req: HFRunRequest) -> HFConfig:
+    return HFConfig(
+        cycles=req.cycles,
+        t_hot_c=req.t_hot_c,
+        t_cold_c=req.t_cold_c,
+        rh_hot_percent=req.rh_hot_percent,
+        hot_dwell_hours=req.hot_dwell_hours,
+        cold_dwell_minutes=req.cold_dwell_minutes,
+        i_mp_stc_a=req.i_mp_stc_a,
+        v_oc_stc_v=req.v_oc_stc_v,
+        time_compression=max(1.0, req.time_compression),
+    )
+
+
+@app.post("/api/tests/humidity-freeze/profile")
+async def hf_profile(req: HFRunRequest) -> dict:
+    """Return the Figure 9 envelope without running anything.
+
+    Used by the frontend chart and Playwright smoke to render the
+    expected temperature + RH trace.
+    """
+    cfg = _hf_cfg(req)
+    # Sample every minute of compressed time so the UI gets a smooth curve.
+    samples = generate_figure9_profile(cfg, sample_interval_s=60.0)
+    return {
+        "iec_clause": HumidityFreezeRunner.CLAUSE,
+        "cycles": cfg.cycles,
+        "bias_current_a": cfg.bias_current_a(),
+        "cycle_duration_s": cfg.cycle_duration_s(),
+        "profile": [
+            {"t_s": s.t_s, "cycle": s.cycle, "phase": s.phase,
+             "T": s.temperature_c, "RH": s.rh_percent, "I": s.bias_current_a}
+            for s in samples
+        ],
+    }
+
+
+@app.post("/api/tests/humidity-freeze/run")
+async def hf_run(req: HFRunRequest) -> dict:
+    """One-shot demo run -- spins the simulator, analyses, returns the verdict."""
+    cfg = _hf_cfg(req)
+    if cfg.time_compression < 60.0:
+        cfg.time_compression = 600.0  # keep API responsive
+    runner = HumidityFreezeRunner(scpi=None, cfg=cfg)
+    result = await runner.run()
+    return result.to_dict()
+
+
+@app.post("/api/tests/humidity-freeze/analyse")
+async def hf_analyse(payload: dict) -> dict:
+    """Stateless analysis: client supplies raw samples, we grade them."""
+    cfg = _hf_cfg(HFRunRequest(**payload.get("config", {})))
+    samples = [ProfileSample(**s) for s in payload.get("profile", [])]
+    violations, dwells, cycle_log = analyse_profile(samples, cfg)
+    res = HFResult(
+        session_id=payload.get("session_id", "external"),
+        started_at=time.time(),
+        config=cfg.__dict__,
+        profile=samples,
+        ramp_violations=violations,
+        dwell_checks=dwells,
+        cycle_log=cycle_log,
+    )
+    grade(res, cfg)
+    return res.to_dict()
 
 
 if __name__ == "__main__":  # pragma: no cover
