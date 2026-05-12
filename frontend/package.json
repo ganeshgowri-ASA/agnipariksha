@@ -1,6 +1,6 @@
 {
   "name": "agnipariksha-frontend",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "scripts": {
     "dev": "kill-port 3000 && next dev --turbopack -p 3000",
