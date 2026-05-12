@@ -16,6 +16,13 @@ python-docx>=1.1.2
 reportlab>=4.2.0
 matplotlib>=3.9.0
 
+# Auth + Web Push (VAPID)
+PyJWT>=2.8.0
+pywebpush>=2.0.0
+
+# QR generation (used by reportlab + label fallbacks)
+qrcode[pil]>=7.4.2
+
 # Tests
 pytest>=8.0.0
 pytest-asyncio>=0.23.0

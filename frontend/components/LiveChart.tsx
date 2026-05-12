@@ -38,7 +38,7 @@ export default function LiveChart({ readings, metric, color, label, referenceLin
   const domain = yDomain || [+(minVal - padding).toFixed(3), +(maxVal + padding).toFixed(3)];
 
   return (
-    <div className="bg-gray-900 rounded-lg border border-gray-700 p-3">
+    <div data-testid="live-chart" className="bg-gray-900 rounded-lg border border-gray-700 p-3">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium text-gray-300">{label}</span>
         <span className="text-xs font-mono" style={{ color }}>

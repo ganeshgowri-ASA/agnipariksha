@@ -226,4 +226,72 @@ agnipariksha/
 
 ---
 
+## 🛰️ Remote monitoring (V2-S7)
+
+The backend now exposes a fan-out `/ws/events` WebSocket plus REST publishers
+(`POST /api/events/alarm`, `POST /api/events/ticket`) so off-site dashboards,
+tablets and mobile phones can stay in sync with the test station. All
+`/api/*` and `/ws/*` endpoints honour a JWT bearer (HS256) when
+`AUTH_ENABLED=true`; HTTP clients pass `Authorization: Bearer …`, WebSocket
+clients pass `?token=…` on the connect URL.
+
+### Cloudflare Tunnel — zero-port-forwarding remote access
+
+```bash
+# 1. Install cloudflared (Linux/macOS)
+brew install cloudflared          # macOS
+# or:  curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
+#        -o /usr/local/bin/cloudflared && chmod +x /usr/local/bin/cloudflared
+
+# 2. Authenticate against your Cloudflare account and create a named tunnel
+cloudflared tunnel login
+cloudflared tunnel create agnipariksha
+
+# 3. Map a public hostname to the local services. The frontend already
+#    rewrites /modules/*/label and /api/* to the backend, so a single
+#    public ingress on :3000 is enough.
+cat > ~/.cloudflared/config.yml <<'EOF'
+tunnel: agnipariksha
+credentials-file: /root/.cloudflared/agnipariksha.json
+ingress:
+  - hostname: agnipariksha.example.com
+    service: http://localhost:3000
+  - service: http_status:404
+EOF
+
+# 4. Point DNS at the tunnel and start it
+cloudflared tunnel route dns agnipariksha agnipariksha.example.com
+cloudflared tunnel run agnipariksha
+```
+
+> ⚠️ When exposing the test station publicly, set `AUTH_ENABLED=true` and
+> issue JWTs from your SSO bridge. The `/api/auth/dev-token` endpoint is
+> for **local development only** and is a no-op when auth is disabled.
+
+### 📱 Barcode / QR scan + printable labels
+
+- `/scan` — camera scan via [html5-qrcode](https://github.com/mebjas/html5-qrcode)
+  plus a window-level USB-HID keyboard listener for hand scanners.
+- `GET /modules/<id>/label`, `/equipment/<id>/label`, `/spare-parts/<id>/label`
+  — server-rendered 3.5"×1.5" PDF labels (reportlab + QR) suitable for
+  Zebra / Brother label printers.
+
+Scanned IDs prefixed by `MOD-`, `EQP-`, or `SPR-` auto-route to the
+correct detail view.
+
+### 🔔 Web Push opt-in
+
+The bell control in the app header lets operators opt into Web Push
+notifications. Generate VAPID keys once, drop them into `.env`, and the
+backend will deliver alarms and ticket events to subscribed devices.
+
+### 📱 Mobile / tablet
+
+The dashboard collapses non-flagship test tabs into a "More" menu at
+phone widths, stacks live charts into a single column, and renders the
+AI assistant as a bottom sheet. Playwright covers 360×640 and 768×1024
+viewports — `npm run test:e2e` (after `npm run test:e2e:install`).
+
+---
+
 *Built with ❤️ for PV module reliability by Agni Labs*

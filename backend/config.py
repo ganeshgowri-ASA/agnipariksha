@@ -39,6 +39,19 @@ class Settings(BaseSettings):
     # CORS — comma-separated list
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:1420"
 
+    # Auth — JWT secret + algorithm; AUTH_ENABLED=false disables checks (dev / demo)
+    AUTH_ENABLED: bool = False
+    JWT_SECRET: str = "change-me-in-prod-please"
+    JWT_ALG: str = "HS256"
+    JWT_AUDIENCE: str = "agnipariksha"
+    JWT_LEEWAY_S: int = 30
+
+    # Web Push (VAPID). Keys are base64url-encoded (no padding) — generate via
+    # `py-vapid` or any standard VAPID generator. Leave SUBJECT as mailto:.
+    VAPID_PUBLIC_KEY: str = ""
+    VAPID_PRIVATE_KEY: str = ""
+    VAPID_SUBJECT: str = "mailto:ops@agnipariksha.local"
+
     if _HAS_PSETTINGS:
         model_config = SettingsConfigDict(  # type: ignore[misc]
             env_file=".env",

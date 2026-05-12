@@ -1,7 +1,9 @@
 'use client';
 
-import { Activity, Flame, Cpu, PowerOff, Wifi, WifiOff } from 'lucide-react';
+import Link from 'next/link';
+import { Activity, Flame, Cpu, PowerOff, ScanLine, Wifi, WifiOff } from 'lucide-react';
 import { NotificationsBell } from './notifications/NotificationsDrawer';
+import PushOptIn from './PushOptIn';
 import { useHealth } from '@/hooks/useHealth';
 
 interface AppHeaderProps {
@@ -33,7 +35,10 @@ export default function AppHeader({
     :                              'Checking…';
 
   return (
-    <header className="bg-gradient-to-r from-gray-950 via-gray-900 to-gray-950 border-b border-gray-800 px-6 py-3 flex items-center justify-between">
+    <header
+      data-testid="app-header"
+      className="bg-gradient-to-r from-gray-950 via-gray-900 to-gray-950 border-b border-gray-800 px-3 sm:px-6 py-2 sm:py-3 flex items-center justify-between gap-2 flex-wrap"
+    >
       {/* Brand lockup */}
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2.5">
@@ -97,6 +102,19 @@ export default function AppHeader({
           <Activity className="w-3 h-3" />
           {healthLabel}
         </span>
+
+        <Link
+          href="/scan"
+          aria-label="Open barcode / QR scan page"
+          title="Scan a module / equipment / spare-part code"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-medium border border-gray-700/60 bg-gray-900/40 text-gray-300 hover:bg-gray-800"
+          data-testid="scan-link"
+        >
+          <ScanLine className="w-3 h-3" />
+          <span className="hidden sm:inline">Scan</span>
+        </Link>
+
+        <PushOptIn />
 
         <NotificationsBell />
 
