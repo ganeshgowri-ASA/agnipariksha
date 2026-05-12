@@ -82,9 +82,10 @@ stop_recorded_pid() {
 }
 
 wait_http_200() {
+  # -L follows redirects: / now goes 307 -> /overview, which is 200.
   local url="$1" tries="${2:-30}" code=""
   for _ in $(seq 1 "$tries"); do
-    code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 "$url" 2>/dev/null || echo 000)
+    code=$(curl -sL -o /dev/null -w '%{http_code}' --max-time 3 "$url" 2>/dev/null || echo 000)
     if [ "$code" = "200" ]; then echo "$code"; return 0; fi
     sleep 1
   done
