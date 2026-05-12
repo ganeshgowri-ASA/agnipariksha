@@ -41,9 +41,10 @@ echo "[smoke] starting frontend on :$FRONT_PORT  log=$FRONT_LOG"
 FRONT_PID=$(cat /tmp/.smoke.fpid)
 
 wait_200() {
+  # -L follows redirects so / -> /overview (307) still resolves to a 200.
   local url="$1" tries="${2:-60}" code=""
   for _ in $(seq 1 "$tries"); do
-    code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 "$url" 2>/dev/null || echo 000)
+    code=$(curl -sL -o /dev/null -w '%{http_code}' --max-time 3 "$url" 2>/dev/null || echo 000)
     [ "$code" = "200" ] && return 0
     sleep 1
   done
