@@ -21,7 +21,10 @@ from typing import Optional
 
 from fastapi import Depends, HTTPException, Request, WebSocket, status
 
-from .config import get_settings
+try:
+    from .config import get_settings
+except ImportError:  # pragma: no cover - script-mode fallback
+    from config import get_settings  # type: ignore[no-redef]
 
 
 def _load_jwt():

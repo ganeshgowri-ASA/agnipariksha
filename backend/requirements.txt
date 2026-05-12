@@ -24,9 +24,13 @@ sqlmodel>=0.0.16
 SQLAlchemy>=2.0.30
 alembic>=1.13.1
 
-# Auth + Web Push (V2-S7)
+# Auth (V2-S7)
 PyJWT>=2.8.0
-pywebpush>=2.0.0
+
+# Web Push (VAPID) is optional — install separately for production:
+#   pip install 'pywebpush>=2.0.0'
+# Kept out of the base requirements because its native deps (http-ece /
+# cryptography) lack wheels on some hosts and break `pip install -r`.
 
 # QR generation (used by labels router + reportlab fallbacks)
 qrcode[pil]>=7.4.2

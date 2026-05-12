@@ -14,7 +14,10 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Response
 from fastapi.responses import StreamingResponse
 
-from .auth import require_user
+try:
+    from .auth import require_user
+except ImportError:  # pragma: no cover - script-mode (uvicorn main:app from backend/)
+    from auth import require_user  # type: ignore[no-redef]
 
 LabelKind = Literal["module", "equipment", "sparepart"]
 

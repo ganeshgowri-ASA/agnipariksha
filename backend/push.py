@@ -22,8 +22,12 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from .auth import require_user
-from .config import get_settings
+try:
+    from .auth import require_user
+    from .config import get_settings
+except ImportError:  # pragma: no cover - script-mode fallback
+    from auth import require_user  # type: ignore[no-redef]
+    from config import get_settings  # type: ignore[no-redef]
 
 router = APIRouter(prefix="/api/push", tags=["push"])
 
