@@ -140,7 +140,7 @@ class Device:
     def get_transport(self) -> Any:
         """Build (and cache) the concrete transport for this device."""
         if self._transport_obj is None:
-            from backend.app.transports import build_transport
+            from ..transports import build_transport
 
             self._transport_obj = build_transport(
                 self.transport_kind,

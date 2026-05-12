@@ -11,8 +11,8 @@ import logging
 import time
 from typing import Any, Optional
 
-from backend.app.devices import get_registry
-from backend.app.devices.registry import Device
+from .devices import get_registry
+from .devices.registry import Device
 
 HEALTH_INTERVAL_S = 10.0
 
@@ -26,7 +26,12 @@ async def _persist_health(device: Device) -> None:
     health loop keeps running even on dev boxes without Postgres.
     """
     try:
-        from backend import database  # local import — DB may be unconfigured
+        # Package mode: backend.database. Script mode (uvicorn run from
+        # inside backend/): top-level database. Try both.
+        try:
+            from backend import database  # type: ignore
+        except ImportError:
+            import database  # type: ignore[no-redef]
     except ImportError:
         return
     pool = getattr(database, "pool", None)

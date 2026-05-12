@@ -14,8 +14,8 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from backend.app.devices import get_registry
-from backend.app.transports import get_audit_log
+from .devices import get_registry
+from .transports import get_audit_log
 
 
 router = APIRouter(prefix="/api/devices", tags=["devices"])
