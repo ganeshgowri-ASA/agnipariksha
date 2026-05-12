@@ -1,8 +1,11 @@
-"""Compatibility package: ``backend.app`` re-exports the FastAPI app.
+"""``backend.app`` package — DB, models, AI agent and routers.
 
-Lets callers use ``python -m uvicorn backend.app.main:app`` in addition
-to the canonical ``backend.main:app`` invocation.
+Historically this package re-exported the FastAPI ``app`` from
+``backend.main`` so callers could write ``backend.app.main:app``. That
+form is preserved through ``backend.app.main`` (which performs the
+import lazily); importing this package no longer does so, which would
+introduce a circular import now that ``backend.main`` includes the
+routers defined here.
 """
-from backend.main import app  # noqa: F401
 
-__all__ = ["app"]
+__all__: list[str] = []

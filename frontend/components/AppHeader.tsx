@@ -2,6 +2,7 @@
 
 import { Activity, Flame, Cpu, PowerOff, Wifi, WifiOff } from 'lucide-react';
 import { NotificationsBell } from './notifications/NotificationsDrawer';
+import ModuleSelector from './ModuleSelector';
 import { useHealth } from '@/hooks/useHealth';
 
 interface AppHeaderProps {
@@ -62,6 +63,8 @@ export default function AppHeader({
           {isLive ? <Wifi className="w-3 h-3" /> : isOffline ? <WifiOff className="w-3 h-3" /> : <Cpu className="w-3 h-3" />}
           <span className="font-mono">PV6000 · {itechHost}</span>
         </div>
+
+        <ModuleSelector />
       </div>
 
       {/* Right cluster */}

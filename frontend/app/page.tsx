@@ -15,6 +15,7 @@ import StatusBar from '@/components/StatusBar';
 import AppHeader from '@/components/AppHeader';
 import { NotificationsProvider } from '@/components/notifications/NotificationsStore';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { useModuleStore } from '@/hooks/useModuleStore';
 import { TABS, type TestKey, type TestSession } from '@/types/test-session';
 
 function Dashboard() {
@@ -23,20 +24,30 @@ function Dashboard() {
     tc: null, hf: null, letid: null, bdt: null, rco: null, gct: null, dh: null,
   });
   const [demoMode, setDemoMode] = useState(true);
+  const [aiCollapsed, setAiCollapsed] = useState(false);
   const { readings, wsStatus, sendCommand } = useWebSocket(demoMode);
+  const setActiveRun = useModuleStore((s) => s.setActiveRun);
 
   // Honour ?tab=<key> from deep-link redirects (e.g. /tests/damp-heat).
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const t = new URLSearchParams(window.location.search).get('tab');
     if (!t) return;
-    const valid = new Set([...TABS.map(x => x.key), 'results', 'ai']);
+    const valid = new Set([...TABS.map(x => x.key), 'results']);
     if (valid.has(t as TestKey)) setActiveTab(t);
   }, []);
 
   const handleSessionUpdate = useCallback((tabKey: TestKey, session: TestSession | null) => {
     setSessions(prev => ({ ...prev, [tabKey]: session }));
   }, []);
+
+  // Pin the active run id (preferring the run on the active tab) so the AI
+  // assistant grounds its tools against the same artefact the operator is
+  // currently looking at.
+  useEffect(() => {
+    const current = sessions[activeTab as TestKey];
+    setActiveRun(current?.id ?? null);
+  }, [activeTab, sessions, setActiveRun]);
 
   const statusCounts = {
     running: Object.values(sessions).filter(s => s?.status === 'running').length,
@@ -55,7 +66,7 @@ function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col">
+    <div className="h-screen bg-gray-950 text-gray-100 flex flex-col overflow-hidden">
       <AppHeader
         wsStatus={wsStatus}
         demoMode={demoMode}
@@ -63,54 +74,54 @@ function Dashboard() {
         statusCounts={statusCounts}
       />
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-        <TabsList className="bg-gray-900 border-b border-gray-700 rounded-none px-3 h-11 gap-1 justify-start overflow-x-auto">
-          {TABS.map(tab => {
-            const session = sessions[tab.key];
-            const dot =
-              session?.status === 'running' ? '●' :
-              session?.status === 'pass'    ? '✓' :
-              session?.status === 'fail'    ? '✗' : '';
-            return (
-              <TabsTrigger
-                key={tab.key} value={tab.key}
-                className="data-[state=active]:bg-gray-800 data-[state=active]:text-white text-gray-400 px-3 py-1 rounded text-xs font-medium transition-all whitespace-nowrap"
-                title={tab.std}
-              >
-                <span className={tab.color}>{tab.short}</span>
-                <span className="ml-1 hidden sm:inline text-gray-300">{tab.label}</span>
-                {dot && <span className="ml-1 text-gray-300">{dot}</span>}
-              </TabsTrigger>
-            );
-          })}
-          <TabsTrigger
-            value="results"
-            className="data-[state=active]:bg-gray-800 text-gray-400 px-3 py-1 rounded text-xs ml-auto whitespace-nowrap"
-          >
-            Results
-          </TabsTrigger>
-          <TabsTrigger
-            value="ai"
-            className="data-[state=active]:bg-gray-800 text-gray-400 px-3 py-1 rounded text-xs whitespace-nowrap"
-          >
-            AI
-          </TabsTrigger>
-        </TabsList>
+      <div className="flex-1 flex min-h-0">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-w-0">
+          <TabsList className="bg-gray-900 border-b border-gray-700 rounded-none px-3 h-11 gap-1 justify-start overflow-x-auto">
+            {TABS.map(tab => {
+              const session = sessions[tab.key];
+              const dot =
+                session?.status === 'running' ? '●' :
+                session?.status === 'pass'    ? '✓' :
+                session?.status === 'fail'    ? '✗' : '';
+              return (
+                <TabsTrigger
+                  key={tab.key} value={tab.key}
+                  className="data-[state=active]:bg-gray-800 data-[state=active]:text-white text-gray-400 px-3 py-1 rounded text-xs font-medium transition-all whitespace-nowrap"
+                  title={tab.std}
+                >
+                  <span className={tab.color}>{tab.short}</span>
+                  <span className="ml-1 hidden sm:inline text-gray-300">{tab.label}</span>
+                  {dot && <span className="ml-1 text-gray-300">{dot}</span>}
+                </TabsTrigger>
+              );
+            })}
+            <TabsTrigger
+              value="results"
+              className="data-[state=active]:bg-gray-800 text-gray-400 px-3 py-1 rounded text-xs ml-auto whitespace-nowrap"
+            >
+              Results
+            </TabsTrigger>
+          </TabsList>
 
-        <div className="flex-1 overflow-auto">
-          {TABS.map(tab => (
-            <TabsContent key={tab.key} value={tab.key} className="mt-0 h-full">
-              {tabRender[tab.key]}
+          <div className="flex-1 overflow-auto">
+            {TABS.map(tab => (
+              <TabsContent key={tab.key} value={tab.key} className="mt-0 h-full">
+                {tabRender[tab.key]}
+              </TabsContent>
+            ))}
+            <TabsContent value="results" className="mt-0 h-full">
+              <ResultsDashboard sessions={sessions} />
             </TabsContent>
-          ))}
-          <TabsContent value="results" className="mt-0 h-full">
-            <ResultsDashboard sessions={sessions} />
-          </TabsContent>
-          <TabsContent value="ai" className="mt-0 h-full">
-            <AIAssistant sessions={sessions} readings={readings} />
-          </TabsContent>
-        </div>
-      </Tabs>
+          </div>
+        </Tabs>
+
+        <AIAssistant
+          tabContext={activeTab}
+          readings={readings}
+          collapsed={aiCollapsed}
+          onCollapseChange={setAiCollapsed}
+        />
+      </div>
 
       <StatusBar wsStatus={wsStatus} demoMode={demoMode} sessions={sessions} />
     </div>

@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
 import type { TestSession, LiveReading } from '@/types/test-session';
+import { useBackendRun } from '@/hooks/useBackendRun';
 
 interface Props {
   readings: LiveReading[];
@@ -18,6 +19,21 @@ export default function BypassDiodeTab({ readings, session, onSessionUpdate, sen
   const [ambientTemp, setAmbientTemp] = useState(75); // IEC 62979 test temp
   const [duration, setDuration] = useState(1); // hours per diode
   const [currentDiode, setCurrentDiode] = useState(1);
+
+  useBackendRun({
+    session,
+    readings,
+    testType: 'bdt',
+    iecClause: 'MQT18',
+    params: {
+      isc,
+      num_diodes: numDiodes,
+      ambient_c: ambientTemp,
+      duration_h: duration,
+      vf_slope_mV_per_C: -2.0,
+      tj_max_c: 128.0,
+    },
+  });
 
   const onStart = useCallback(() => {
     const newSession: TestSession = {

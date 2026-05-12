@@ -32,9 +32,17 @@ try:
     # and we fall back to absolute lookup.
     from .config import get_settings
     from .scpi_async import ScpiClient, is_scpi_reachable, run_telemetry_loop
+    from .app.db import get_engine
+    from .app.routers import modules as modules_router
+    from .app.routers import runs as runs_router
+    from .app.routers import ai as ai_router
 except ImportError:  # pragma: no cover - script-mode fallback
     from config import get_settings  # type: ignore[no-redef]
     from scpi_async import ScpiClient, is_scpi_reachable, run_telemetry_loop  # type: ignore[no-redef]
+    from app.db import get_engine  # type: ignore[no-redef]
+    from app.routers import modules as modules_router  # type: ignore[no-redef]
+    from app.routers import runs as runs_router  # type: ignore[no-redef]
+    from app.routers import ai as ai_router  # type: ignore[no-redef]
 
 
 # --------------------------------------------------------------------------
@@ -74,6 +82,9 @@ _started_at = time.time()
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
+    # Eagerly initialise the SQLite store so tables exist before the first
+    # request hits a router that depends on the schema.
+    get_engine()
     yield
 
 
@@ -87,9 +98,13 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_settings.cors_origins_list,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+app.include_router(modules_router.router)
+app.include_router(runs_router.router)
+app.include_router(ai_router.router)
 
 
 # --------------------------------------------------------------------------
