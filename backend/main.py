@@ -20,9 +20,9 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 try:
     # When this module is loaded via ``backend.main`` (the canonical import
@@ -271,6 +271,103 @@ async def test_control(test_id: str, body: ControlAction) -> dict:
     if body.action not in _ALLOWED_ACTIONS:
         return {"error": "invalid_action", "test_id": test_id, "accepted": False}
     return {"test_id": test_id, "action": body.action, "accepted": True, "demo": _settings.DEMO_MODE}
+
+
+# --------------------------------------------------------------------------
+# Reverse Current Overload — IEC 61730-2 MST 26 (deep implementation)
+# --------------------------------------------------------------------------
+try:
+    from .app.tests.reverse_current import (  # type: ignore[import-not-found]
+        AbortReason,
+        ReverseCurrentOverloadTest,
+        ReverseCurrentParams,
+        build_demo,
+    )
+except ImportError:  # pragma: no cover - script-mode fallback
+    from app.tests.reverse_current import (  # type: ignore[no-redef]
+        AbortReason,
+        ReverseCurrentOverloadTest,
+        ReverseCurrentParams,
+        build_demo,
+    )
+
+
+class ReverseCurrentRunBody(BaseModel):
+    isc_stc_a: float = Field(..., gt=0, le=50)
+    duration_s: int = Field(7200, gt=0, le=24 * 3600)
+    sample_interval_s: float = Field(1.0, gt=0, le=60)
+    ambient_target_c: float = Field(30.0, ge=-20, le=80)
+    ambient_tolerance_c: float = Field(5.0, ge=0, le=20)
+    abort_temperature_c: float = Field(200.0, gt=30, le=400)
+    voltage_clamp_v: float = Field(30.0, gt=0, le=200)
+    hotspot_enabled: bool = False
+    hotspot_after_s: float = Field(600.0, ge=0)
+    force_arc_at_s: Optional[float] = Field(None, ge=0)
+    operator: str = "operator"
+    module_serial: str = ""
+    fast: bool = Field(
+        True,
+        description=(
+            "Demo-only: when true, advance the orchestrator's virtual "
+            "clock so the full duration completes in milliseconds. "
+            "Always true when DEMO_MODE is on."
+        ),
+    )
+
+
+@app.get("/api/tests/reverse-current/spec")
+async def rco_spec() -> dict:
+    """Static spec — handy for the frontend setup panel."""
+    return {
+        "standard": "IEC 61730-2 MST 26",
+        "fuse_multiplier": 1.35,
+        "default_duration_s": 7200,
+        "default_ambient_target_c": 30.0,
+        "default_ambient_tolerance_c": 5.0,
+        "abort_temperature_c": 200.0,
+        "post_test_stubs": ["MQT 01 (visual)", "MQT 15 (wet leakage)"],
+        "clauses": [
+            "IEC 61730-2 §10.13 MST 26 — Reverse current overload",
+            "IEC 61730-2 §10.1 MST 01 — Visual inspection (post-test)",
+            "IEC 61730-2 §10.4 MST 15 — Wet leakage (post-test)",
+        ],
+    }
+
+
+@app.post("/api/tests/reverse-current/run")
+async def rco_run(body: ReverseCurrentRunBody) -> dict:
+    """Run a complete RCO test (demo simulator only) and return results.
+
+    For now this endpoint always exercises the demo simulator: live
+    hardware orchestration is gated behind the operator interlock UI
+    and not auto-runnable from HTTP. The demo path is what the
+    frontend ``/tests/reverse-current-overload`` page and pytest both
+    rely on; it returns a deterministic shape that matches the live
+    path, so the report layer is identical.
+    """
+    if not _settings.DEMO_MODE:
+        raise HTTPException(
+            status_code=409,
+            detail="HTTP run path is demo-only; use the WS control plane on hardware.",
+        )
+    params = ReverseCurrentParams(
+        isc_stc_a=body.isc_stc_a,
+        duration_s=body.duration_s,
+        sample_interval_s=body.sample_interval_s,
+        ambient_target_c=body.ambient_target_c,
+        ambient_tolerance_c=body.ambient_tolerance_c,
+        abort_temperature_c=body.abort_temperature_c,
+        voltage_clamp_v=body.voltage_clamp_v,
+        hotspot_enabled=body.hotspot_enabled,
+        hotspot_after_s=body.hotspot_after_s,
+        operator=body.operator,
+        module_serial=body.module_serial,
+    )
+
+    out_dir = Path(_settings.LOG_DIR) / "reverse_current" / f"session-{int(time.time())}"
+    test = build_demo(params, force_arc_at_s=body.force_arc_at_s)
+    result = await test.run_to_completion(out_dir=out_dir)
+    return result.to_dict()
 
 
 if __name__ == "__main__":  # pragma: no cover
