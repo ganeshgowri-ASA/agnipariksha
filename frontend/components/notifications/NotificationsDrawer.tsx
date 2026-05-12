@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Bell, Copy, Trash2, X, AlertTriangle, AlertCircle, Info, CheckCircle2 } from 'lucide-react';
+import { Bell, Copy, Trash2, X, AlertTriangle, AlertCircle, Info, CheckCircle2, Ticket as TicketIcon } from 'lucide-react';
 import { useNotifications, type Notification, type NotificationSeverity } from './NotificationsStore';
+import RaiseTicketDialog from '@/components/tickets/RaiseTicketDialog';
 
 const SEVERITY_META: Record<NotificationSeverity, { label: string; cls: string; icon: typeof Info }> = {
   info:    { label: 'Info',    cls: 'text-blue-300 border-blue-700/40 bg-blue-900/20',    icon: Info },
@@ -27,8 +28,10 @@ function NotificationRow({ n, onRemove }: { n: Notification; onRemove: (id: stri
   const meta = SEVERITY_META[n.severity];
   const Icon = meta.icon;
   const payload = `[${formatTime(n.timestamp)}] [${n.severity.toUpperCase()}] [${n.source}] ${n.title} — ${n.message}`;
+  const [raiseOpen, setRaiseOpen] = useState(false);
+  const canRaise = n.severity === 'error' || n.severity === 'warning';
   return (
-    <li className={`border ${meta.cls} rounded px-3 py-2 text-xs font-mono`}>
+    <li className={`border ${meta.cls} rounded px-3 py-2 text-xs font-mono`} data-testid={`notif-${n.severity}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-start gap-2 min-w-0">
           <Icon className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden />
@@ -40,6 +43,16 @@ function NotificationRow({ n, onRemove }: { n: Notification; onRemove: (id: stri
             </div>
             <p className="font-semibold mt-0.5 break-words">{n.title}</p>
             <p className="opacity-90 break-words">{n.message}</p>
+            {canRaise && (
+              <button
+                type="button"
+                data-testid="raise-ticket-from-toast"
+                onClick={() => setRaiseOpen(true)}
+                className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded border border-orange-600/60 bg-orange-900/30 text-orange-200 hover:bg-orange-900/50 text-[10px] font-semibold"
+              >
+                <TicketIcon className="w-3 h-3" /> Raise ticket
+              </button>
+            )}
           </div>
         </div>
         <div className="flex gap-1 shrink-0">
@@ -57,6 +70,19 @@ function NotificationRow({ n, onRemove }: { n: Notification; onRemove: (id: stri
           </button>
         </div>
       </div>
+      <RaiseTicketDialog
+        open={raiseOpen}
+        onClose={() => setRaiseOpen(false)}
+        defaults={{
+          type: 'complaint',
+          title: n.title,
+          description: `${n.message}\n\n— source: ${n.source} @ ${formatTime(n.timestamp)}`,
+          priority: n.severity === 'error' ? 'high' : 'normal',
+          source: `error_toast:${n.source}`,
+          links: n.testId ? { test_run_id: n.testId } : {},
+          tags: [n.source, n.severity],
+        }}
+      />
     </li>
   );
 }

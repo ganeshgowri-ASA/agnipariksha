@@ -10,7 +10,9 @@
     "lint": "next lint",
     "tauri": "tauri dev",
     "tauri:build": "tauri build",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "e2e": "playwright test",
+    "e2e:install": "playwright install --with-deps chromium"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",

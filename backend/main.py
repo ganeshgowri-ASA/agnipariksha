@@ -36,6 +36,7 @@ try:
     from .app.health import start_background_health, stop_background_health
     from .db.backfill import backfill_csv_runs
     from .db.session import init_db
+    from .tickets import router as tickets_router
 except ImportError:  # pragma: no cover - script-mode fallback
     from config import get_settings  # type: ignore[no-redef]
     from scpi_async import ScpiClient, is_scpi_reachable, run_telemetry_loop  # type: ignore[no-redef]
@@ -43,6 +44,7 @@ except ImportError:  # pragma: no cover - script-mode fallback
     from app.health import start_background_health, stop_background_health  # type: ignore[no-redef]
     from db.backfill import backfill_csv_runs  # type: ignore[no-redef]
     from db.session import init_db  # type: ignore[no-redef]
+    from tickets import router as tickets_router  # type: ignore[no-redef]
 
 
 # --------------------------------------------------------------------------
@@ -138,9 +140,11 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_settings.cors_origins_list,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+app.include_router(tickets_router)
 
 
 # --------------------------------------------------------------------------
