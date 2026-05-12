@@ -9,7 +9,9 @@
     "start": "next start",
     "lint": "next lint",
     "tauri": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install --with-deps chromium"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
@@ -27,6 +29,7 @@
     "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.48.0",
     "@tauri-apps/cli": "^2.0.0",
     "@types/node": "^22",
     "@types/react": "^19",

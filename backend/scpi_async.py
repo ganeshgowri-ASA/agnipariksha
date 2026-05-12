@@ -217,19 +217,46 @@ class DemoSimulator:
     def __init__(self) -> None:
         self._t0 = time.monotonic()
         self._last_cmd: str = ""
+        self._set_v: float = 48.0
+        self._set_i: float = 9.5
+        self._temp_setpoint: float = 25.0
 
     def note_command(self, cmd: str) -> None:
         self._last_cmd = cmd
+        # Track last set-points so MEAS:VOLT?/MEAS:CURR? track reality.
+        s = cmd.upper()
+        for prefix in ("SOUR:VOLT:LEV:IMM", "SOUR:VOLT:LEV", "SOUR:VOLT"):
+            if s.startswith(prefix) and prefix not in ("SOUR:VOLT:PROT:LEV",):
+                try:
+                    self._set_v = float(cmd.split()[-1])
+                except (ValueError, IndexError):
+                    pass
+                return
+        for prefix in ("SOUR:CURR:LEV:IMM", "SOUR:CURR:LEV", "SOUR:CURR"):
+            if s.startswith(prefix) and "PROT" not in s:
+                try:
+                    self._set_i = float(cmd.split()[-1])
+                except (ValueError, IndexError):
+                    pass
+                return
+        if s.startswith("SOUR:TEMP"):
+            try:
+                self._temp_setpoint = float(cmd.split()[-1])
+            except (ValueError, IndexError):
+                pass
 
     def respond(self, cmd: str) -> str:
-        if "IDN" in cmd:
+        s = cmd.upper()
+        if "IDN" in s:
             return "ITECH,PV6000-DEMO,SIM,1.0"
-        if "VOLT?" in cmd:
-            return f"{48.0 + random.gauss(0, 0.05):.4f}"
-        if "CURR?" in cmd:
-            return f"{9.5 + random.gauss(0, 0.02):.4f}"
-        if "POW" in cmd:
-            return f"{48.0 * 9.5 + random.gauss(0, 0.5):.3f}"
+        if "TEMP" in s:
+            return f"{self._temp_setpoint + random.gauss(0, 0.3):.2f}"
+        if "VOLT?" in s:
+            return f"{self._set_v + random.gauss(0, 0.05):.4f}"
+        if "CURR?" in s:
+            return f"{self._set_i + random.gauss(0, 0.005):.4f}"
+        if "POW" in s:
+            return f"{self._set_v * self._set_i + random.gauss(0, 0.1):.3f}"
         return "OK"
 
     def next_reading(self, test_id: str = "", mqt: str = "", t: Optional[float] = None) -> Reading:

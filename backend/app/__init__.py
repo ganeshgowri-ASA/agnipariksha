@@ -1,8 +1,6 @@
-"""Compatibility package: ``backend.app`` re-exports the FastAPI app.
+"""Compatibility package for ``backend.app.main`` re-export.
 
-Lets callers use ``python -m uvicorn backend.app.main:app`` in addition
-to the canonical ``backend.main:app`` invocation.
+The original alias is provided by :mod:`backend.app.main` so importers
+that target the ``backend.app`` namespace continue to work without
+triggering circular imports during start-up.
 """
-from backend.main import app  # noqa: F401
-
-__all__ = ["app"]

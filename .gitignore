@@ -46,6 +46,10 @@ backend/venv/
 # runtime artifacts (deploy.sh)
 logs/
 *.pid
+data/
+test-results/
+playwright-report/
+__pycache__/
 
 # env files (only .env.example is committed)
 .env
