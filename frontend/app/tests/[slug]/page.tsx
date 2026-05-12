@@ -1,6 +1,6 @@
 import { notFound, redirect } from 'next/navigation';
 
-// Map URL-friendly test slugs to the tab keys used by app/page.tsx.
+// Map URL-friendly test slugs to the tab keys used by the legacy /dashboard.
 const SLUG_TO_TAB: Record<string, string> = {
   'thermal-cycling':   'tc',
   'humidity-freeze':   'hf',
@@ -24,5 +24,5 @@ export default async function TestRedirectPage({ params }: PageProps): Promise<n
   const { slug } = await params;
   const tab = SLUG_TO_TAB[slug];
   if (!tab) notFound();
-  redirect(`/?tab=${tab}`);
+  redirect(`/dashboard?tab=${tab}`);
 }
