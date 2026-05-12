@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
 
 test('raise a ticket from a forced error toast and see it on /tickets', async ({ page }) => {
-  await page.goto('/');
+  // / now redirects to /overview which has no AppHeader; the Force-error
+  // button lives on the tabbed dashboard, so navigate there directly.
+  await page.goto('/dashboard');
 
   // Force an error toast and open the notifications drawer.
   await page.getByTestId('force-error-btn').click();
