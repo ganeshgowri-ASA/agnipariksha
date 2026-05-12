@@ -1,0 +1,57 @@
+"""Centralised settings for the Agnipariksha backend.
+
+Loaded from environment variables (or .env in the backend dir).
+"""
+from __future__ import annotations
+
+from functools import lru_cache
+from typing import List
+
+try:
+    from pydantic_settings import BaseSettings, SettingsConfigDict
+    _HAS_PSETTINGS = True
+except ImportError:  # pragma: no cover - fallback for minimal envs
+    from pydantic import BaseModel as BaseSettings  # type: ignore[assignment]
+    SettingsConfigDict = dict  # type: ignore[assignment]
+    _HAS_PSETTINGS = False
+
+
+class Settings(BaseSettings):
+    """Runtime configuration.
+
+    Reads `.env` from the backend working directory by default.
+    """
+
+    APP_NAME: str = "Agnipariksha Backend"
+    APP_VERSION: str = "1.1.0"
+
+    # Hardware
+    ITECH_IP: str = "192.168.200.100"
+    ITECH_PORT: int = 30000
+    ITECH_TIMEOUT_MS: int = 500
+
+    DEMO_MODE: bool = True
+
+    # Logging
+    LOG_LEVEL: str = "INFO"
+    LOG_DIR: str = "logs"
+
+    # CORS — comma-separated list
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:1420"
+
+    if _HAS_PSETTINGS:
+        model_config = SettingsConfigDict(  # type: ignore[misc]
+            env_file=".env",
+            env_file_encoding="utf-8",
+            case_sensitive=True,
+            extra="ignore",
+        )
+
+    @property
+    def cors_origins_list(self) -> List[str]:
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    return Settings()

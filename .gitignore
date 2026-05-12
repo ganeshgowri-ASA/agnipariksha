@@ -46,3 +46,9 @@ backend/venv/
 # runtime artifacts (deploy.sh)
 logs/
 *.pid
+
+# env files (only .env.example is committed)
+.env
+.env.local
+backend/.env
+frontend/.env

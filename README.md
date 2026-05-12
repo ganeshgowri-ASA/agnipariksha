@@ -3,7 +3,27 @@
 
 > *Agnipariksha* — Sanskrit for "Trial by Fire" — the ultimate test of resilience.
 
-A full-stack web + desktop application for programming the **ITECH PV6000 DC Power Supply** to perform 6 IEC-standard PV module reliability tests.
+A full-stack web + desktop application for programming the **ITECH PV6000 DC Power Supply** to perform 7 IEC-standard PV module reliability tests.
+
+## 🧱 Architecture
+
+```mermaid
+flowchart LR
+  subgraph Browser
+    UI[Next.js 15 / React 19<br/>Turbopack dev]
+  end
+  subgraph LocalHost
+    FE[/Next.js API routes/]
+    BE[FastAPI :8000]
+    SCPI[Async SCPI client<br/>+ DemoSimulator]
+  end
+  Dev[ITECH PV6000<br/>192.168.200.100:30000]
+  UI -- HTTP/SSE --> FE
+  UI -- WebSocket /ws/telemetry --> BE
+  FE -- proxy /api/health --> BE
+  BE -- pytest-covered --> SCPI
+  SCPI -- TCP/SCPI<br/>(retry+lock) --> Dev
+```
 
 ---
 

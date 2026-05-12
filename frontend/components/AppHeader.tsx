@@ -1,7 +1,8 @@
 'use client';
 
-import { Flame, Cpu, PowerOff, Wifi, WifiOff } from 'lucide-react';
+import { Activity, Flame, Cpu, PowerOff, Wifi, WifiOff } from 'lucide-react';
 import { NotificationsBell } from './notifications/NotificationsDrawer';
+import { useHealth } from '@/hooks/useHealth';
 
 interface AppHeaderProps {
   wsStatus: 'connecting' | 'connected' | 'disconnected' | 'demo';
@@ -19,6 +20,17 @@ export default function AppHeader({
 }: AppHeaderProps) {
   const isLive = wsStatus === 'connected';
   const isOffline = wsStatus === 'disconnected';
+  const health = useHealth(5_000);
+  const healthCls =
+    health.status === 'ok'       ? 'border-green-700/60 bg-green-900/30 text-green-300'
+    : health.status === 'degraded' ? 'border-yellow-700/60 bg-yellow-900/30 text-yellow-200'
+    : health.status === 'down'   ? 'border-red-700/60 bg-red-900/30 text-red-300'
+    :                              'border-gray-700/60 bg-gray-900/40 text-gray-300';
+  const healthLabel =
+    health.status === 'ok'       ? 'System OK'
+    : health.status === 'degraded' ? 'Degraded'
+    : health.status === 'down'   ? 'Backend down'
+    :                              'Checking…';
 
   return (
     <header className="bg-gradient-to-r from-gray-950 via-gray-900 to-gray-950 border-b border-gray-800 px-6 py-3 flex items-center justify-between">
@@ -73,6 +85,18 @@ export default function AppHeader({
           {demoMode ? <PowerOff className="w-3.5 h-3.5" /> : <Wifi className="w-3.5 h-3.5" />}
           {demoMode ? 'DEMO' : 'LIVE'}
         </button>
+
+        <span
+          className={`hidden md:inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full border ${healthCls}`}
+          title={
+            health.status === 'unknown'
+              ? 'Polling /api/health…'
+              : `version ${health.version ?? '?'} · SCPI ${health.scpi_reachable ? 'reachable' : 'unreachable'} · uptime ${health.uptime_s ?? '?'}s`
+          }
+        >
+          <Activity className="w-3 h-3" />
+          {healthLabel}
+        </span>
 
         <NotificationsBell />
 
