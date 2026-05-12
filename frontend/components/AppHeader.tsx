@@ -1,8 +1,10 @@
 'use client';
 
-import { Activity, Flame, Cpu, PowerOff, Wifi, WifiOff } from 'lucide-react';
+import Link from 'next/link';
+import { Activity, Flame, Cpu, PowerOff, Wifi, WifiOff, Ticket as TicketIcon } from 'lucide-react';
 import { NotificationsBell } from './notifications/NotificationsDrawer';
 import { useHealth } from '@/hooks/useHealth';
+import { useNotifications } from './notifications/NotificationsStore';
 
 interface AppHeaderProps {
   wsStatus: 'connecting' | 'connected' | 'disconnected' | 'demo';
@@ -98,6 +100,17 @@ export default function AppHeader({
           {healthLabel}
         </span>
 
+        <Link
+          href="/tickets"
+          data-testid="nav-tickets"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold text-orange-200 border border-orange-700/60 bg-orange-900/30 hover:bg-orange-900/50"
+        >
+          <TicketIcon className="w-3.5 h-3.5" />
+          Tickets
+        </Link>
+
+        <ForceErrorButton />
+
         <NotificationsBell />
 
         <span
@@ -109,5 +122,28 @@ export default function AppHeader({
         />
       </div>
     </header>
+  );
+}
+
+
+function ForceErrorButton() {
+  const { push } = useNotifications();
+  return (
+    <button
+      type="button"
+      data-testid="force-error-btn"
+      title="Emit a forced error toast (dev/QA)"
+      onClick={() =>
+        push({
+          severity: "error",
+          source: "system",
+          title: "Forced error: SCPI command failed",
+          message: "SOUR:CURR returned -113 (Undefined header). Use this to raise a ticket.",
+        })
+      }
+      className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-semibold border border-red-700/60 bg-red-900/30 text-red-200 hover:bg-red-900/50"
+    >
+      Force error
+    </button>
   );
 }

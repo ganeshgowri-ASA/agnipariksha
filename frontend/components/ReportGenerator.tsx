@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { GATE2_PMAX_DELTA_PERCENT, type TestSession } from '@/types/test-session';
+import RaiseTicketButton from '@/components/tickets/RaiseTicketButton';
 
 interface ReportGeneratorProps {
   session: TestSession | null;
@@ -385,6 +386,26 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
         >
           {loading === 'word' ? 'Generating…' : 'Export Word'}
         </button>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 pt-2 border-t border-gray-800">
+        <p className="text-[11px] text-gray-500">
+          Spotted an issue with this run or the equipment?
+        </p>
+        <RaiseTicketButton
+          size="md"
+          label="Raise ticket"
+          defaults={{
+            type: 'complaint',
+            source: 'report_tab',
+            title: session ? `${testName}: report issue (${session.id})` : `${testName}: report issue`,
+            description: session
+              ? `Standard: ${standard}\nSession: ${session.id}\nStatus: ${session.status}\nReadings: ${session.readings.length}`
+              : `Standard: ${standard}`,
+            links: session ? { test_run_id: session.id } : undefined,
+            tags: [testName, standard],
+          }}
+        />
       </div>
     </div>
   );
