@@ -32,9 +32,21 @@ try:
     # and we fall back to absolute lookup.
     from .config import get_settings
     from .scpi_async import ScpiClient, is_scpi_reachable, run_telemetry_loop
+    from .app.tests.ground_continuity import (
+        GroundContinuityConfig,
+        GroundContinuityOrchestrator,
+        ProbePoint,
+    )
+    from .app.tests.ground_continuity_report import render_report as render_gc_report
 except ImportError:  # pragma: no cover - script-mode fallback
     from config import get_settings  # type: ignore[no-redef]
     from scpi_async import ScpiClient, is_scpi_reachable, run_telemetry_loop  # type: ignore[no-redef]
+    from app.tests.ground_continuity import (  # type: ignore[no-redef]
+        GroundContinuityConfig,
+        GroundContinuityOrchestrator,
+        ProbePoint,
+    )
+    from app.tests.ground_continuity_report import render_report as render_gc_report  # type: ignore[no-redef]
 
 
 # --------------------------------------------------------------------------
@@ -271,6 +283,91 @@ async def test_control(test_id: str, body: ControlAction) -> dict:
     if body.action not in _ALLOWED_ACTIONS:
         return {"error": "invalid_action", "test_id": test_id, "accepted": False}
     return {"test_id": test_id, "action": body.action, "accepted": True, "demo": _settings.DEMO_MODE}
+
+
+# --------------------------------------------------------------------------
+# Ground Continuity (IEC 61730-2 MST 13)
+# --------------------------------------------------------------------------
+class _ProbePointIn(BaseModel):
+    id: str
+    label: str
+    x: float = 0.5
+    y: float = 0.5
+    sim_resistance_ohm: float = 0.05
+    sim_contact_noise_ohm: float = 0.005
+
+
+class GroundContinuityRunRequest(BaseModel):
+    module_id: str = "MOD-DEFAULT"
+    rated_module_current_a: float = 9.5
+    duration_per_point_s: float = 120.0
+    sample_rate_hz: float = 5.0
+    pass_resistance_ohm: float = 0.1
+    test_current_a_override: Optional[float] = None
+    probe_points: Optional[list[_ProbePointIn]] = None
+    # When true (default), runs in demo simulator regardless of global flag.
+    demo: bool = True
+    # When true, also render the PDF/text report into the artifact dir.
+    render_report: bool = True
+
+
+@app.post("/api/tests/ground-continuity/run")
+async def run_ground_continuity(req: GroundContinuityRunRequest) -> dict:
+    """Run a full multi-probe MST 13 sweep and return aggregated results.
+
+    In demo mode this is fast (no actual hardware delay) because the
+    orchestrator's demo path skips the per-sample sleep when ``scpi`` is
+    None — we still produce a full V/I trace per probe.
+    """
+    points = (
+        [
+            ProbePoint(
+                id=p.id, label=p.label, x=p.x, y=p.y,
+                sim_resistance_ohm=p.sim_resistance_ohm,
+                sim_contact_noise_ohm=p.sim_contact_noise_ohm,
+            )
+            for p in req.probe_points
+        ]
+        if req.probe_points
+        else GroundContinuityConfig.default_probe_map()
+    )
+    cfg = GroundContinuityConfig(
+        module_id=req.module_id,
+        rated_module_current_a=req.rated_module_current_a,
+        duration_per_point_s=req.duration_per_point_s,
+        sample_rate_hz=req.sample_rate_hz,
+        pass_resistance_ohm=req.pass_resistance_ohm,
+        test_current_a_override=req.test_current_a_override,
+        probe_points=points,
+    )
+
+    orch = GroundContinuityOrchestrator(cfg, scpi=None, demo_mode=True)
+    result = await orch.run()
+    payload = result.to_dict(include_samples=False)
+
+    if req.render_report:
+        try:
+            report_path = render_gc_report(result, cfg)
+            payload["report_path"] = str(report_path)
+        except Exception as exc:  # pragma: no cover - report is best-effort
+            payload["report_error"] = str(exc)
+
+    return payload
+
+
+@app.get("/api/tests/ground-continuity/probe-map")
+async def get_default_probe_map() -> dict:
+    """Default probe map used by the UI and the demo run."""
+    return {
+        "standard": "IEC 61730-2 MST 13",
+        "min_test_current_a": 25.0,
+        "max_resistance_ohm": 0.1,
+        "duration_per_point_s": 120.0,
+        "probes": [
+            {"id": p.id, "label": p.label, "x": p.x, "y": p.y}
+            for p in GroundContinuityConfig.default_probe_map()
+        ],
+    }
 
 
 if __name__ == "__main__":  # pragma: no cover

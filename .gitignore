@@ -47,6 +47,14 @@ backend/venv/
 logs/
 *.pid
 
+# Test orchestrator artifacts (CSV traces, generated reports)
+artifacts/
+backend/artifacts/
+
+# Playwright
+frontend/playwright-report/
+frontend/test-results/
+
 # env files (only .env.example is committed)
 .env
 .env.local
