@@ -1,0 +1,17 @@
+id: chamber_espec
+name: ESPEC SH-242 Chamber
+role: chamber
+vendor: ESPEC
+model: SH-242
+description: Temperature / humidity chamber for TC, HF and DH tests.
+transport:
+  kind: modbus_tcp
+  host: 192.168.200.110
+  port: 502
+  unit_id: 1
+  timeout_s: 2.0
+demo: true
+standards:
+  - IEC 61215 MQT11
+  - IEC 61215 MQT12
+  - IEC 61215 MQT13

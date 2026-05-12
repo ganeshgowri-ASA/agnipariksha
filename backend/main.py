@@ -32,9 +32,13 @@ try:
     # and we fall back to absolute lookup.
     from .config import get_settings
     from .scpi_async import ScpiClient, is_scpi_reachable, run_telemetry_loop
+    from .app.devices_api import router as devices_router
+    from .app.health import start_background_health, stop_background_health
 except ImportError:  # pragma: no cover - script-mode fallback
     from config import get_settings  # type: ignore[no-redef]
     from scpi_async import ScpiClient, is_scpi_reachable, run_telemetry_loop  # type: ignore[no-redef]
+    from app.devices_api import router as devices_router  # type: ignore[no-redef]
+    from app.health import start_background_health, stop_background_health  # type: ignore[no-redef]
 
 
 # --------------------------------------------------------------------------
@@ -74,7 +78,11 @@ _started_at = time.time()
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
-    yield
+    start_background_health()
+    try:
+        yield
+    finally:
+        await stop_background_health()
 
 
 app = FastAPI(
@@ -82,6 +90,7 @@ app = FastAPI(
     version=_settings.APP_VERSION,
     lifespan=_lifespan,
 )
+app.include_router(devices_router)
 
 app.add_middleware(
     CORSMiddleware,

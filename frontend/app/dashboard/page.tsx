@@ -13,6 +13,7 @@ import ResultsDashboard from '@/components/ResultsDashboard';
 import AIAssistant from '@/components/AIAssistant';
 import StatusBar from '@/components/StatusBar';
 import AppHeader from '@/components/AppHeader';
+import DevicePills from '@/components/DevicePills';
 import { NotificationsProvider } from '@/components/notifications/NotificationsStore';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { TABS, type TestKey, type TestSession } from '@/types/test-session';
@@ -62,6 +63,11 @@ function Dashboard() {
         onToggleDemo={() => setDemoMode(d => !d)}
         statusCounts={statusCounts}
       />
+
+      <div className="bg-gray-950/60 border-b border-gray-800 px-6 py-2 flex items-center gap-3 overflow-x-auto">
+        <span className="text-[10px] uppercase tracking-[0.18em] text-gray-500">Devices</span>
+        <DevicePills />
+      </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
         <TabsList className="bg-gray-900 border-b border-gray-700 rounded-none px-3 h-11 gap-1 justify-start overflow-x-auto">
