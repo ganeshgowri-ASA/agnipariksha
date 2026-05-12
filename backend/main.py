@@ -273,6 +273,129 @@ async def test_control(test_id: str, body: ControlAction) -> dict:
     return {"test_id": test_id, "action": body.action, "accepted": True, "demo": _settings.DEMO_MODE}
 
 
+# --------------------------------------------------------------------------
+# MQT 18 — Bypass Diode (clause 4.18) HTTP + WebSocket surface
+# --------------------------------------------------------------------------
+try:
+    from .app.tests.bypass_diode import BypassDiodeTest
+    from .app.tests.bypass_diode import load_catalog as _load_diode_catalog
+except ImportError:  # script-mode fallback
+    from app.tests.bypass_diode import BypassDiodeTest  # type: ignore[no-redef]
+    from app.tests.bypass_diode import load_catalog as _load_diode_catalog  # type: ignore[no-redef]
+
+
+class BypassDiodeRunRequest(BaseModel):
+    part_number: str
+    n_diodes: int = 3
+    i_test_a: float = 9.5
+    margin_c: float = 10.0
+    ambient_c: float = 75.0
+    aging: float = 0.0
+    demo_speedup: float = 600.0
+    seed: Optional[int] = None
+
+
+@app.get("/api/tests/bypass-diode/catalog")
+async def bypass_diode_catalog() -> dict:
+    return _load_diode_catalog()
+
+
+@app.post("/api/tests/bypass-diode/run")
+async def bypass_diode_run(req: BypassDiodeRunRequest) -> dict:
+    """Run a full Phase A + B + C sequence synchronously (demo-accelerated).
+
+    The hardware path is not exercised here: production runs use the
+    websocket endpoint below, which streams live events as the test
+    progresses. This endpoint is intended for CI / Playwright / quick
+    manual sanity-checks where a single JSON result is more convenient.
+    """
+    test = BypassDiodeTest(scpi=None, demo=True)
+    result = await test.run_full(
+        part_number=req.part_number,
+        n_diodes=req.n_diodes,
+        i_test_a=req.i_test_a,
+        margin_c=req.margin_c,
+        ambient_c=req.ambient_c,
+        aging=req.aging,
+        demo_speedup=req.demo_speedup,
+        seed=req.seed,
+    )
+    return result
+
+
+@app.websocket("/ws/tests/bypass-diode")
+async def bypass_diode_ws(ws: WebSocket) -> None:
+    """Stream Phase A/B/C events to the UI in real time."""
+    await ws.accept()
+    queue: asyncio.Queue = asyncio.Queue()
+
+    def push(event: dict) -> None:
+        try:
+            queue.put_nowait({"type": "event", **event})
+        except asyncio.QueueFull:
+            pass
+
+    try:
+        cfg_raw = await ws.receive_text()
+        cfg = json.loads(cfg_raw)
+    except (WebSocketDisconnect, json.JSONDecodeError):
+        await ws.close()
+        return
+
+    test = BypassDiodeTest(scpi=None, demo=_settings.DEMO_MODE, on_event=push)
+    runner_task = asyncio.create_task(test.run_full(
+        part_number=cfg.get("part_number", "SBR10U45SP5"),
+        n_diodes=int(cfg.get("n_diodes", 3)),
+        i_test_a=float(cfg.get("i_test_a", 9.5)),
+        margin_c=float(cfg.get("margin_c", 10.0)),
+        ambient_c=float(cfg.get("ambient_c", 75.0)),
+        aging=float(cfg.get("aging", 0.0)),
+        demo_speedup=float(cfg.get("demo_speedup", 600.0)),
+        seed=cfg.get("seed"),
+    ))
+
+    async def control() -> None:
+        try:
+            while True:
+                msg = await ws.receive_text()
+                try:
+                    parsed = json.loads(msg)
+                except json.JSONDecodeError:
+                    continue
+                if parsed.get("action") == "abort":
+                    test.abort()
+                    return
+        except WebSocketDisconnect:
+            test.abort()
+
+    ctrl_task = asyncio.create_task(control())
+
+    try:
+        while not runner_task.done():
+            try:
+                evt = await asyncio.wait_for(queue.get(), timeout=0.25)
+                await ws.send_text(json.dumps(evt))
+            except asyncio.TimeoutError:
+                continue
+        # Drain any final events.
+        while not queue.empty():
+            evt = queue.get_nowait()
+            try:
+                await ws.send_text(json.dumps(evt))
+            except Exception:
+                break
+        result = runner_task.result()
+        await ws.send_text(json.dumps({"type": "result", "result": result}))
+    except WebSocketDisconnect:
+        test.abort()
+    finally:
+        ctrl_task.cancel()
+        try:
+            await ws.close()
+        except Exception:
+            pass
+
+
 if __name__ == "__main__":  # pragma: no cover
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

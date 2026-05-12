@@ -1,0 +1,89 @@
+{
+  "_meta": {
+    "description": "Bypass diode catalogue used for IEC 61215-2 MQT 18 (clause 4.18) Tj evaluation.",
+    "fields": {
+      "part_number": "Manufacturer part number",
+      "type": "Diode technology: schottky | pn | sbd",
+      "vf_nominal_v": "Forward voltage at If = If_test (datasheet, 25 C)",
+      "if_test_a": "Forward current at which vf_nominal_v is specified",
+      "tc_vf_mv_per_c": "Typical dVf/dT in mV/C (negative for Si diodes)",
+      "tj_max_c": "Maximum junction temperature per datasheet (C)",
+      "package": "Package style"
+    },
+    "source": "Datasheet values, typical bypass diodes used in c-Si PV junction boxes"
+  },
+  "diodes": [
+    {
+      "part_number": "SBR10U45SP5",
+      "type": "schottky",
+      "vf_nominal_v": 0.46,
+      "if_test_a": 10.0,
+      "tc_vf_mv_per_c": -2.0,
+      "tj_max_c": 175.0,
+      "package": "PowerDI5"
+    },
+    {
+      "part_number": "MBR1045",
+      "type": "schottky",
+      "vf_nominal_v": 0.57,
+      "if_test_a": 10.0,
+      "tc_vf_mv_per_c": -2.1,
+      "tj_max_c": 150.0,
+      "package": "TO-220AC"
+    },
+    {
+      "part_number": "MBR2045CT",
+      "type": "schottky",
+      "vf_nominal_v": 0.60,
+      "if_test_a": 10.0,
+      "tc_vf_mv_per_c": -2.0,
+      "tj_max_c": 150.0,
+      "package": "TO-220AB"
+    },
+    {
+      "part_number": "PV1545SMD",
+      "type": "schottky",
+      "vf_nominal_v": 0.43,
+      "if_test_a": 15.0,
+      "tc_vf_mv_per_c": -2.2,
+      "tj_max_c": 200.0,
+      "package": "SMC"
+    },
+    {
+      "part_number": "STPS1545",
+      "type": "schottky",
+      "vf_nominal_v": 0.55,
+      "if_test_a": 15.0,
+      "tc_vf_mv_per_c": -2.0,
+      "tj_max_c": 175.0,
+      "package": "TO-220AC"
+    },
+    {
+      "part_number": "1N5822",
+      "type": "schottky",
+      "vf_nominal_v": 0.48,
+      "if_test_a": 3.0,
+      "tc_vf_mv_per_c": -1.9,
+      "tj_max_c": 125.0,
+      "package": "DO-201AD"
+    },
+    {
+      "part_number": "PD3S230",
+      "type": "schottky",
+      "vf_nominal_v": 0.41,
+      "if_test_a": 3.0,
+      "tc_vf_mv_per_c": -2.3,
+      "tj_max_c": 150.0,
+      "package": "SOD-323"
+    },
+    {
+      "part_number": "1N5408",
+      "type": "pn",
+      "vf_nominal_v": 1.00,
+      "if_test_a": 3.0,
+      "tc_vf_mv_per_c": -1.8,
+      "tj_max_c": 175.0,
+      "package": "DO-201AD"
+    }
+  ]
+}
