@@ -7,7 +7,9 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: '.',
   testMatch: ['tests/e2e/**/*.spec.ts', 'e2e/**/*.spec.ts'],
-  timeout: 30_000,
+  // Bumped from 30s → 90s after PR #29: turbopack first-compile for
+  // /dashboard and /schedule on the CI runner regularly takes 15-30s.
+  timeout: 90_000,
   fullyParallel: false,
   workers: 1,
   forbidOnly: !!process.env.CI,
@@ -20,7 +22,8 @@ export default defineConfig({
       process.env.PW_BASE_URL ??
       'http://127.0.0.1:3000',
     trace: 'retain-on-failure',
-    actionTimeout: 10_000,
+    actionTimeout: 30_000,
+    navigationTimeout: 60_000,
     headless: true,
   },
   projects: [
