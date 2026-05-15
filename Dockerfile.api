@@ -1,0 +1,56 @@
+# Railway / generic-Docker build for the Agnipariksha FastAPI backend.
+# This is the FIRST Dockerfile in this repo; the prior Railway deploy
+# (708fcda7) failed because Railpack could not auto-detect a builder at
+# repo-root — the actual API code lives in ./backend, not ./apps/api.
+#
+# Build context: repo root.
+# Result: a minimal Python 3.11 image that pip-installs backend/requirements.txt,
+# runs `alembic upgrade head` at start (gated by ALEMBIC_AUTO_UPGRADE=1),
+# and launches uvicorn bound to $PORT (Railway-provided) or 8000 (local).
+
+FROM python:3.11-slim AS base
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PORT=8000
+
+# Build deps for any wheels missing prebuilts (matplotlib, reportlab, pyodbc).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      build-essential \
+      libffi-dev \
+      libpq-dev \
+      ca-certificates \
+      curl \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install Python deps first for layer caching.
+COPY backend/requirements.txt /app/backend/requirements.txt
+RUN pip install --upgrade pip \
+ && pip install -r /app/backend/requirements.txt \
+ && pip install psycopg[binary]>=3.1.18
+
+# Copy the backend source.
+COPY backend /app/backend
+
+# Healthcheck — Railway will hit /healthz per railway.json; FastAPI also exposes
+# /health (legacy) and /api/health (deep). The /healthz alias is added in
+# backend/main.py alongside /health.
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD curl -fsS "http://127.0.0.1:${PORT}/healthz" || exit 1
+
+EXPOSE 8000
+WORKDIR /app/backend
+
+# Entry: optionally run Alembic head, then launch uvicorn. Gated by env so
+# local dev (deploy.sh) and tests can opt out.
+CMD bash -lc '\
+  if [ "${ALEMBIC_AUTO_UPGRADE:-0}" = "1" ] && [ -f alembic.ini ]; then \
+    echo "[entrypoint] alembic upgrade head"; \
+    alembic upgrade head || { echo "[entrypoint] alembic failed; continuing in degraded mode"; }; \
+  fi; \
+  exec python -m uvicorn main:app --host 0.0.0.0 --port "${PORT}" --proxy-headers --forwarded-allow-ips="*"'
