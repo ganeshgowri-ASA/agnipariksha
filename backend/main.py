@@ -165,6 +165,12 @@ async def health() -> dict:
     return {"status": "ok", "demo": _settings.DEMO_MODE, "version": _settings.APP_VERSION}
 
 
+@app.get("/healthz")
+async def healthz() -> dict:
+    """Railway/k8s-style liveness probe — same payload as /health."""
+    return {"status": "ok", "demo": _settings.DEMO_MODE, "version": _settings.APP_VERSION}
+
+
 @app.get("/api/health")
 async def deep_health() -> dict:
     """Deep health: probes SCPI port + disk + uptime."""
