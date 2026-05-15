@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import AppShell from '@/components/AppShell';
 import { flags } from '@/lib/featureFlags';
 
 // ---------- mock data (reuses shapes from V2-S4/S5/S6 slices) ----------
@@ -278,37 +279,36 @@ export default function OverviewPage() {
   });
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100" data-testid="overview-root">
-      <header className="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">Agnipariksha — 360° Overview</h1>
-          <p className="text-xs text-gray-500 mt-0.5">
-            Fleet posture · schedule · service · spares
-          </p>
+    <AppShell
+      title="360° Overview"
+      subtitle="Fleet posture · schedule · service · spares"
+      actions={
+        <Link
+          href="/dashboard"
+          className="text-[11px] text-muted hover:text-app underline-offset-2 hover:underline"
+        >
+          Legacy dashboard →
+        </Link>
+      }
+    >
+      <div data-testid="overview-root">
+        <div className="p-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <KPICard kpis={MOCK_KPIS} />
+          <EquipmentCard items={MOCK_EQUIPMENT} />
+          <ScheduleCard runs={MOCK_SCHEDULE} />
+          <TicketsCard tickets={MOCK_TICKETS} />
+          <SparesCard parts={MOCK_PARTS} />
+          <AIChangeCard context={aiContext} />
         </div>
-        <nav className="flex gap-3 text-xs">
-          <Link href="/dashboard" className="text-gray-400 hover:text-white">
-            Legacy dashboard →
-          </Link>
-        </nav>
-      </header>
 
-      <main className="p-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        <KPICard kpis={MOCK_KPIS} />
-        <EquipmentCard items={MOCK_EQUIPMENT} />
-        <ScheduleCard runs={MOCK_SCHEDULE} />
-        <TicketsCard tickets={MOCK_TICKETS} />
-        <SparesCard parts={MOCK_PARTS} />
-        <AIChangeCard context={aiContext} />
-      </main>
-
-      <footer className="px-6 pb-6 text-[10px] text-gray-600 flex gap-4 flex-wrap">
-        <span>flags:</span>
-        <span>DB={String(flags.db)}</span>
-        <span>RELIABILITY={String(flags.reliability)}</span>
-        <span>SCHEDULER={String(flags.scheduler)}</span>
-        <span>TICKETS={String(flags.tickets)}</span>
-      </footer>
-    </div>
+        <footer className="px-6 pb-6 text-[10px] text-muted flex gap-4 flex-wrap">
+          <span>flags:</span>
+          <span>DB={String(flags.db)}</span>
+          <span>RELIABILITY={String(flags.reliability)}</span>
+          <span>SCHEDULER={String(flags.scheduler)}</span>
+          <span>TICKETS={String(flags.tickets)}</span>
+        </footer>
+      </div>
+    </AppShell>
   );
 }
