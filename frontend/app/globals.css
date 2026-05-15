@@ -2,9 +2,29 @@
 @tailwind components;
 @tailwind utilities;
 
+/* -------------------------------------------------------------------------
+ * Theme tokens — referenced from utility classes via `bg-app`, `text-app`,
+ * `border-app`. Both themes are defined so the dark/light toggle is a
+ * single `.dark`/no-class swap on <html>.
+ * ----------------------------------------------------------------------- */
 :root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --surface: #ffffff;
+  --surface-2: #f1f5f9;
+  --border: #cbd5e1;
+  --muted: #64748b;
+  --accent: #f97316;
+}
+
+.dark {
   --background: #030712;
   --foreground: #f9fafb;
+  --surface: #0b1220;
+  --surface-2: #111827;
+  --border: #1f2937;
+  --muted: #94a3b8;
+  --accent: #fb923c;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -17,9 +37,9 @@ body {
 
 /* Custom scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #1f2937; }
-::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+::-webkit-scrollbar-track { background: var(--surface-2); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 
 /* LED-style digit display */
 .led-display {
@@ -42,3 +62,43 @@ body {
 /* Tab transition */
 [role="tabpanel"] { animation: fadeIn 0.15s ease-in; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* Focus ring (accessibility) */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Skip-to-content link */
+.skip-link {
+  position: absolute;
+  left: -10000px;
+  top: 0;
+  background: var(--accent);
+  color: #000;
+  padding: 8px 12px;
+  font-weight: 700;
+  z-index: 1000;
+}
+.skip-link:focus { left: 12px; }
+
+/* Token utility shortcuts. Tailwind utilities still work alongside. */
+.bg-app       { background-color: var(--background); }
+.bg-surface   { background-color: var(--surface); }
+.bg-surface-2 { background-color: var(--surface-2); }
+.text-app     { color: var(--foreground); }
+.text-muted   { color: var(--muted); }
+.border-app   { border-color: var(--border); }
+
+/* Minimum-viewport hint — Agnipariksha is tuned for 1280×800 and up. */
+@media (max-width: 1199px) {
+  body::before {
+    content: 'Agnipariksha is tuned for 1280×800 and up — layout may be cramped at this size.';
+    display: block;
+    background: #f59e0b;
+    color: #000;
+    padding: 6px 12px;
+    font-size: 11px;
+    text-align: center;
+  }
+}

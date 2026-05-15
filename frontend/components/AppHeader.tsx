@@ -1,8 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { Activity, Flame, Cpu, PowerOff, Wifi, WifiOff, Ticket as TicketIcon } from 'lucide-react';
+import { Activity, Flame, Cpu, PowerOff, Wifi, WifiOff, Ticket as TicketIcon, LifeBuoy } from 'lucide-react';
 import { NotificationsBell } from './notifications/NotificationsDrawer';
+import Breadcrumbs from './Breadcrumbs';
+import ThemeToggle from './theme/ThemeToggle';
 import { useHealth } from '@/hooks/useHealth';
 import { useNotifications } from './notifications/NotificationsStore';
 
@@ -35,7 +37,9 @@ export default function AppHeader({
     :                              'Checking…';
 
   return (
-    <header className="bg-gradient-to-r from-gray-950 via-gray-900 to-gray-950 border-b border-gray-800 px-6 py-3 flex items-center justify-between">
+    <header className="bg-gradient-to-r from-gray-950 via-gray-900 to-gray-950 border-b border-gray-800">
+      <a href="#main" className="skip-link">Skip to content</a>
+      <div className="px-6 py-3 flex items-center justify-between">
       {/* Brand lockup */}
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2.5">
@@ -109,6 +113,18 @@ export default function AppHeader({
           Tickets
         </Link>
 
+        <Link
+          href="/help/troubleshooting"
+          data-testid="nav-help"
+          className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold text-gray-300 hover:text-white hover:bg-gray-800 border border-gray-700/60"
+          title="Help / Troubleshooting"
+        >
+          <LifeBuoy className="w-3.5 h-3.5" />
+          Help
+        </Link>
+
+        <ThemeToggle />
+
         <ForceErrorButton />
 
         <NotificationsBell />
@@ -120,6 +136,13 @@ export default function AppHeader({
           title={`WebSocket: ${wsStatus}`}
           aria-label={`WebSocket ${wsStatus}`}
         />
+      </div>
+      </div>
+      <div className="px-6 py-1.5 border-t border-gray-800/70 flex items-center justify-between">
+        <Breadcrumbs />
+        <span className="text-[10px] text-gray-500 hidden lg:inline">
+          <kbd className="px-1 rounded bg-gray-800 border border-gray-700 font-mono">?</kbd> for shortcuts
+        </span>
       </div>
     </header>
   );
