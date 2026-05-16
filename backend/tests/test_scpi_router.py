@@ -179,3 +179,90 @@ def test_router_query_live_mode_unreachable_returns_503() -> None:
         open_patch.stop()
         for p in patches:
             p.stop()
+
+
+# --------------------------------------------------------------------------
+# /api/scpi/smoke
+# --------------------------------------------------------------------------
+
+def test_router_smoke_demo_returns_all_devices_ok() -> None:
+    """In demo mode the smoke endpoint reports ok=true for every registered
+    device. The 3 manifests we ship are itech_pv6000, dmm_keysight, chamber_espec
+    — each transport's _demo_response yields a non-empty string."""
+    patches = _patch_settings(demo=True)
+    for p in patches:
+        p.start()
+    try:
+        with TestClient(app) as c:
+            r = c.get("/api/scpi/smoke")
+            assert r.status_code == 200, r.text
+            body = r.json()
+            assert body["mode"] == "demo"
+            assert body["ok"] is True
+            ids = {d["id"] for d in body["devices"]}
+            assert {"itech_pv6000", "dmm_keysight", "chamber_espec"}.issubset(ids)
+            for d in body["devices"]:
+                assert d["ok"] is True, f"{d['id']} should be ok in demo, got {d}"
+                assert d["idn"], f"{d['id']} idn must be non-empty"
+                assert d["error"] is None
+                assert d["elapsed_ms"] >= 0
+    finally:
+        for p in patches:
+            p.stop()
+
+
+def test_router_smoke_always_200_in_live_mode_with_unreachable_hw() -> None:
+    """Smoke endpoint must NEVER 5xx — per-device failures land inline so the
+    UI can render a red lamp per device instead of "endpoint down"."""
+    async def _refuse(*_args, **_kwargs):
+        raise OSError(111, "Connection refused")
+
+    patches = _patch_settings(demo=False)
+    open_patch = patch(f"{_PATCH_PREFIX}scpi_async.asyncio.open_connection", side_effect=_refuse)
+    # Also patch the device transports' open_connection (modbus_tcp uses it too).
+    modbus_patch = patch(
+        "backend.app.transports.modbus_tcp.asyncio.open_connection",
+        side_effect=_refuse,
+    )
+    for p in patches:
+        p.start()
+    open_patch.start()
+    try:
+        modbus_patch.start()
+    except (ModuleNotFoundError, AttributeError):
+        modbus_patch = None  # type: ignore[assignment]
+
+    # Force every device into live mode so connect() is actually attempted.
+    try:
+        from backend.app.devices import get_registry
+        from backend.app.devices.registry import _reset_registry_for_tests
+    except ImportError:
+        from app.devices import get_registry  # type: ignore[no-redef]
+        from app.devices.registry import _reset_registry_for_tests  # type: ignore[no-redef]
+
+    _reset_registry_for_tests()
+    for d in get_registry().all():
+        d.demo = False
+        # Drop any cached transport so the new demo flag takes effect.
+        d._transport_obj = None  # type: ignore[attr-defined]
+
+    try:
+        with TestClient(app) as c:
+            r = c.get("/api/scpi/smoke")
+            assert r.status_code == 200, r.text
+            body = r.json()
+            assert body["mode"] == "live"
+            # Either every device fails, or any device that needs USBTMC may
+            # also fail because the module isn't importable in CI — both are
+            # acceptable. The contract under test is: 200 + structured payload.
+            for d in body["devices"]:
+                assert "id" in d and "ok" in d and "idn" in d
+                if not d["ok"]:
+                    assert d["error"] is not None
+    finally:
+        if modbus_patch is not None:
+            modbus_patch.stop()
+        open_patch.stop()
+        for p in patches:
+            p.stop()
+        _reset_registry_for_tests()
