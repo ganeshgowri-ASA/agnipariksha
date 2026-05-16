@@ -14,17 +14,18 @@
  */
 import React from 'react';
 import Link from 'next/link';
-import { Flame, LayoutDashboard, Activity, Boxes, Ticket as TicketIcon, LifeBuoy, CalendarClock } from 'lucide-react';
+import { Flame, LayoutDashboard, Activity, Boxes, Ticket as TicketIcon, LifeBuoy, CalendarClock, FileText } from 'lucide-react';
 import Breadcrumbs from './Breadcrumbs';
 import ThemeToggle from './theme/ThemeToggle';
 
 const NAV = [
-  { href: '/overview',  label: '360° Overview', icon: Activity },
-  { href: '/dashboard', label: 'Tests',          icon: LayoutDashboard },
-  { href: '/equipment', label: 'Equipment',      icon: Boxes },
-  { href: '/inventory', label: 'Inventory',      icon: Boxes },
-  { href: '/tickets',   label: 'Tickets',        icon: TicketIcon },
-  { href: '/schedule',  label: 'Schedule',       icon: CalendarClock },
+  { href: '/overview',       label: '360° Overview', icon: Activity },
+  { href: '/dashboard',      label: 'Tests',          icon: LayoutDashboard },
+  { href: '/equipment',      label: 'Equipment',      icon: Boxes },
+  { href: '/inventory',      label: 'Inventory',      icon: Boxes },
+  { href: '/procurement/po', label: 'Purchase Orders', icon: FileText },
+  { href: '/tickets',        label: 'Tickets',        icon: TicketIcon },
+  { href: '/schedule',       label: 'Schedule',       icon: CalendarClock },
 ];
 
 interface AppShellProps {
