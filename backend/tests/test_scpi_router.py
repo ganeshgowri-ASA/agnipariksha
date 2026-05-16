@@ -92,7 +92,7 @@ def _patch_settings(*, demo: bool):
     in each module's local namespace rather than monkeypatch the cache."""
     fake = _FakeSettings(demo=demo)
     return [
-        patch(f"{_PATCH_PREFIX}scpi_router.get_settings", return_value=fake),
+        patch(f"{_PATCH_PREFIX}api.scpi_routes.get_settings", return_value=fake),
         patch(f"{_PATCH_PREFIX}scpi_async.get_settings", return_value=fake),
     ]
 
@@ -177,5 +177,50 @@ def test_router_query_live_mode_unreachable_returns_503() -> None:
             assert body["detail"]["error"] == "scpi_unreachable"
     finally:
         open_patch.stop()
+        for p in patches:
+            p.stop()
+
+
+def test_router_diag_demo_mode_returns_200() -> None:
+    """/api/scpi/diag must never raise; in demo mode it still probes the
+    real port (so a developer can sanity-check their lab even with DEMO=true)
+    and reports source IP / OS error rather than masking with simulator data."""
+    patches = _patch_settings(demo=True)
+    for p in patches:
+        p.start()
+    try:
+        with TestClient(app) as c:
+            r = c.get("/api/scpi/diag")
+            assert r.status_code == 200, r.text
+            body = r.json()
+            assert body["host"] == "192.168.200.100"
+            assert body["port"] == 30000
+            assert body["demo"] is True
+            assert "reachable" in body
+            assert "transport" in body
+    finally:
+        for p in patches:
+            p.stop()
+
+
+def test_router_diag_live_mode_unreachable_returns_200_with_error() -> None:
+    """/api/scpi/diag is diagnostic — must return 200 even when the device
+    is unreachable, so users on broken networks can still hit it."""
+    patches = _patch_settings(demo=False)
+    for p in patches:
+        p.start()
+    try:
+        with TestClient(app) as c:
+            # 192.0.2.0/24 is TEST-NET-1 (RFC 5737) — guaranteed unreachable.
+            patch_settings = _FakeSettings(demo=False, host="192.0.2.1", port=1, timeout_ms=200)
+            with patch(f"{_PATCH_PREFIX}api.scpi_routes.get_settings", return_value=patch_settings):
+                r = c.get("/api/scpi/diag")
+                assert r.status_code == 200, r.text
+                body = r.json()
+                assert body["reachable"] is False
+                assert body["host"] == "192.0.2.1"
+                # os_error is populated when reachable=False
+                assert body["os_error"] is not None
+    finally:
         for p in patches:
             p.stop()
