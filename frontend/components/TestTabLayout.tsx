@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react';
 import {
   Play, Pause, Square, OctagonAlert, RefreshCw, Settings, Activity, Table2, BarChart3, FileText,
+  ShieldCheck,
 } from 'lucide-react';
 import type { TestSession, TestStatus, LiveReading } from '@/types/test-session';
 import LiveChart from './LiveChart';
@@ -24,6 +25,14 @@ interface TestTabLayoutProps {
   demoMode: boolean;
   limits: { maxVoltage: number; maxCurrent: number; maxPower: number; maxTemp?: number };
   setupPanel: React.ReactNode;
+  /**
+   * Optional preflight / readiness panel. When provided, a "Basic Check"
+   * sub-tab is prepended and selected by default — operator verifies
+   * connection + manual set + readiness before any cyclic run.
+   * Currently used by Thermal Cycling (per the operator UX spec); other
+   * IEC tabs continue to default to "Live Monitor" unchanged.
+   */
+  basicCheckPanel?: React.ReactNode;
   extraStats?: Array<{ label: string; value: string; unit: string; color?: string }>;
   onStartTest: () => void;
   onStopTest: () => void;
@@ -32,9 +41,10 @@ interface TestTabLayoutProps {
   onEmergencyStop?: () => void;
 }
 
-type SubTab = 'setup' | 'monitor' | 'data' | 'analysis' | 'report';
+type SubTab = 'basic-check' | 'setup' | 'monitor' | 'data' | 'analysis' | 'report';
 
-const SUB_TABS: Array<{ key: SubTab; label: string; icon: typeof Settings }> = [
+const BASIC_CHECK_TAB = { key: 'basic-check' as const, label: 'Basic Check', icon: ShieldCheck };
+const SUB_TABS_BASE: Array<{ key: Exclude<SubTab, 'basic-check'>; label: string; icon: typeof Settings }> = [
   { key: 'setup',    label: 'Setup',        icon: Settings },
   { key: 'monitor',  label: 'Live Monitor', icon: Activity },
   { key: 'data',     label: 'Data Table',   icon: Table2 },
@@ -57,10 +67,17 @@ async function postControl(testId: string, action: string): Promise<void> {
 export default function TestTabLayout({
   testKey, testName, standard, color, readings, session,
   onSessionUpdate, sendCommand, demoMode,
-  limits, setupPanel, extraStats = [],
+  limits, setupPanel, basicCheckPanel, extraStats = [],
   onStartTest, onStopTest, onPauseTest, onResumeTest, onEmergencyStop,
 }: TestTabLayoutProps) {
-  const [subTab, setSubTab] = useState<SubTab>('monitor');
+  // When basicCheckPanel is provided, prepend Basic Check and default to
+  // it so the operator runs preflight before the cyclic test. Other
+  // tabs (HF / DH / BDT / RCO / GCT / LeTID) keep the legacy
+  // "Live Monitor" default — no behaviour change for them.
+  const subTabs: Array<{ key: SubTab; label: string; icon: typeof Settings }> = basicCheckPanel
+    ? [BASIC_CHECK_TAB, ...SUB_TABS_BASE]
+    : [...SUB_TABS_BASE];
+  const [subTab, setSubTab] = useState<SubTab>(basicCheckPanel ? 'basic-check' : 'monitor');
   const { push } = useNotifications();
 
   const latest = readings[readings.length - 1];
@@ -145,7 +162,7 @@ export default function TestTabLayout({
 
       {/* Sub-tabs */}
       <div className="flex border-b border-gray-800 bg-gray-900 overflow-x-auto">
-        {SUB_TABS.map(({ key, label, icon: Icon }) => {
+        {subTabs.map(({ key, label, icon: Icon }) => {
           const active = subTab === key;
           return (
             <button
@@ -167,6 +184,10 @@ export default function TestTabLayout({
 
       {/* Sub-tab Content */}
       <div className="flex-1 overflow-auto p-4">
+        {subTab === 'basic-check' && basicCheckPanel && (
+          <div className="max-w-5xl">{basicCheckPanel}</div>
+        )}
+
         {subTab === 'setup' && <div className="max-w-2xl">{setupPanel}</div>}
 
         {subTab === 'monitor' && (

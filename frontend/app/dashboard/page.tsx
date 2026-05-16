@@ -46,7 +46,7 @@ function Dashboard() {
   };
 
   const tabRender: Record<TestKey, React.ReactNode> = {
-    tc:    <ThermalCyclingTab     readings={readings} session={sessions.tc}    onSessionUpdate={s => handleSessionUpdate('tc',    s)} sendCommand={sendCommand} demoMode={demoMode} />,
+    tc:    <ThermalCyclingTab     readings={readings} session={sessions.tc}    onSessionUpdate={s => handleSessionUpdate('tc',    s)} sendCommand={sendCommand} demoMode={demoMode} wsStatus={wsStatus} />,
     hf:    <HumidityFreezeTab     readings={readings} session={sessions.hf}    onSessionUpdate={s => handleSessionUpdate('hf',    s)} sendCommand={sendCommand} demoMode={demoMode} />,
     letid: <LeTIDTab              readings={readings} session={sessions.letid} onSessionUpdate={s => handleSessionUpdate('letid', s)} sendCommand={sendCommand} demoMode={demoMode} />,
     bdt:   <BypassDiodeTab        readings={readings} session={sessions.bdt}   onSessionUpdate={s => handleSessionUpdate('bdt',   s)} sendCommand={sendCommand} demoMode={demoMode} />,
