@@ -64,3 +64,10 @@ NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws/live
 - Use `useWebSocket` hook for all live data
 - Each test tab follows TestTabLayout pattern
 - Report generation: `frontend/components/ReportGenerator.tsx`
+
+## Procurement Mocks (MSW)
+`/api/procurement/{rfq,po,vendor}` is mocked client-side by Mock Service
+Worker. The mocks live in `frontend/mocks/` and ship with a deterministic
+seed (12 vendors, 50 RFQs, 30 POs). The browser worker boots from
+`MswProvider` and is hard-disabled in production builds. Dev opt-out:
+`NEXT_PUBLIC_MSW=0`. Playwright forces it on via the webServer env.

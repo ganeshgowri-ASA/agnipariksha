@@ -39,5 +39,11 @@ export default defineConfig({
           url: 'http://127.0.0.1:3000',
           reuseExistingServer: !process.env.CI,
           timeout: 120_000,
+          env: {
+            // MSW handlers for /api/procurement/* are wired into the dev
+            // server. Opt-in via NEXT_PUBLIC_MSW so a manually started
+            // dev shell doesn't have to know about it.
+            NEXT_PUBLIC_MSW: '1',
+          },
         },
 });

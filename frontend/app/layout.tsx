@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
 import KeyboardShortcuts from '@/components/KeyboardShortcuts';
+import MswProvider from '@/components/MswProvider';
 
 export const metadata: Metadata = {
   title: 'Agnipariksha — PV Reliability Test Station',
@@ -34,8 +35,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="bg-app text-app antialiased">
         <ThemeProvider>
-          {children}
-          <KeyboardShortcuts />
+          <MswProvider>
+            {children}
+            <KeyboardShortcuts />
+          </MswProvider>
         </ThemeProvider>
       </body>
     </html>
