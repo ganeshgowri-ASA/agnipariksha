@@ -94,11 +94,19 @@ async def test_scpi_client_command_queue_drains() -> None:
 
 
 @pytest.mark.asyncio
-async def test_scpi_real_path_connect_failure_does_not_raise() -> None:
-    # Force non-demo with an unreachable target — connect must return False.
+async def test_scpi_real_path_connect_failure_raises_unreachable() -> None:
+    # Live mode + unreachable target → MUST raise ScpiUnreachable.
+    # Previously this test asserted silent fallback (connect()->False); that
+    # was the bug fixed in fix/scpi-fail-fast-and-query — see scpi_router.py
+    # which now translates this to HTTP 503.
+    try:
+        from backend.scpi_async import ScpiUnreachable
+    except ImportError:
+        from scpi_async import ScpiUnreachable  # type: ignore[no-redef]
+
     c = ScpiClient(host="127.0.0.1", port=1, demo_mode=False)
-    ok = await c.connect(max_attempts=1)
-    assert ok is False
+    with pytest.raises(ScpiUnreachable):
+        await c.connect(max_attempts=1)
     assert c.connected is False
     await c.close()
 
