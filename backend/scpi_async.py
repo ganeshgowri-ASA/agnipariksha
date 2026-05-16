@@ -32,6 +32,23 @@ except ImportError:  # script-mode (uvicorn main:app from inside backend/)
     from config import get_settings  # type: ignore[no-redef]
 
 
+class ScpiUnreachable(RuntimeError):
+    """Raised in LIVE mode (DEMO_MODE=false) when the ITECH socket is not
+    available — either ``connect()`` failed or the reader/writer was never
+    established. The router translates this to HTTP 503.
+
+    Intentionally does NOT inherit from any "soft" exception class so that
+    misconfigured ``except Exception`` handlers cannot silently downgrade
+    a hardware fault into simulator data.
+    """
+
+    def __init__(self, host: str, port: int, reason: str) -> None:
+        super().__init__(f"SCPI unreachable {host}:{port} ({reason})")
+        self.host = host
+        self.port = port
+        self.reason = reason
+
+
 @dataclass
 class Reading:
     timestamp: int  # ms
@@ -112,6 +129,7 @@ class ScpiClient:
             self._connected = False
             return False
         delay = 0.25
+        last_exc: Optional[BaseException] = None
         for attempt in range(1, max_attempts + 1):
             try:
                 self._reader, self._writer = await asyncio.wait_for(
@@ -120,13 +138,22 @@ class ScpiClient:
                 )
                 self._connected = True
                 return True
-            except (OSError, asyncio.TimeoutError):
+            except (OSError, asyncio.TimeoutError) as exc:
+                last_exc = exc
                 if attempt == max_attempts:
                     self._connected = False
-                    return False
+                    # Live mode: bubble the failure up so callers cannot
+                    # silently downgrade to simulator data.
+                    raise ScpiUnreachable(
+                        self.host,
+                        self.port,
+                        f"connect failed after {max_attempts} attempts: "
+                        f"{type(exc).__name__}: {exc}",
+                    ) from exc
                 await asyncio.sleep(min(delay, self.MAX_RECONNECT_BACKOFF))
                 delay *= 2
-        return False
+        # Unreachable under normal control flow but keeps the type checker happy.
+        raise ScpiUnreachable(self.host, self.port, f"connect exhausted: {last_exc!r}")
 
     async def close(self) -> None:
         if self._writer:
@@ -141,16 +168,26 @@ class ScpiClient:
 
     async def send(self, command: str) -> None:
         async with self._lock:
-            if self.demo_mode or not self._writer:
+            if self.demo_mode:
                 self._sim.note_command(command)
                 return
+            if not self._writer:
+                raise ScpiUnreachable(
+                    self.host, self.port,
+                    "send() called before successful connect() in live mode",
+                )
             self._writer.write((command + "\n").encode())
             await self._writer.drain()
 
     async def query(self, command: str) -> str:
         async with self._lock:
-            if self.demo_mode or not self._reader or not self._writer:
+            if self.demo_mode:
                 return self._sim.respond(command)
+            if not self._reader or not self._writer:
+                raise ScpiUnreachable(
+                    self.host, self.port,
+                    "query() called before successful connect() in live mode",
+                )
             self._writer.write((command + "\n").encode())
             await self._writer.drain()
             line = await asyncio.wait_for(self._reader.readline(), timeout=2.0)

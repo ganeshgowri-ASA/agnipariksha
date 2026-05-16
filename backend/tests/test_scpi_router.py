@@ -1,0 +1,181 @@
+"""Tests for the fail-fast / no-silent-demo behaviour of ScpiClient and the
+/api/scpi router."""
+from __future__ import annotations
+
+import asyncio
+from unittest.mock import patch
+
+import pytest
+from fastapi.testclient import TestClient
+
+# Both names work whether tests are run from the repo root (``pytest``) or
+# from inside backend/ (the CI smoke job).
+try:
+    from backend.main import app  # type: ignore[import-not-found]
+    from backend.scpi_async import ScpiClient, ScpiUnreachable
+    _PATCH_PREFIX = "backend."
+except ImportError:  # pragma: no cover - script-mode fallback
+    from main import app  # type: ignore[no-redef]
+    from scpi_async import ScpiClient, ScpiUnreachable  # type: ignore[no-redef]
+    _PATCH_PREFIX = ""
+
+
+# --------------------------------------------------------------------------
+# ScpiClient unit tests
+# --------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_query_demo_mode_still_simulates() -> None:
+    """Demo mode keeps returning simulator data — no behaviour change."""
+    client = ScpiClient(demo_mode=True)
+    # connect() in demo mode is a no-op that returns False — never raises.
+    assert await client.connect() is False
+    idn = await client.query("*IDN?")
+    assert "SIM" in idn or "DEMO" in idn  # simulator IDN includes one of these
+
+
+@pytest.mark.asyncio
+async def test_connect_live_mode_unreachable_raises() -> None:
+    """Live mode + unreachable host MUST raise ScpiUnreachable, never silently fall back."""
+    # Use a port that is guaranteed to be closed on loopback; with TimeoutError
+    # path covered by patching open_connection.
+    async def _refuse(*_args, **_kwargs):
+        raise OSError(111, "Connection refused")
+
+    with patch("asyncio.open_connection", side_effect=_refuse):
+        client = ScpiClient(host="127.0.0.1", port=1, demo_mode=False)
+        with pytest.raises(ScpiUnreachable) as ei:
+            await client.connect(max_attempts=2)
+        assert ei.value.host == "127.0.0.1"
+        assert ei.value.port == 1
+        assert "Connection refused" in ei.value.reason or "OSError" in ei.value.reason
+
+
+@pytest.mark.asyncio
+async def test_query_live_mode_without_connect_raises() -> None:
+    """query() in live mode with no writer raises instead of silent simulator."""
+    client = ScpiClient(host="127.0.0.1", port=1, demo_mode=False)
+    # Deliberately skip connect() — _writer is None.
+    with pytest.raises(ScpiUnreachable):
+        await client.query("*IDN?")
+
+
+@pytest.mark.asyncio
+async def test_send_live_mode_without_connect_raises() -> None:
+    """send() in live mode with no writer raises instead of silent simulator."""
+    client = ScpiClient(host="127.0.0.1", port=1, demo_mode=False)
+    with pytest.raises(ScpiUnreachable):
+        await client.send("OUTP OFF")
+
+
+# --------------------------------------------------------------------------
+# Router HTTP tests
+# --------------------------------------------------------------------------
+
+class _FakeSettings:
+    """Minimal stand-in for backend.config.Settings used by the router/driver.
+
+    Only the attributes the SCPI code path reads; safer than a MagicMock so
+    type comparisons stay deterministic.
+    """
+    def __init__(self, *, demo: bool, host: str = "192.168.200.100",
+                 port: int = 30000, timeout_ms: int = 500) -> None:
+        self.DEMO_MODE = demo
+        self.ITECH_IP = host
+        self.ITECH_PORT = port
+        self.ITECH_TIMEOUT_MS = timeout_ms
+
+
+def _patch_settings(*, demo: bool):
+    """Patch get_settings everywhere it's imported (router + driver). The
+    real get_settings is lru_cache'd so we have to rebind the function name
+    in each module's local namespace rather than monkeypatch the cache."""
+    fake = _FakeSettings(demo=demo)
+    return [
+        patch(f"{_PATCH_PREFIX}scpi_router.get_settings", return_value=fake),
+        patch(f"{_PATCH_PREFIX}scpi_async.get_settings", return_value=fake),
+    ]
+
+
+def test_router_idn_demo_mode_returns_200() -> None:
+    """In demo mode, /api/scpi/idn returns 200 with the simulator IDN."""
+    patches = _patch_settings(demo=True)
+    for p in patches:
+        p.start()
+    try:
+        with TestClient(app) as c:
+            r = c.get("/api/scpi/idn")
+            assert r.status_code == 200, r.text
+            body = r.json()
+            assert body["demo"] is True
+            assert body["idn"]  # non-empty
+            assert body["error"] is None
+    finally:
+        for p in patches:
+            p.stop()
+
+
+def test_router_query_demo_mode_returns_200() -> None:
+    """In demo mode, /api/scpi/query?cmd=MEAS:VOLT? returns a simulated reading."""
+    patches = _patch_settings(demo=True)
+    for p in patches:
+        p.start()
+    try:
+        with TestClient(app) as c:
+            r = c.get("/api/scpi/query", params={"cmd": "MEAS:VOLT?"})
+            assert r.status_code == 200, r.text
+            body = r.json()
+            assert body["demo"] is True
+            assert body["cmd"] == "MEAS:VOLT?"
+            assert body["response"]  # non-empty simulator response
+    finally:
+        for p in patches:
+            p.stop()
+
+
+def test_router_idn_live_mode_unreachable_returns_503() -> None:
+    """Live mode + unreachable hardware MUST surface 503, NOT mask with sim data."""
+    async def _refuse(*_args, **_kwargs):
+        raise OSError(111, "Connection refused")
+
+    patches = _patch_settings(demo=False)
+    open_patch = patch(f"{_PATCH_PREFIX}scpi_async.asyncio.open_connection", side_effect=_refuse)
+    for p in patches:
+        p.start()
+    open_patch.start()
+    try:
+        with TestClient(app) as c:
+            r = c.get("/api/scpi/idn")
+            assert r.status_code == 503, r.text
+            body = r.json()
+            assert body["detail"]["error"] == "scpi_unreachable"
+            assert body["detail"]["host"] == "192.168.200.100"
+            assert body["detail"]["port"] == 30000
+            assert "Connection refused" in body["detail"]["reason"] \
+                or "OSError" in body["detail"]["reason"]
+    finally:
+        open_patch.stop()
+        for p in patches:
+            p.stop()
+
+
+def test_router_query_live_mode_unreachable_returns_503() -> None:
+    """Same fail-fast contract for /api/scpi/query."""
+    async def _refuse(*_args, **_kwargs):
+        raise OSError(111, "Connection refused")
+
+    patches = _patch_settings(demo=False)
+    open_patch = patch(f"{_PATCH_PREFIX}scpi_async.asyncio.open_connection", side_effect=_refuse)
+    for p in patches:
+        p.start()
+    open_patch.start()
+    try:
+        with TestClient(app) as c:
+            r = c.get("/api/scpi/query", params={"cmd": "MEAS:VOLT?"})
+            assert r.status_code == 503, r.text
+            body = r.json()
+            assert body["detail"]["error"] == "scpi_unreachable"
+    finally:
+        open_patch.stop()
+        for p in patches:
+            p.stop()
