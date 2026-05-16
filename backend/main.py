@@ -31,6 +31,7 @@ try:
     # plain script (legacy ``python main.py``), the relative import fails
     # and we fall back to absolute lookup.
     from .config import get_settings
+    from .rag.router import router as rag_router
     from .scheduler_api import router as scheduler_router
     from .scpi_async import ScpiClient, is_scpi_reachable, run_telemetry_loop
     from .scpi_router import router as scpi_router
@@ -41,6 +42,7 @@ try:
     from .tickets import router as tickets_router
 except ImportError:  # pragma: no cover - script-mode fallback
     from config import get_settings  # type: ignore[no-redef]
+    from rag.router import router as rag_router  # type: ignore[no-redef]
     from scheduler_api import router as scheduler_router  # type: ignore[no-redef]
     from scpi_async import ScpiClient, is_scpi_reachable, run_telemetry_loop  # type: ignore[no-redef]
     from scpi_router import router as scpi_router  # type: ignore[no-redef]
@@ -158,6 +160,7 @@ except ImportError:  # pragma: no cover - script-mode fallback
 app.include_router(reliability_router)
 app.include_router(scheduler_router)
 app.include_router(scpi_router)
+app.include_router(rag_router)
 
 
 # --------------------------------------------------------------------------

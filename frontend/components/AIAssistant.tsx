@@ -16,10 +16,48 @@ const QUICK_PROMPTS = [
   'What SCPI commands are needed for Thermal Cycling?',
 ];
 
+type RagMatch = {
+  id: string | null;
+  score: number;
+  text: string;
+  source: string;
+  page: number | null;
+  chunk: number | null;
+};
+
+const TBE_TRIGGER = /\b(tbe|technical bid|tender|deliverable|spec sheet|bom|datasheet)\b/i;
+
+async function callTbeTool(query: string): Promise<RagMatch[] | null> {
+  try {
+    const res = await fetch('/api/rag/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: query, top_k: 5 }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return Array.isArray(data?.matches) ? (data.matches as RagMatch[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function formatTbeContext(matches: RagMatch[]): string {
+  if (!matches.length) return '';
+  const cites = matches
+    .map((m, i) => {
+      const loc = m.page != null ? `${m.source} p.${m.page}` : m.source;
+      return `[${i + 1}] (${loc}, score=${m.score.toFixed(3)})\n${m.text}`;
+    })
+    .join('\n\n');
+  return `TBE knowledge-base excerpts (cite as [n]):\n${cites}`;
+}
+
 export default function AIAssistant({ sessions, readings }: Props) {
   const [messages, setMessages] = useState<{ role: 'user' | 'ai'; content: string; ts: number }[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [toolStatus, setToolStatus] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const buildContext = () => {
@@ -36,7 +74,7 @@ export default function AIAssistant({ sessions, readings }: Props) {
     return `ITECH PV6000 Test Station (Agnipariksha)\nTest Sessions:\n${sessionSummary || 'None active'}\nLatest readings: ${last5 || 'None'}`;
   };
 
-  const sendMessage = async (text?: string) => {
+  const sendMessage = async (text?: string, opts?: { forceTbe?: boolean }) => {
     const msg = (text || input).trim();
     if (!msg) return;
     setInput('');
@@ -44,16 +82,34 @@ export default function AIAssistant({ sessions, readings }: Props) {
     setMessages(prev => [...prev, userMsg]);
     setLoading(true);
 
+    let context = buildContext();
+    let tbeCitations: RagMatch[] | null = null;
+    if (opts?.forceTbe || TBE_TRIGGER.test(msg)) {
+      setToolStatus('Searching TBE knowledge base…');
+      tbeCitations = await callTbeTool(msg);
+      if (tbeCitations && tbeCitations.length) {
+        context = `${context}\n\n${formatTbeContext(tbeCitations)}`;
+      }
+      setToolStatus(null);
+    }
+
     try {
       const res = await fetch('/api/ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: msg, context: buildContext() }),
+        body: JSON.stringify({ message: msg, context }),
       });
 
       if (!res.ok) throw new Error('API error');
       const data = await res.json();
-      setMessages(prev => [...prev, { role: 'ai', content: data.response, ts: Date.now() }]);
+      let content: string = data.response;
+      if (tbeCitations && tbeCitations.length) {
+        const sources = Array.from(new Set(tbeCitations.map(m =>
+          m.page != null ? `${m.source} p.${m.page}` : m.source,
+        )));
+        content += `\n\n— TBE sources: ${sources.join('; ')}`;
+      }
+      setMessages(prev => [...prev, { role: 'ai', content, ts: Date.now() }]);
     } catch {
       setMessages(prev => [...prev, {
         role: 'ai',
@@ -82,7 +138,16 @@ export default function AIAssistant({ sessions, readings }: Props) {
             {p}
           </button>
         ))}
+        <button
+          onClick={() => sendMessage(input.trim() || 'Summarise the TBE deliverables for this module', { forceTbe: true })}
+          title="Query the TBE PDF knowledge base (Pinecone RAG)"
+          className="px-2 py-1 bg-indigo-900 hover:bg-indigo-800 text-indigo-100 text-xs rounded border border-indigo-700 transition-colors">
+            📚 TBE
+        </button>
       </div>
+      {toolStatus && (
+        <div className="text-xs text-indigo-300 italic">🔍 {toolStatus}</div>
+      )}
 
       {/* Chat messages */}
       <div className="flex-1 overflow-y-auto bg-gray-900 rounded-xl border border-gray-700 p-4 space-y-4 min-h-0">

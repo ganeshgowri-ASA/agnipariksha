@@ -24,6 +24,13 @@ sqlmodel>=0.0.16
 SQLAlchemy>=2.0.30
 alembic>=1.13.1
 
+# RAG / TBE — Pinecone vector store + OpenAI embeddings + PDF parsing.
+# Lazy-loaded inside backend/rag/; module imports work without these installed.
+pinecone>=4.0.0
+openai>=1.30.0
+pypdf>=4.0.0
+tiktoken>=0.7.0
+
 # Tests
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
