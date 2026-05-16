@@ -1,8 +1,20 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { GATE2_PMAX_DELTA_PERCENT, type TestSession } from '@/types/test-session';
 import RaiseTicketButton from '@/components/tickets/RaiseTicketButton';
+import {
+  REPORT_SECTIONS,
+  ALL_SECTIONS_ON,
+  type ReportSectionKey,
+  type ReportSectionSelection,
+  loadSectionSelection,
+  saveSectionSelection,
+  loadPhotoRefs,
+  savePhotoRefs,
+  parsePhotoRefs,
+  iecClauseReference,
+} from '@/lib/report-sections';
 
 interface ReportGeneratorProps {
   session: TestSession | null;
@@ -90,6 +102,29 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
   const [moduleId, setModuleId] = useState('');
   const [notes, setNotes] = useState('');
   const [rawPath, setRawPath] = useState('');
+  const [photoText, setPhotoText] = useState('');
+  const [sections, setSections] = useState<ReportSectionSelection>(ALL_SECTIONS_ON);
+
+  // Load persisted section selection + photo refs whenever the Module ID
+  // changes. Empty IDs share a single "__default__" template so the
+  // operator gets continuity until they enter an ID.
+  useEffect(() => {
+    setSections(loadSectionSelection(moduleId));
+    setPhotoText(loadPhotoRefs(moduleId));
+  }, [moduleId]);
+
+  const toggleSection = (key: ReportSectionKey) => {
+    setSections(prev => {
+      const next = { ...prev, [key]: !prev[key] };
+      saveSectionSelection(moduleId, next);
+      return next;
+    });
+  };
+
+  const updatePhotoText = (text: string) => {
+    setPhotoText(text);
+    savePhotoRefs(moduleId, text);
+  };
 
   const stats = useMemo(() => {
     if (!session || session.readings.length === 0) return null;
@@ -126,48 +161,56 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
 
       const doc = new jsPDF();
       const pageW = doc.internal.pageSize.getWidth();
+      type DocWithTable = InstanceType<typeof jsPDF> & { lastAutoTable?: { finalY: number } };
+      const lastY = (): number => (doc as DocWithTable).lastAutoTable?.finalY ?? 40;
 
-      // Header band
-      doc.setFillColor(17, 24, 39); doc.rect(0, 0, pageW, 40, 'F');
-      doc.setTextColor(255, 165, 0);
-      doc.setFontSize(20); doc.setFont('helvetica', 'bold');
-      doc.text('AGNIPARIKSHA', 14, 16);
-      doc.setTextColor(200, 200, 200);
-      doc.setFontSize(10); doc.setFont('helvetica', 'normal');
-      doc.text('PV Module Reliability Test Report', 14, 24);
-      doc.text(labName, pageW - 14, 24, { align: 'right' });
+      // ---- Cover ----
+      if (sections.cover) {
+        doc.setFillColor(17, 24, 39); doc.rect(0, 0, pageW, 40, 'F');
+        doc.setTextColor(255, 165, 0);
+        doc.setFontSize(20); doc.setFont('helvetica', 'bold');
+        doc.text('AGNIPARIKSHA', 14, 16);
+        doc.setTextColor(200, 200, 200);
+        doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+        doc.text('PV Module Reliability Test Report', 14, 24);
+        doc.text(labName, pageW - 14, 24, { align: 'right' });
 
-      // Test title
-      doc.setTextColor(0, 0, 0);
-      doc.setFontSize(14); doc.setFont('helvetica', 'bold');
-      doc.text(testName, 14, 52);
-      doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
-      doc.text(`Standard: ${standard}  ·  Clause: ${session.iecClause ?? standard}`, 14, 59);
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(14); doc.setFont('helvetica', 'bold');
+        doc.text(testName, 14, 52);
+        doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80);
+        doc.text(`Standard: ${standard}  ·  Clause: ${session.iecClause ?? standard}`, 14, 59);
+        // Seed the cursor so text-only sections that follow (IEC, Appendix)
+        // start below the cover even when no autoTable runs in between.
+        (doc as DocWithTable).lastAutoTable = { finalY: 62 };
+      }
 
-      autoTable(doc, {
-        startY: 65,
-        head: [['Parameter', 'Value']],
-        body: [
-          ['Test Type', testName],
-          ['Standard', standard],
-          ['IEC Clause', session.iecClause ?? standard],
-          ['Module ID', moduleId || 'N/A'],
-          ['Operator', operatorName || 'N/A'],
-          ['Date', new Date(session.startTime).toLocaleDateString()],
-          ['Start Time', new Date(session.startTime).toLocaleTimeString()],
-          ['Duration (min)', stats?.duration ?? 'N/A'],
-          ['Total Readings', stats?.count.toString() ?? '0'],
-          ['Raw data file', rawPath || session.rawDataPath || 'N/A'],
-        ],
-        styles: { fontSize: 9, cellPadding: 3 },
-        headStyles: { fillColor: [17, 24, 39], textColor: [255, 165, 0] },
-        alternateRowStyles: { fillColor: [245, 245, 245] },
-      });
-
-      if (stats) {
-        const finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
+      // ---- Setup ----
+      if (sections.setup) {
         autoTable(doc, {
-          startY: finalY,
+          startY: sections.cover ? 65 : 20,
+          head: [['Parameter', 'Value']],
+          body: [
+            ['Test Type', testName],
+            ['Standard', standard],
+            ['IEC Clause', session.iecClause ?? standard],
+            ['Module ID', moduleId || 'N/A'],
+            ['Operator', operatorName || 'N/A'],
+            ['Date', new Date(session.startTime).toLocaleDateString()],
+            ['Start Time', new Date(session.startTime).toLocaleTimeString()],
+            ['Duration (min)', stats?.duration ?? 'N/A'],
+            ['Total Readings', stats?.count.toString() ?? '0'],
+          ],
+          styles: { fontSize: 9, cellPadding: 3 },
+          headStyles: { fillColor: [17, 24, 39], textColor: [255, 165, 0] },
+          alternateRowStyles: { fillColor: [245, 245, 245] },
+        });
+      }
+
+      // ---- Telemetry ----
+      if (sections.telemetry && stats) {
+        autoTable(doc, {
+          startY: lastY() + 8,
           head: [['Measurement', 'Min', 'Average', 'Max']],
           body: [
             ['Voltage (V)', stats.minV.toFixed(4), stats.avgV.toFixed(4), stats.maxV.toFixed(4)],
@@ -178,9 +221,22 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
           headStyles: { fillColor: [17, 24, 39], textColor: [255, 165, 0] },
         });
 
-        const gateY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
+        const chart = buildPowerChartPng(session);
+        if (chart) {
+          const chartY = lastY() + 10;
+          doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(0, 0, 0);
+          doc.text('Power Trend', 14, chartY);
+          doc.addImage(chart, 'PNG', 14, chartY + 4, pageW - 28, 60);
+          // jspdf-autotable's finalY isn't updated by addImage; advance our
+          // local cursor manually so the next section starts below the chart.
+          (doc as DocWithTable).lastAutoTable = { finalY: chartY + 64 };
+        }
+      }
+
+      // ---- Analysis ----
+      if (sections.analysis && stats) {
         autoTable(doc, {
-          startY: gateY,
+          startY: lastY() + 8,
           head: [['Gate Check', 'Pre Pmax', 'Post Pmax', 'ΔPmax %', 'Threshold', 'Verdict']],
           body: [[
             'IEC 61215-2 Gate 2',
@@ -196,25 +252,43 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
         });
       }
 
-      // Embed power-trend chart
-      const chart = buildPowerChartPng(session);
-      if (chart) {
-        const chartY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
+      // ---- Photos ----
+      const photoRefs = sections.photos ? parsePhotoRefs(photoText) : [];
+      if (sections.photos && photoRefs.length > 0) {
+        autoTable(doc, {
+          startY: lastY() + 8,
+          head: [['#', 'Photo reference', 'Caption']],
+          body: photoRefs.map((p, i) => [String(i + 1), p.path, p.caption || '—']),
+          styles: { fontSize: 9, cellPadding: 3 },
+          headStyles: { fillColor: [17, 24, 39], textColor: [255, 165, 0] },
+        });
+      }
+
+      // ---- IEC clauses ----
+      if (sections.iec_clauses) {
+        const lines = iecClauseReference(standard, session.iecClause);
+        const y = lastY() + 12;
         doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(0, 0, 0);
-        doc.text('Power Trend', 14, chartY);
-        doc.addImage(chart, 'PNG', 14, chartY + 4, pageW - 28, 60);
+        doc.text('IEC Reference', 14, y);
+        doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(40, 40, 40);
+        lines.forEach((line, idx) => doc.text(line, 14, y + 7 + idx * 5, { maxWidth: pageW - 28 }));
+        (doc as DocWithTable).lastAutoTable = { finalY: y + 7 + lines.length * 5 };
       }
 
-      if (notes) {
-        const yState = doc as unknown as { lastAutoTable?: { finalY: number } };
-        const notesY = (yState.lastAutoTable?.finalY ?? 200) + 80;
-        doc.setFontSize(11); doc.setFont('helvetica', 'bold');
-        doc.text('Notes', 14, notesY);
-        doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-        doc.text(notes, 14, notesY + 7, { maxWidth: pageW - 28 });
+      // ---- Appendix ----
+      if (sections.appendix) {
+        const y = lastY() + 12;
+        doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(0, 0, 0);
+        doc.text('Appendix', 14, y);
+        doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(40, 40, 40);
+        doc.text(`Raw data file: ${rawPath || session.rawDataPath || 'N/A'}`, 14, y + 7);
+        if (notes) {
+          doc.text('Notes:', 14, y + 14);
+          doc.text(notes, 14, y + 20, { maxWidth: pageW - 28 });
+        }
       }
 
-      // Footer + verdict band
+      // Footer + verdict band on every page
       const pageCount = doc.getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
@@ -242,68 +316,143 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
         HeadingLevel, Packer, WidthType, ImageRun,
       } = docx;
 
-      const rows: Array<[string, string]> = [
-        ['Test Type', testName], ['Standard', standard],
-        ['IEC Clause', session.iecClause ?? standard],
-        ['Module ID', moduleId || 'N/A'],
-        ['Operator', operatorName || 'N/A'],
-        ['Date', new Date(session.startTime).toLocaleDateString()],
-        ['Duration (min)', stats?.duration ?? 'N/A'],
-        ['Total Readings', stats?.count.toString() ?? '0'],
-        ['Raw data file', rawPath || session.rawDataPath || 'N/A'],
-        ['Verdict', verdict],
-      ];
+      type SectionChild = InstanceType<typeof Paragraph> | InstanceType<typeof Table>;
+      const children: SectionChild[] = [];
 
-      let chartImageRun: InstanceType<typeof ImageRun> | null = null;
-      const chart = buildPowerChartPng(session);
-      if (chart) {
-        const base64 = chart.split(',')[1];
-        const bin = atob(base64);
-        const bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        chartImageRun = new ImageRun({
-          data: bytes,
-          transformation: { width: 600, height: 180 },
-          type: 'png',
-        });
+      if (sections.cover) {
+        children.push(
+          new Paragraph({ text: 'AGNIPARIKSHA', heading: HeadingLevel.TITLE }),
+          new Paragraph({ text: 'PV Module Reliability Test Report', heading: HeadingLevel.HEADING_2 }),
+          new Paragraph({ children: [new TextRun({ text: labName, italics: true, color: '666666' })] }),
+          new Paragraph(''),
+          new Paragraph({ text: testName, heading: HeadingLevel.HEADING_1 }),
+          new Paragraph({ children: [new TextRun({ text: `Standard: ${standard}`, italics: true, color: '666666' })] }),
+          new Paragraph(''),
+        );
       }
 
-      const doc = new Document({
-        sections: [{
-          children: [
-            new Paragraph({ text: 'AGNIPARIKSHA', heading: HeadingLevel.TITLE }),
-            new Paragraph({ text: 'PV Module Reliability Test Report', heading: HeadingLevel.HEADING_2 }),
-            new Paragraph({ children: [new TextRun({ text: labName, italics: true, color: '666666' })] }),
-            new Paragraph(''),
-            new Paragraph({ text: testName, heading: HeadingLevel.HEADING_1 }),
-            new Paragraph({ children: [new TextRun({ text: `Standard: ${standard}`, italics: true, color: '666666' })] }),
-            new Paragraph(''),
-            new Table({
-              width: { size: 100, type: WidthType.PERCENTAGE },
-              rows: rows.map(([k, v]) => new TableRow({
-                children: [
-                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: k, bold: true })] })] }),
-                  new TableCell({ children: [new Paragraph(v)] }),
-                ],
+      if (sections.setup) {
+        const rows: Array<[string, string]> = [
+          ['Test Type', testName], ['Standard', standard],
+          ['IEC Clause', session.iecClause ?? standard],
+          ['Module ID', moduleId || 'N/A'],
+          ['Operator', operatorName || 'N/A'],
+          ['Date', new Date(session.startTime).toLocaleDateString()],
+          ['Duration (min)', stats?.duration ?? 'N/A'],
+          ['Total Readings', stats?.count.toString() ?? '0'],
+          ['Verdict', verdict],
+        ];
+        children.push(
+          new Paragraph({ text: 'Setup', heading: HeadingLevel.HEADING_2 }),
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            rows: rows.map(([k, v]) => new TableRow({
+              children: [
+                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: k, bold: true })] })] }),
+                new TableCell({ children: [new Paragraph(v)] }),
+              ],
+            })),
+          }),
+          new Paragraph(''),
+        );
+      }
+
+      if (sections.telemetry && stats) {
+        const telemetryRows: Array<[string, string, string, string]> = [
+          ['Voltage (V)', stats.minV.toFixed(4), stats.avgV.toFixed(4), stats.maxV.toFixed(4)],
+          ['Current (A)', '—', stats.avgI.toFixed(4), '—'],
+          ['Power (W)',   '—', stats.avgP.toFixed(4), '—'],
+        ];
+        children.push(
+          new Paragraph({ text: 'Telemetry', heading: HeadingLevel.HEADING_2 }),
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            rows: [
+              new TableRow({
+                children: ['Measurement', 'Min', 'Average', 'Max'].map(h =>
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: h, bold: true })] })] }),
+                ),
+              }),
+              ...telemetryRows.map(r => new TableRow({
+                children: r.map(c => new TableCell({ children: [new Paragraph(c)] })),
               })),
+            ],
+          }),
+          new Paragraph(''),
+        );
+
+        const chart = buildPowerChartPng(session);
+        if (chart) {
+          const base64 = chart.split(',')[1];
+          const bin = atob(base64);
+          const bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          children.push(
+            new Paragraph({ text: 'Power Trend', heading: HeadingLevel.HEADING_3 }),
+            new Paragraph({
+              children: [new ImageRun({
+                data: bytes,
+                transformation: { width: 600, height: 180 },
+                type: 'png',
+              })],
             }),
             new Paragraph(''),
-            ...(chartImageRun ? [
-              new Paragraph({ text: 'Power Trend', heading: HeadingLevel.HEADING_2 }),
-              new Paragraph({ children: [chartImageRun] }),
-            ] : []),
-            ...(notes ? [
-              new Paragraph(''),
-              new Paragraph({ text: 'Notes', heading: HeadingLevel.HEADING_2 }),
-              new Paragraph(notes),
-            ] : []),
-            new Paragraph(''),
-            new Paragraph({ children: [new TextRun({
-              text: `Generated by Agnipariksha on ${new Date().toLocaleString()}`,
-              italics: true, color: '888888', size: 18,
-            })] }),
-          ],
-        }],
+          );
+        }
+      }
+
+      if (sections.analysis && stats) {
+        children.push(
+          new Paragraph({ text: 'Analysis', heading: HeadingLevel.HEADING_2 }),
+          new Paragraph(`IEC 61215-2 Gate 2: ΔPmax = ${stats.delta.toFixed(2)}% (threshold ${GATE2_PMAX_DELTA_PERCENT}%)`),
+          new Paragraph({ children: [new TextRun({
+            text: `Verdict: ${stats.gatePass ? 'PASS' : 'FAIL'}`,
+            bold: true,
+            color: stats.gatePass ? '15803D' : 'B91C1C',
+          })] }),
+          new Paragraph(''),
+        );
+      }
+
+      const photoRefs = sections.photos ? parsePhotoRefs(photoText) : [];
+      if (sections.photos && photoRefs.length > 0) {
+        children.push(
+          new Paragraph({ text: 'Photos', heading: HeadingLevel.HEADING_2 }),
+          ...photoRefs.map((p, i) => new Paragraph(`${i + 1}. ${p.path}${p.caption ? ` — ${p.caption}` : ''}`)),
+          new Paragraph(''),
+        );
+      }
+
+      if (sections.iec_clauses) {
+        const lines = iecClauseReference(standard, session.iecClause);
+        children.push(
+          new Paragraph({ text: 'IEC Reference', heading: HeadingLevel.HEADING_2 }),
+          ...lines.map(l => new Paragraph(l)),
+          new Paragraph(''),
+        );
+      }
+
+      if (sections.appendix) {
+        children.push(
+          new Paragraph({ text: 'Appendix', heading: HeadingLevel.HEADING_2 }),
+          new Paragraph(`Raw data file: ${rawPath || session.rawDataPath || 'N/A'}`),
+        );
+        if (notes) {
+          children.push(
+            new Paragraph({ text: 'Notes', heading: HeadingLevel.HEADING_3 }),
+            new Paragraph(notes),
+          );
+        }
+        children.push(new Paragraph(''));
+      }
+
+      children.push(new Paragraph({ children: [new TextRun({
+        text: `Generated by Agnipariksha on ${new Date().toLocaleString()}`,
+        italics: true, color: '888888', size: 18,
+      })] }));
+
+      const doc = new Document({
+        sections: [{ children }],
       });
 
       const blob = await Packer.toBlob(doc);
@@ -318,6 +467,8 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
     }
     setLoading(null);
   };
+
+  const selectedCount = Object.values(sections).filter(Boolean).length;
 
   return (
     <div className="max-w-2xl space-y-4">
@@ -335,6 +486,7 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
               <input
                 value={f.value} onChange={e => f.set(e.target.value)} placeholder={f.ph}
                 className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-200"
+                data-testid={f.label === 'Module ID' ? 'report-module-id' : undefined}
               />
             </div>
           ))}
@@ -347,6 +499,55 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
             />
           </div>
         </div>
+      </div>
+
+      <div
+        className="bg-gray-900 rounded-lg border border-gray-700 p-4 space-y-3"
+        data-testid="report-sections-panel"
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-gray-200">Report Sections</h3>
+          <span className="text-[11px] text-gray-500">
+            {selectedCount}/{REPORT_SECTIONS.length} included
+            {moduleId.trim() ? ` · saved for ${moduleId.trim()}` : ' · default template'}
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {REPORT_SECTIONS.map(s => (
+            <label
+              key={s.key}
+              className="flex items-start gap-2 bg-gray-800/60 border border-gray-700 rounded px-2 py-1.5 cursor-pointer hover:bg-gray-800"
+            >
+              <input
+                type="checkbox"
+                checked={sections[s.key]}
+                onChange={() => toggleSection(s.key)}
+                className="mt-0.5 accent-orange-500"
+                data-testid={`report-section-${s.key}`}
+              />
+              <span className="flex-1">
+                <span className="block text-xs font-medium text-gray-200">{s.label}</span>
+                <span className="block text-[10px] text-gray-500 leading-tight">{s.description}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+
+        {sections.photos && (
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">
+              Photo references <span className="text-gray-600">(one per line, optional <code>path | caption</code>)</span>
+            </label>
+            <textarea
+              value={photoText}
+              onChange={e => updatePhotoText(e.target.value)}
+              rows={3}
+              placeholder={'photos/IMG_0001.jpg | back of module\nphotos/IR_thermal.png | IR scan @ 30 min'}
+              className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-200 resize-none font-mono"
+              data-testid="report-photo-refs"
+            />
+          </div>
+        )}
       </div>
 
       {stats && (
@@ -374,15 +575,17 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
       <div className="flex gap-3">
         <button
           type="button" onClick={generatePDF}
-          disabled={loading !== null || !session}
+          disabled={loading !== null || !session || selectedCount === 0}
           className="flex-1 py-2 bg-red-700 hover:bg-red-600 disabled:opacity-50 text-white text-sm rounded font-medium transition-colors"
+          data-testid="export-pdf-btn"
         >
           {loading === 'pdf' ? 'Generating…' : 'Export PDF'}
         </button>
         <button
           type="button" onClick={generateWord}
-          disabled={loading !== null || !session}
+          disabled={loading !== null || !session || selectedCount === 0}
           className="flex-1 py-2 bg-blue-700 hover:bg-blue-600 disabled:opacity-50 text-white text-sm rounded font-medium transition-colors"
+          data-testid="export-word-btn"
         >
           {loading === 'word' ? 'Generating…' : 'Export Word'}
         </button>
