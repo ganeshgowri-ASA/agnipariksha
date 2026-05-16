@@ -138,7 +138,7 @@ export default function TestTabLayout({
   };
 
   return (
-    <div className="flex flex-col h-full bg-gray-950">
+    <div className="flex flex-col h-full bg-gray-950" data-testid={`test-tab-${testKey}`}>
       {/* Test Header + control bar */}
       <div className="bg-gray-900 border-b border-gray-700 px-4 py-2 flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center gap-3 min-w-0">
@@ -161,13 +161,17 @@ export default function TestTabLayout({
       </div>
 
       {/* Sub-tabs */}
-      <div className="flex border-b border-gray-800 bg-gray-900 overflow-x-auto">
+      <div className="flex border-b border-gray-800 bg-gray-900 overflow-x-auto" role="tablist" data-testid="subtab-list">
         {subTabs.map(({ key, label, icon: Icon }) => {
           const active = subTab === key;
           return (
             <button
               key={key} type="button"
               onClick={() => setSubTab(key)}
+              role="tab"
+              aria-selected={active}
+              data-testid={`subtab-${key}`}
+              data-state={active ? 'active' : 'inactive'}
               className={`inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium transition-colors border-b-2 ${
                 active
                   ? 'border-orange-400 text-white bg-gray-800/50'
@@ -185,13 +189,13 @@ export default function TestTabLayout({
       {/* Sub-tab Content */}
       <div className="flex-1 overflow-auto p-4">
         {subTab === 'basic-check' && basicCheckPanel && (
-          <div className="max-w-5xl">{basicCheckPanel}</div>
+          <div className="max-w-5xl" data-testid="subtab-pane-basic-check">{basicCheckPanel}</div>
         )}
 
-        {subTab === 'setup' && <div className="max-w-2xl">{setupPanel}</div>}
+        {subTab === 'setup' && <div className="max-w-2xl" data-testid="subtab-pane-setup">{setupPanel}</div>}
 
         {subTab === 'monitor' && (
-          <div className="space-y-4">
+          <div className="space-y-4" data-testid="subtab-pane-monitor">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <AnalogGauge label="Voltage"     value={latest?.voltage ?? 0} max={limits.maxVoltage} unit="V"  color="#60a5fa" />
               <AnalogGauge label="Current"     value={latest?.current ?? 0} max={limits.maxCurrent} unit="A"  color="#34d399" />
@@ -224,18 +228,24 @@ export default function TestTabLayout({
         )}
 
         {subTab === 'data' && (
-          <DataTable
-            readings={sessionReadings.length > 0 ? sessionReadings : readings}
-            testName={testName}
-          />
+          <div data-testid="subtab-pane-data">
+            <DataTable
+              readings={sessionReadings.length > 0 ? sessionReadings : readings}
+              testName={testName}
+            />
+          </div>
         )}
 
         {subTab === 'analysis' && (
-          <AnalysisPanel session={session} testName={testName} standard={standard} />
+          <div data-testid="subtab-pane-analysis">
+            <AnalysisPanel session={session} testName={testName} standard={standard} />
+          </div>
         )}
 
         {subTab === 'report' && (
-          <ReportGenerator session={session} testName={testName} standard={standard} />
+          <div data-testid="subtab-pane-report">
+            <ReportGenerator session={session} testName={testName} standard={standard} />
+          </div>
         )}
       </div>
     </div>
