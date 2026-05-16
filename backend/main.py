@@ -3,7 +3,8 @@
 Endpoints
 ---------
 - GET  /health                — terse legacy health (preserved for old clients)
-- GET  /api/health            — deep health (scpi_reachable, disk_free, uptime)
+- GET  /api/health            — deep health (scpi/dmm/chamber per-device,
+                                 plus legacy scpi_reachable, disk_free, uptime)
 - WS   /ws/live               — legacy demo telemetry (preserved)
 - WS   /ws/telemetry          — production telemetry, 5 s heartbeat, demo-aware
 - POST /api/scpi              — synchronous SCPI passthrough (logging only)
@@ -174,9 +175,61 @@ async def healthz() -> dict:
     return {"status": "ok", "demo": _settings.DEMO_MODE, "version": _settings.APP_VERSION}
 
 
+_ROLE_TO_HEALTH_KEY = {
+    "dc_source": "scpi",
+    "dmm":       "dmm",
+    "chamber":   "chamber",
+}
+# Transports that can be cheaply TCP-probed for liveness without holding
+# the device handle. USBTMC / RS232 need an actual transport call.
+_NET_PROBEABLE_KINDS = {"scpi_tcp", "modbus_tcp", "raw_tcp"}
+
+
+def _probe_one_device(host: str, port: int, timeout_ms: int) -> bool:
+    """Sync TCP probe wrapper — called via run_in_executor."""
+    return is_scpi_reachable(host, int(port), timeout_ms)
+
+
+async def _device_status_map() -> dict[str, str]:
+    """Returns {scpi: ok|fail, dmm: ok|fail, chamber: ok|fail} keyed by role.
+
+    Demo mode (global or per-device) reports ok unconditionally. Live mode
+    TCP-probes net-capable transports and falls back to the registry's
+    background-health snapshot for USBTMC/RS232 devices.
+    """
+    try:
+        from .app.devices import get_registry
+    except ImportError:  # pragma: no cover
+        from app.devices import get_registry  # type: ignore[no-redef]
+
+    out = {"scpi": "fail", "dmm": "fail", "chamber": "fail"}
+    loop = asyncio.get_event_loop()
+    for d in get_registry().all():
+        key = _ROLE_TO_HEALTH_KEY.get(d.role)
+        if not key:
+            continue
+        if _settings.DEMO_MODE or d.demo:
+            out[key] = "ok"
+            continue
+        if d.transport_kind in _NET_PROBEABLE_KINDS:
+            host = d.transport_opts.get("host")
+            port = d.transport_opts.get("port")
+            if not host or not port:
+                out[key] = "fail"
+                continue
+            reachable = await loop.run_in_executor(
+                None, _probe_one_device, str(host), int(port), _settings.ITECH_TIMEOUT_MS,
+            )
+            out[key] = "ok" if reachable else "fail"
+        else:
+            # No cheap sync probe — rely on the background loop's snapshot.
+            out[key] = "ok" if bool(d.health.get("alive")) else "fail"
+    return out
+
+
 @app.get("/api/health")
 async def deep_health() -> dict:
-    """Deep health: probes SCPI port + disk + uptime."""
+    """Deep health: probes SCPI port + disk + uptime + per-device status."""
     # SCPI reachability — probe on a thread so we never block the loop.
     scpi_reachable = await asyncio.get_event_loop().run_in_executor(
         None,
@@ -190,17 +243,20 @@ async def deep_health() -> dict:
         disk_free_mb = int(free_bytes / (1024 * 1024))
     except OSError:
         disk_free_mb = -1
+    devices = await _device_status_map()
     overall = "ok"
-    if not scpi_reachable and not _settings.DEMO_MODE:
+    if not _settings.DEMO_MODE and any(v == "fail" for v in devices.values()):
         overall = "degraded"
     return {
         "status": overall,
         "demo": _settings.DEMO_MODE,
+        "mode": "demo" if _settings.DEMO_MODE else "live",
         "version": _settings.APP_VERSION,
         "scpi_reachable": scpi_reachable,
         "scpi_target": f"{_settings.ITECH_IP}:{_settings.ITECH_PORT}",
         "disk_free_mb": disk_free_mb,
         "uptime_s": int(time.time() - _started_at),
+        **devices,
     }
 
 
