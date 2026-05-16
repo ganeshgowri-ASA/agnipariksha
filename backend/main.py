@@ -36,6 +36,7 @@ try:
     from .scpi_router import router as scpi_router
     from .app.devices_api import router as devices_router
     from .app.health import start_background_health, stop_background_health
+    from .app.modules_api import router as modules_router
     from .db.backfill import backfill_csv_runs
     from .db.session import init_db
     from .tickets import router as tickets_router
@@ -46,6 +47,7 @@ except ImportError:  # pragma: no cover - script-mode fallback
     from scpi_router import router as scpi_router  # type: ignore[no-redef]
     from app.devices_api import router as devices_router  # type: ignore[no-redef]
     from app.health import start_background_health, stop_background_health  # type: ignore[no-redef]
+    from app.modules_api import router as modules_router  # type: ignore[no-redef]
     from db.backfill import backfill_csv_runs  # type: ignore[no-redef]
     from db.session import init_db  # type: ignore[no-redef]
     from tickets import router as tickets_router  # type: ignore[no-redef]
@@ -158,6 +160,7 @@ except ImportError:  # pragma: no cover - script-mode fallback
 app.include_router(reliability_router)
 app.include_router(scheduler_router)
 app.include_router(scpi_router)
+app.include_router(modules_router)
 
 
 # --------------------------------------------------------------------------

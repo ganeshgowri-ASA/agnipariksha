@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
 import LiveChart from '../LiveChart';
+import ModuleIdField from '../ModuleIdField';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
 interface Props {
@@ -53,6 +54,7 @@ export default function LeTIDTab({ readings, session, onSessionUpdate, sendComma
 
   const setupPanel = (
     <div className="space-y-4">
+      <ModuleIdField accentColor="text-purple-400" />
       <div className="bg-gray-900 rounded-lg border border-gray-700 p-4">
         <h3 className="text-sm font-bold text-purple-400 mb-3">IEC TS 63342:2022 — LeTID Test</h3>
         <p className="text-xs text-gray-400 mb-4">
