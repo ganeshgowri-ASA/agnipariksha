@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
+import ThermalCyclingBasicCheck from '../ThermalCyclingBasicCheck';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
 interface Props {
@@ -10,9 +11,13 @@ interface Props {
   onSessionUpdate: (s: TestSession | null) => void;
   sendCommand: (cmd: string) => void;
   demoMode: boolean;
+  /** Optional — passed through to the Basic Check status tower so the
+   *  Frontend lamp reflects the dashboard's WebSocket state. Defaults
+   *  to 'unknown' when not supplied (keeps callers backwards-compatible). */
+  wsStatus?: string;
 }
 
-export default function ThermalCyclingTab({ readings, session, onSessionUpdate, sendCommand, demoMode }: Props) {
+export default function ThermalCyclingTab({ readings, session, onSessionUpdate, sendCommand, demoMode, wsStatus = 'unknown' }: Props) {
   const [cycles, setCycles] = useState(200);
   const [tMin, setTMin] = useState(-40);
   const [tMax, setTMax] = useState(85);
@@ -95,7 +100,9 @@ export default function ThermalCyclingTab({ readings, session, onSessionUpdate, 
       color="text-orange-400" readings={readings} session={session}
       onSessionUpdate={onSessionUpdate} sendCommand={sendCommand} demoMode={demoMode}
       limits={{ maxVoltage: 100, maxCurrent: 20, maxPower: 2000, maxTemp: 100 }}
-      setupPanel={setupPanel} extraStats={extraStats}
+      setupPanel={setupPanel}
+      basicCheckPanel={<ThermalCyclingBasicCheck wsStatus={wsStatus} demoMode={demoMode} />}
+      extraStats={extraStats}
       onStartTest={onStart} onStopTest={onStop} onPauseTest={onPause}
     />
   );
