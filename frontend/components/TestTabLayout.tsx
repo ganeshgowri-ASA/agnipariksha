@@ -33,6 +33,12 @@ interface TestTabLayoutProps {
    * IEC tabs continue to default to "Live Monitor" unchanged.
    */
   basicCheckPanel?: React.ReactNode;
+  /**
+   * When provided, the Start button is blocked until the backend reports
+   * a Basic Check PASS for this Module ID. ``null`` keeps the button
+   * enabled (legacy tabs that don't yet wire the gate stay unchanged).
+   */
+  basicCheckPassed?: boolean | null;
   extraStats?: Array<{ label: string; value: string; unit: string; color?: string }>;
   onStartTest: () => void;
   onStopTest: () => void;
@@ -67,7 +73,7 @@ async function postControl(testId: string, action: string): Promise<void> {
 export default function TestTabLayout({
   testKey, testName, standard, color, readings, session,
   onSessionUpdate, sendCommand, demoMode,
-  limits, setupPanel, basicCheckPanel, extraStats = [],
+  limits, setupPanel, basicCheckPanel, basicCheckPassed = null, extraStats = [],
   onStartTest, onStopTest, onPauseTest, onResumeTest, onEmergencyStop,
 }: TestTabLayoutProps) {
   // When basicCheckPanel is provided, prepend Basic Check and default to
@@ -94,6 +100,16 @@ export default function TestTabLayout({
 
   const isRunning = session?.status === 'running';
   const isPaused  = session?.status === 'paused';
+
+  // PSU energization gate: when this tab declares a Basic Check pane, the
+  // backend is the source of truth for whether OUTP ON / VOLT / CURR sets
+  // are allowed. `basicCheckPassed === false` blocks Start with a tooltip;
+  // `null` (legacy tabs) leaves Start unconditionally enabled.
+  const gateBlocked = basicCheckPanel != null && basicCheckPassed === false;
+  const startDisabled = isRunning || gateBlocked;
+  const startTooltip = gateBlocked
+    ? 'Basic Check required — run the Basic Check sub-tab first'
+    : undefined;
 
   const fireControl = useCallback(
     (action: 'start' | 'pause' | 'resume' | 'stop' | 'emergency_stop') => {
@@ -151,8 +167,8 @@ export default function TestTabLayout({
           )}
           {demoMode && <span className="text-[10px] text-yellow-400 bg-yellow-900/30 px-1.5 py-0.5 rounded">DEMO</span>}
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          <ControlBtn label="Start"   icon={Play}         onClick={handleStart}  disabled={isRunning} variant="green" />
+        <div className="flex flex-wrap gap-1.5" data-testid="test-control-bar">
+          <ControlBtn label="Start"   icon={Play}         onClick={handleStart}  disabled={startDisabled} variant="green" title={startTooltip} testId="control-start" />
           <ControlBtn label="Pause"   icon={Pause}        onClick={handlePause}  disabled={!isRunning} variant="yellow" />
           <ControlBtn label="Resume"  icon={RefreshCw}    onClick={handleResume} disabled={!isPaused} variant="blue" />
           <ControlBtn label="Stop"    icon={Square}       onClick={handleStop}   disabled={!session || session.status === 'idle'} variant="red" />
@@ -243,13 +259,15 @@ export default function TestTabLayout({
 }
 
 function ControlBtn({
-  label, icon: Icon, onClick, disabled, variant,
+  label, icon: Icon, onClick, disabled, variant, title, testId,
 }: {
   label: string;
   icon: typeof Play;
   onClick: () => void;
   disabled?: boolean;
   variant: 'green' | 'yellow' | 'blue' | 'red' | 'estop';
+  title?: string;
+  testId?: string;
 }) {
   const cls = {
     green:  'bg-green-700 hover:bg-green-600',
@@ -261,6 +279,8 @@ function ControlBtn({
   return (
     <button
       type="button" onClick={onClick} disabled={disabled}
+      title={title}
+      data-testid={testId}
       className={`inline-flex items-center gap-1 px-2.5 py-1 text-white text-xs rounded font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${cls}`}
     >
       <Icon className="w-3.5 h-3.5" /> {label}
