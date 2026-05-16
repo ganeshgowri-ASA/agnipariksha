@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
+import ModuleIdField from '../ModuleIdField';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
 interface Props {
@@ -45,6 +46,7 @@ export default function HumidityFreezeTab({ readings, session, onSessionUpdate, 
 
   const setupPanel = (
     <div className="space-y-4">
+      <ModuleIdField accentColor="text-blue-400" />
       <div className="bg-gray-900 rounded-lg border border-gray-700 p-4">
         <h3 className="text-sm font-bold text-blue-400 mb-3">IEC 61215-2 MQT 12 — Humidity Freeze</h3>
         <p className="text-xs text-gray-400 mb-4">
