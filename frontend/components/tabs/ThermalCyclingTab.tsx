@@ -3,7 +3,13 @@
 import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
 import ThermalCyclingBasicCheck from '../ThermalCyclingBasicCheck';
+import { useBasicCheckGate } from '@/hooks/useBasicCheckGate';
 import type { TestSession, LiveReading } from '@/types/test-session';
+
+// Module ID used by the Basic Check gate for the Thermal Cycling tab.
+// One-to-one with the tab key — when the test station ships a per-DUT
+// barcode flow, swap this for the scanned serial.
+const TC_MODULE_ID = 'tc';
 
 interface Props {
   readings: LiveReading[];
@@ -23,6 +29,9 @@ export default function ThermalCyclingTab({ readings, session, onSessionUpdate, 
   const [tMax, setTMax] = useState(85);
   const [isc, setIsc] = useState(10.0);
   const [rampRate, setRampRate] = useState(100); // °C/hr max per IEC 61215
+
+  const { status: gateStatus, recordPass } = useBasicCheckGate(TC_MODULE_ID);
+  const basicCheckPassed = gateStatus ? gateStatus.passed : null;
 
   const completedCycles = session ? Math.floor(session.readings.length / 10) : 0;
   const progress = cycles > 0 ? Math.min(100, (completedCycles / cycles) * 100) : 0;
@@ -101,7 +110,15 @@ export default function ThermalCyclingTab({ readings, session, onSessionUpdate, 
       onSessionUpdate={onSessionUpdate} sendCommand={sendCommand} demoMode={demoMode}
       limits={{ maxVoltage: 100, maxCurrent: 20, maxPower: 2000, maxTemp: 100 }}
       setupPanel={setupPanel}
-      basicCheckPanel={<ThermalCyclingBasicCheck wsStatus={wsStatus} demoMode={demoMode} />}
+      basicCheckPanel={
+        <ThermalCyclingBasicCheck
+          wsStatus={wsStatus}
+          demoMode={demoMode}
+          moduleId={TC_MODULE_ID}
+          onPassRecorded={runId => { void recordPass(runId); }}
+        />
+      }
+      basicCheckPassed={basicCheckPassed}
       extraStats={extraStats}
       onStartTest={onStart} onStopTest={onStop} onPauseTest={onPause}
     />

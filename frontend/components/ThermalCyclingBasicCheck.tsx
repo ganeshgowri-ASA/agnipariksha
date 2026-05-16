@@ -51,6 +51,11 @@ interface BasicCheckProps {
   wsStatus: string;
   /** Whether the dashboard-wide DEMO toggle is on (header pill). */
   demoMode: boolean;
+  /** Module ID used by the backend basic-check gate. */
+  moduleId?: string;
+  /** Notify parent when the gate flips to "all green" so it can POST the
+   *  pass to the backend. Receives an optional run identifier. */
+  onPassRecorded?: (runId?: string) => void;
 }
 
 const BACKEND = (process.env.NEXT_PUBLIC_BACKEND_HTTP_URL ?? 'http://localhost:8000').replace(/\/+$/, '');
@@ -78,7 +83,7 @@ async function fetchJson<T>(url: string, timeoutMs = 3000): Promise<{ data?: T; 
 // Component
 // ---------------------------------------------------------------------------
 
-export default function ThermalCyclingBasicCheck({ wsStatus, demoMode }: BasicCheckProps) {
+export default function ThermalCyclingBasicCheck({ wsStatus, demoMode, moduleId, onPassRecorded }: BasicCheckProps) {
   const health = useHealth(5_000);
 
   const [transport, setTransport] = useState<TransportInfo | null>(null);
@@ -222,6 +227,15 @@ export default function ThermalCyclingBasicCheck({ wsStatus, demoMode }: BasicCh
     beFinal === 'green' &&
     feFinal !== 'red' &&
     aiFinal !== 'red';
+
+  // When all lamps reach the "go" combination, notify the parent so it
+  // can record the Basic Check pass with the backend. The parent's hook
+  // is responsible for de-duping — we just fire the edge.
+  useEffect(() => {
+    if (goodToOperate && moduleId && onPassRecorded) {
+      onPassRecorded(`bc-${moduleId}-${Date.now()}`);
+    }
+  }, [goodToOperate, moduleId, onPassRecorded]);
 
   // ---- manual-set + output actions ----
 
