@@ -30,9 +30,11 @@ try:
     # and we can use a relative import. When the file is executed as a
     # plain script (legacy ``python main.py``), the relative import fails
     # and we fall back to absolute lookup.
+    from .basic_check import router as basic_check_router
     from .config import get_settings
     from .scheduler_api import router as scheduler_router
     from .scpi_async import ScpiClient, is_scpi_reachable, run_telemetry_loop
+    from .scpi_router import _enforce_basic_check_gate
     from .scpi_router import router as scpi_router
     from .app.devices_api import router as devices_router
     from .app.health import start_background_health, stop_background_health
@@ -40,9 +42,11 @@ try:
     from .db.session import init_db
     from .tickets import router as tickets_router
 except ImportError:  # pragma: no cover - script-mode fallback
+    from basic_check import router as basic_check_router  # type: ignore[no-redef]
     from config import get_settings  # type: ignore[no-redef]
     from scheduler_api import router as scheduler_router  # type: ignore[no-redef]
     from scpi_async import ScpiClient, is_scpi_reachable, run_telemetry_loop  # type: ignore[no-redef]
+    from scpi_router import _enforce_basic_check_gate  # type: ignore[no-redef]
     from scpi_router import router as scpi_router  # type: ignore[no-redef]
     from app.devices_api import router as devices_router  # type: ignore[no-redef]
     from app.health import start_background_health, stop_background_health  # type: ignore[no-redef]
@@ -158,6 +162,7 @@ except ImportError:  # pragma: no cover - script-mode fallback
 app.include_router(reliability_router)
 app.include_router(scheduler_router)
 app.include_router(scpi_router)
+app.include_router(basic_check_router)
 
 
 # --------------------------------------------------------------------------
@@ -320,10 +325,12 @@ async def websocket_live(ws: WebSocket) -> None:
 # --------------------------------------------------------------------------
 class SCPICommand(BaseModel):
     command: str
+    module_id: Optional[str] = None
 
 
 @app.post("/api/scpi")
 async def send_scpi(cmd: SCPICommand) -> dict:
+    _enforce_basic_check_gate(cmd.command, cmd.module_id)
     client = ScpiClient(demo_mode=_settings.DEMO_MODE)
     await client.connect()
     try:
