@@ -152,10 +152,13 @@ app.include_router(tickets_router)
 
 try:
     from .app.reliability import reliability_router
+    from .app.procurement import procurement_router
 except ImportError:  # pragma: no cover - script-mode fallback
     from app.reliability import reliability_router  # type: ignore[no-redef]
+    from app.procurement import procurement_router  # type: ignore[no-redef]
 
 app.include_router(reliability_router)
+app.include_router(procurement_router)
 app.include_router(scheduler_router)
 app.include_router(scpi_router)
 
