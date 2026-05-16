@@ -26,13 +26,13 @@ export function TabsList({ children, className = '' }: { children: React.ReactNo
 }
 
 export function TabsTrigger({
-  value, children, className = '', title,
+  value, children, className = '', title, ...rest
 }: {
   value: string;
   children: React.ReactNode;
   className?: string;
   title?: string;
-}) {
+} & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'value' | 'title' | 'className' | 'onClick' | 'role' | 'aria-selected'>) {
   const ctx = React.useContext(TabsContext);
   const isActive = ctx.value === value;
   return (
@@ -44,6 +44,7 @@ export function TabsTrigger({
       data-state={isActive ? 'active' : 'inactive'}
       onClick={() => ctx.onValueChange(value)}
       className={className}
+      {...rest}
     >
       {children}
     </button>
