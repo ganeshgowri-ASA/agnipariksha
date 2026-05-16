@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://shreshtata.example/agnipariksha/schemas/tbe-score.schema.json",
+  "title": "TBE Score Record",
+  "description": "Immutable Technical-Bid Evaluation record. See docs/tbe-scoring.md for the policy this schema implements (weights 40/20/25/15, DQ rules, tie-breaker cascade, audit trail).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "tbe_id",
+    "policy_version",
+    "opened_at",
+    "closed_at",
+    "evaluator_id",
+    "reviewer_ids",
+    "weights",
+    "bids",
+    "min_price_used",
+    "min_lead_used",
+    "disqualified",
+    "tie_break_log",
+    "winning_bid_id",
+    "decision_hash"
+  ],
+  "properties": {
+    "tbe_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Canonical TBE record id. Surfaced on the PO and printed on the QR label."
+    },
+    "supersedes": {
+      "type": ["string", "null"],
+      "format": "uuid",
+      "description": "If this record corrects a prior TBE, the UUID of the prior record. Otherwise null."
+    },
+    "policy_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semver of the scoring policy in force at evaluation time."
+    },
+    "opened_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp at which the bid window opened."
+    },
+    "closed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp at which the bid window closed and the record was sealed."
+    },
+    "evaluator_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Operator id of the engineer that ran the scoring tool."
+    },
+    "reviewer_ids": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1,
+      "uniqueItems": true,
+      "description": "Procurement Committee members that signed off."
+    },
+    "weights": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["price", "lead_time", "quality", "compliance"],
+      "properties": {
+        "price":      { "type": "number", "const": 0.40 },
+        "lead_time":  { "type": "number", "const": 0.20 },
+        "quality":    { "type": "number", "const": 0.25 },
+        "compliance": { "type": "number", "const": 0.15 }
+      },
+      "description": "Weighting matrix. Fixed at 40/20/25/15 by policy. Sum MUST equal 1.0."
+    },
+    "line_item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["part_no", "qty"],
+      "properties": {
+        "part_no":         { "type": "string", "minLength": 1 },
+        "description":     { "type": "string" },
+        "qty":             { "type": "integer", "minimum": 1 },
+        "budget_ceiling":  { "type": "number", "minimum": 0, "description": "Currency-agnostic; track unit in `currency`." },
+        "currency":        { "type": "string", "pattern": "^[A-Z]{3}$", "default": "INR" }
+      }
+    },
+    "bids": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/Bid" }
+    },
+    "min_price_used": {
+      "type": "number",
+      "minimum": 0,
+      "description": "P_min snapshot used for price normalization. Derived from non-disqualified bids only."
+    },
+    "min_lead_used": {
+      "type": "number",
+      "minimum": 0,
+      "description": "L_min snapshot used for lead-time normalization. Derived from non-disqualified bids only."
+    },
+    "disqualified": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/DisqualificationEntry" },
+      "description": "Audit-grade list of every bid that was disqualified and why."
+    },
+    "tie_break_log": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/TieBreakEntry" },
+      "description": "Ordered list of tie-breaker cascade steps that actually fired."
+    },
+    "winning_bid_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "UUID of the awarded bid; MUST match a bid in `bids[]` that is not disqualified."
+    },
+    "decision_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "SHA-256 of the canonicalised JSON record (all fields except this one). Written to AuditLog."
+    }
+  },
+  "$defs": {
+    "Bid": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bid_id",
+        "vendor_id",
+        "vendor_name",
+        "raw",
+        "sub_scores",
+        "weighted_scores",
+        "total_score",
+        "disqualified"
+      ],
+      "properties": {
+        "bid_id":      { "type": "string", "format": "uuid" },
+        "vendor_id":   { "type": "string", "minLength": 1 },
+        "vendor_name": { "type": "string", "minLength": 1 },
+        "submitted_at":{ "type": "string", "format": "date-time" },
+        "documents": {
+          "type": "array",
+          "description": "Hashes of bid documents for non-repudiation.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["filename", "sha256"],
+            "properties": {
+              "filename": { "type": "string", "minLength": 1 },
+              "sha256":   { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+            }
+          }
+        },
+        "raw": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["price", "lead_time_days", "warranty_months", "mtbf_hours", "ncr_pct", "certs_satisfied", "certs_required"],
+          "properties": {
+            "price":            { "type": "number", "minimum": 0, "description": "Landed price incl. taxes/freight/insurance." },
+            "lead_time_days":   { "type": "integer", "minimum": 0 },
+            "warranty_months":  { "type": "integer", "minimum": 0, "maximum": 60, "description": "Capped at 60 months per policy." },
+            "mtbf_hours":       { "type": "number", "minimum": 0 },
+            "ncr_pct":          { "type": "number", "minimum": 0, "maximum": 100, "description": "Non-conformance rate from MaintenanceTicket history, last 12 months." },
+            "certs_satisfied":  { "type": "integer", "minimum": 0 },
+            "certs_required":   { "type": "integer", "minimum": 1 }
+          }
+        },
+        "sub_scores": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["price", "lead_time", "quality", "compliance"],
+          "properties": {
+            "price":      { "type": "number", "minimum": 0, "maximum": 100 },
+            "lead_time":  { "type": "number", "minimum": 0, "maximum": 100 },
+            "quality":    { "type": "number", "minimum": 0, "maximum": 100 },
+            "compliance": { "type": "number", "minimum": 0, "maximum": 100 }
+          }
+        },
+        "weighted_scores": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["price", "lead_time", "quality", "compliance"],
+          "properties": {
+            "price":      { "type": "number", "minimum": 0, "maximum": 40 },
+            "lead_time":  { "type": "number", "minimum": 0, "maximum": 20 },
+            "quality":    { "type": "number", "minimum": 0, "maximum": 25 },
+            "compliance": { "type": "number", "minimum": 0, "maximum": 15 }
+          }
+        },
+        "total_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Sum of weighted_scores. Zero if disqualified=true."
+        },
+        "disqualified": {
+          "type": "boolean",
+          "description": "True iff at least one disqualification entry references this bid_id."
+        }
+      }
+    },
+    "DisqualificationEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bid_id", "rule_code", "evidence_ref", "reviewer_id", "at"],
+      "properties": {
+        "bid_id":       { "type": "string", "format": "uuid" },
+        "rule_code": {
+          "type": "string",
+          "enum": ["DQ-DOC", "DQ-CERT", "DQ-FIN", "DQ-LEAD", "DQ-PRICE", "DQ-WARR", "DQ-CONF", "DQ-DUP"],
+          "description": "Disqualification rule from docs/tbe-scoring.md §3."
+        },
+        "evidence_ref": {
+          "type": "string",
+          "minLength": 1,
+          "description": "AuditLog id or document SHA-256 supporting the DQ decision."
+        },
+        "reviewer_id":  { "type": "string", "minLength": 1 },
+        "at":           { "type": "string", "format": "date-time" },
+        "note":         { "type": "string" }
+      }
+    },
+    "TieBreakEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["step", "rule", "winner_bid_id", "at"],
+      "properties": {
+        "step": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 6,
+          "description": "Position in the cascade (1..6)."
+        },
+        "rule": {
+          "type": "string",
+          "enum": [
+            "lower_landed_price",
+            "shorter_lead_time",
+            "higher_quality_subscore",
+            "higher_compliance_subscore",
+            "prior_performance",
+            "committee_vote"
+          ]
+        },
+        "winner_bid_id": { "type": "string", "format": "uuid" },
+        "at":            { "type": "string", "format": "date-time" },
+        "note":          { "type": "string" }
+      }
+    }
+  }
+}
