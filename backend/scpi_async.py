@@ -128,13 +128,18 @@ class ScpiClient:
         if self.demo_mode:
             self._connected = False
             return False
+        s = get_settings()
+        # Honour the configured probe timeout, with a 1 s floor so callers
+        # that override ITECH_TIMEOUT_MS very low don't make every connect
+        # hopeless. Cap at 5 s to keep failure-mode latency bounded.
+        per_attempt_timeout = max(1.0, min(5.0, s.ITECH_TIMEOUT_MS / 1000.0))
         delay = 0.25
         last_exc: Optional[BaseException] = None
         for attempt in range(1, max_attempts + 1):
             try:
                 self._reader, self._writer = await asyncio.wait_for(
                     asyncio.open_connection(self.host, self.port),
-                    timeout=1.0,
+                    timeout=per_attempt_timeout,
                 )
                 self._connected = True
                 return True
@@ -147,7 +152,8 @@ class ScpiClient:
                     raise ScpiUnreachable(
                         self.host,
                         self.port,
-                        f"connect failed after {max_attempts} attempts: "
+                        f"connect failed after {max_attempts} attempts "
+                        f"(per-attempt timeout {per_attempt_timeout:.1f}s): "
                         f"{type(exc).__name__}: {exc}",
                     ) from exc
                 await asyncio.sleep(min(delay, self.MAX_RECONNECT_BACKOFF))
