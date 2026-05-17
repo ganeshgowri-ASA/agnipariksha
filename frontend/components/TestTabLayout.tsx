@@ -1,9 +1,9 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
   Play, Pause, Square, OctagonAlert, RefreshCw, Settings, Activity, Table2, BarChart3, FileText,
-  ShieldCheck,
+  ShieldCheck, Bot,
 } from 'lucide-react';
 import type { TestSession, TestStatus, LiveReading } from '@/types/test-session';
 import LiveChart from './LiveChart';
@@ -11,6 +11,8 @@ import AnalogGauge from './AnalogGauge';
 import DataTable from './DataTable';
 import ReportGenerator from './ReportGenerator';
 import AnalysisPanel from './AnalysisPanel';
+import ThreadedAssistant from './ThreadedAssistant';
+import { useModuleId } from './ModuleIdContext';
 import { useNotifications } from './notifications/NotificationsStore';
 
 interface TestTabLayoutProps {
@@ -78,7 +80,27 @@ export default function TestTabLayout({
     ? [BASIC_CHECK_TAB, ...SUB_TABS_BASE]
     : [...SUB_TABS_BASE];
   const [subTab, setSubTab] = useState<SubTab>(basicCheckPanel ? 'basic-check' : 'monitor');
+  const [aiOpen, setAiOpen] = useState<boolean>(true);
   const { push } = useNotifications();
+  const { moduleId } = useModuleId();
+
+  // Numeric test_run_id surfaced by the backend (live mode); the demo-mode
+  // session id is a string like "TC-1234567" so we parse defensively.
+  const testRunId = useMemo<number | undefined>(() => {
+    if (!session?.id) return undefined;
+    const m = /(\d{1,9})$/.exec(session.id);
+    return m ? Number(m[1]) : undefined;
+  }, [session?.id]);
+
+  const aiContext = useMemo(() => ({
+    test_key: testKey,
+    test_name: testName,
+    standard,
+    sub_tab: subTab,
+    session_status: session?.status ?? 'idle',
+    sample_count: session?.readings.length ?? 0,
+    latest_reading: readings[readings.length - 1] ?? null,
+  }), [testKey, testName, standard, subTab, session?.status, session?.readings.length, readings]);
 
   const latest = readings[readings.length - 1];
   const sessionReadings = session?.readings || [];
@@ -182,64 +204,129 @@ export default function TestTabLayout({
         })}
       </div>
 
-      {/* Sub-tab Content */}
-      <div className="flex-1 overflow-auto p-4">
-        {subTab === 'basic-check' && basicCheckPanel && (
-          <div className="max-w-5xl">{basicCheckPanel}</div>
-        )}
+      {/* Sub-tab Content + AI rail */}
+      <div className="flex-1 min-h-0 flex overflow-hidden">
+        <div className="flex-1 overflow-auto p-4">
+          {subTab === 'basic-check' && basicCheckPanel && (
+            <div className="max-w-5xl">{basicCheckPanel}</div>
+          )}
 
-        {subTab === 'setup' && <div className="max-w-2xl">{setupPanel}</div>}
+          {subTab === 'setup' && <div className="max-w-2xl">{setupPanel}</div>}
 
-        {subTab === 'monitor' && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <AnalogGauge label="Voltage"     value={latest?.voltage ?? 0} max={limits.maxVoltage} unit="V"  color="#60a5fa" />
-              <AnalogGauge label="Current"     value={latest?.current ?? 0} max={limits.maxCurrent} unit="A"  color="#34d399" />
-              <AnalogGauge label="Power"       value={latest?.power   ?? 0} max={limits.maxPower}   unit="W"  color="#f59e0b" />
-              <AnalogGauge label="Temperature" value={latest?.temperature ?? 0} max={limits.maxTemp || 100} unit="°C" color="#f87171" />
-            </div>
-
-            {extraStats.length > 0 && (
+          {subTab === 'monitor' && (
+            <div className="space-y-4">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {extraStats.map(s => (
-                  <div key={s.label} className="bg-gray-900 rounded-lg p-3 border border-gray-700">
-                    <p className="text-xs text-gray-500">{s.label}</p>
-                    <p className={`text-xl font-mono font-bold ${s.color || 'text-white'}`}>
-                      {s.value} <span className="text-xs font-normal text-gray-400">{s.unit}</span>
-                    </p>
-                  </div>
-                ))}
+                <AnalogGauge label="Voltage"     value={latest?.voltage ?? 0} max={limits.maxVoltage} unit="V"  color="#60a5fa" />
+                <AnalogGauge label="Current"     value={latest?.current ?? 0} max={limits.maxCurrent} unit="A"  color="#34d399" />
+                <AnalogGauge label="Power"       value={latest?.power   ?? 0} max={limits.maxPower}   unit="W"  color="#f59e0b" />
+                <AnalogGauge label="Temperature" value={latest?.temperature ?? 0} max={limits.maxTemp || 100} unit="°C" color="#f87171" />
               </div>
-            )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <LiveChart readings={readings} metric="voltage" color="#60a5fa" label="Voltage (V)" />
-              <LiveChart readings={readings} metric="current" color="#34d399" label="Current (A)" />
-              <LiveChart readings={readings} metric="power"   color="#f59e0b" label="Power (W)" />
-              {readings.some(r => r.temperature !== undefined) && (
-                <LiveChart readings={readings} metric="temperature" color="#f87171" label="Temperature (°C)" />
+              {extraStats.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {extraStats.map(s => (
+                    <div key={s.label} className="bg-gray-900 rounded-lg p-3 border border-gray-700">
+                      <p className="text-xs text-gray-500">{s.label}</p>
+                      <p className={`text-xl font-mono font-bold ${s.color || 'text-white'}`}>
+                        {s.value} <span className="text-xs font-normal text-gray-400">{s.unit}</span>
+                      </p>
+                    </div>
+                  ))}
+                </div>
               )}
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <LiveChart readings={readings} metric="voltage" color="#60a5fa" label="Voltage (V)" />
+                <LiveChart readings={readings} metric="current" color="#34d399" label="Current (A)" />
+                <LiveChart readings={readings} metric="power"   color="#f59e0b" label="Power (W)" />
+                {readings.some(r => r.temperature !== undefined) && (
+                  <LiveChart readings={readings} metric="temperature" color="#f87171" label="Temperature (°C)" />
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {subTab === 'data' && (
-          <DataTable
-            readings={sessionReadings.length > 0 ? sessionReadings : readings}
-            testName={testName}
-          />
-        )}
+          {subTab === 'data' && (
+            <DataTable
+              readings={sessionReadings.length > 0 ? sessionReadings : readings}
+              testName={testName}
+            />
+          )}
 
-        {subTab === 'analysis' && (
-          <AnalysisPanel session={session} testName={testName} standard={standard} />
-        )}
+          {subTab === 'analysis' && (
+            <AnalysisPanel session={session} testName={testName} standard={standard} />
+          )}
 
-        {subTab === 'report' && (
-          <ReportGenerator session={session} testName={testName} standard={standard} />
+          {subTab === 'report' && (
+            <ReportGenerator session={session} testName={testName} standard={standard} />
+          )}
+        </div>
+
+        {/* AI rail — collapsible. The thread is keyed by Module ID so it
+            persists across sub-tab switches and across all 7 IEC test tabs. */}
+        {aiOpen ? (
+          <aside
+            className="hidden xl:flex flex-col w-[360px] flex-shrink-0 bg-gray-900/60 border-l border-gray-800"
+            data-testid="ai-rail"
+          >
+            <ThreadedAssistant
+              moduleId={moduleId}
+              testRunId={testRunId}
+              context={aiContext}
+              compact
+              onClose={() => setAiOpen(false)}
+              quickPrompts={subTabPromptsFor(subTab, testName)}
+            />
+          </aside>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setAiOpen(true)}
+            className="hidden xl:flex flex-col items-center justify-center w-8 bg-gray-900/60 hover:bg-gray-800 border-l border-gray-800 text-gray-400 hover:text-blue-300"
+            title="Show AI assistant rail"
+            data-testid="ai-rail-open"
+          >
+            <Bot className="w-4 h-4" />
+          </button>
         )}
       </div>
     </div>
   );
+}
+
+function subTabPromptsFor(sub: SubTab, testName: string): string[] {
+  switch (sub) {
+    case 'basic-check':
+      return [
+        `Is the bench ready to start ${testName}?`,
+        'Show recent runs for this module',
+      ];
+    case 'setup':
+      return [
+        `Suggest setup parameters for ${testName}`,
+        'Show recent runs for this module',
+      ];
+    case 'monitor':
+      return [
+        'Show the last 50 telemetry samples',
+        'Are these readings in spec?',
+      ];
+    case 'data':
+      return [
+        'Summarise the data so far',
+        'Any anomalies in this run?',
+      ];
+    case 'analysis':
+      return [
+        'Recompute ΔPmax for the current run',
+        'Compare against the Gate-2 threshold',
+      ];
+    case 'report':
+      return [
+        'Suggest PASS/FAIL with reasoning',
+        'Draft a one-paragraph report summary',
+      ];
+  }
 }
 
 function ControlBtn({

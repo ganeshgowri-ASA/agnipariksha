@@ -14,6 +14,7 @@ import AIAssistant from '@/components/AIAssistant';
 import StatusBar from '@/components/StatusBar';
 import AppHeader from '@/components/AppHeader';
 import DevicePills from '@/components/DevicePills';
+import { ModuleIdProvider } from '@/components/ModuleIdContext';
 import { NotificationsProvider } from '@/components/notifications/NotificationsStore';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { TABS, type TestKey, type TestSession } from '@/types/test-session';
@@ -126,7 +127,9 @@ function Dashboard() {
 export default function AgniparikshaDashboard() {
   return (
     <NotificationsProvider>
-      <Dashboard />
+      <ModuleIdProvider>
+        <Dashboard />
+      </ModuleIdProvider>
     </NotificationsProvider>
   );
 }

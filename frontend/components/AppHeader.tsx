@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Activity, Flame, Cpu, PowerOff, Wifi, WifiOff, Ticket as TicketIcon, LifeBuoy } from 'lucide-react';
 import { NotificationsBell } from './notifications/NotificationsDrawer';
 import Breadcrumbs from './Breadcrumbs';
+import ModuleIdInput from './ModuleIdInput';
 import ThemeToggle from './theme/ThemeToggle';
 import { useHealth } from '@/hooks/useHealth';
 import { useNotifications } from './notifications/NotificationsStore';
@@ -77,6 +78,8 @@ export default function AppHeader({
           <span className="px-2 py-1 bg-green-900/40 text-green-200 rounded">{statusCounts.pass} Pass</span>
           <span className="px-2 py-1 bg-red-900/40 text-red-200 rounded">{statusCounts.fail} Fail</span>
         </div>
+
+        <ModuleIdInput />
 
         <button
           type="button" onClick={onToggleDemo}
