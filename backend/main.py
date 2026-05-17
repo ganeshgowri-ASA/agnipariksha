@@ -30,6 +30,7 @@ try:
     # and we can use a relative import. When the file is executed as a
     # plain script (legacy ``python main.py``), the relative import fails
     # and we fall back to absolute lookup.
+    from .assistant import router as assistant_router
     from .config import get_settings
     from .scheduler_api import router as scheduler_router
     from .scpi_async import ScpiClient, is_scpi_reachable, run_telemetry_loop
@@ -40,6 +41,7 @@ try:
     from .db.session import init_db
     from .tickets import router as tickets_router
 except ImportError:  # pragma: no cover - script-mode fallback
+    from assistant import router as assistant_router  # type: ignore[no-redef]
     from config import get_settings  # type: ignore[no-redef]
     from scheduler_api import router as scheduler_router  # type: ignore[no-redef]
     from scpi_async import ScpiClient, is_scpi_reachable, run_telemetry_loop  # type: ignore[no-redef]
@@ -158,6 +160,7 @@ except ImportError:  # pragma: no cover - script-mode fallback
 app.include_router(reliability_router)
 app.include_router(scheduler_router)
 app.include_router(scpi_router)
+app.include_router(assistant_router)
 
 
 # --------------------------------------------------------------------------
