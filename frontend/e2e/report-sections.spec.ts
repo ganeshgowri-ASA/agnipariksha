@@ -13,8 +13,10 @@ test('report section checkboxes persist per Module ID', async ({ page }) => {
 
   // TC tab is the default active tab on /dashboard, but the sub-tab
   // defaults to Basic Check (because TC supplies a basicCheckPanel).
-  // Click the Report sub-tab inside the active TC panel.
-  await page.getByRole('button', { name: /^Report$/ }).click();
+  // Click the Report sub-tab inside the active TC panel. PR #51 set
+  // role="tab" on the sub-tab buttons, so target the test-id directly
+  // instead of relying on the implicit "button" role.
+  await page.getByTestId('subtab-report').click();
 
   const sectionsPanel = page.getByTestId('report-sections-panel');
   await expect(sectionsPanel).toBeVisible();
@@ -45,7 +47,7 @@ test('report section checkboxes persist per Module ID', async ({ page }) => {
 
   // Reload and verify persistence survives a full page reload.
   await page.reload();
-  await page.getByRole('button', { name: /^Report$/ }).click();
+  await page.getByTestId('subtab-report').click();
   await page.getByTestId('report-module-id').fill('MOD-A');
   await page.getByTestId('report-module-id').blur();
   await expect(page.getByTestId('report-section-photos')).not.toBeChecked();
