@@ -47,7 +47,9 @@ const MODES: ModeCase[] = [
 
 async function openSetup(page: Page): Promise<void> {
   await page.goto('/dashboard?tab=bdt');
-  await expect(page.getByTestId('test-tab-bdt')).toBeVisible({ timeout: 15_000 });
+  // The dashboard reads ?tab=bdt in a useEffect on mount, so we wait
+  // for the BDT panel itself before interacting with its sub-tabs.
+  await expect(page.getByTestId('test-tab-bdt')).toBeVisible({ timeout: 20_000 });
   await page.getByTestId('subtab-setup').click();
   await expect(page.getByTestId('subtab-pane-setup')).toBeVisible();
   await expect(page.getByTestId('iv-mode-selector')).toBeVisible();
