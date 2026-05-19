@@ -24,6 +24,11 @@ sqlmodel>=0.0.16
 SQLAlchemy>=2.0.30
 alembic>=1.13.1
 
+# DB connectors (feat/db-connectors): Fernet for at-rest secret encryption,
+# keyring for OS-native key storage. Driver wheels are optional / lazy.
+cryptography>=42.0.0
+keyring>=24.0.0
+
 # Tests
 pytest>=8.0.0
 pytest-asyncio>=0.23.0

@@ -14,7 +14,7 @@
  */
 import React from 'react';
 import Link from 'next/link';
-import { Flame, LayoutDashboard, Activity, Boxes, Ticket as TicketIcon, LifeBuoy, CalendarClock } from 'lucide-react';
+import { Flame, LayoutDashboard, Activity, Boxes, Ticket as TicketIcon, LifeBuoy, CalendarClock, Settings as SettingsIcon } from 'lucide-react';
 import Breadcrumbs from './Breadcrumbs';
 import ThemeToggle from './theme/ThemeToggle';
 
@@ -25,6 +25,7 @@ const NAV = [
   { href: '/inventory', label: 'Inventory',      icon: Boxes },
   { href: '/tickets',   label: 'Tickets',        icon: TicketIcon },
   { href: '/schedule',  label: 'Schedule',       icon: CalendarClock },
+  { href: '/settings/database', label: 'Settings', icon: SettingsIcon },
 ];
 
 interface AppShellProps {
