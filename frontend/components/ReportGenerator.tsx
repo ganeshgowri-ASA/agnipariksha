@@ -15,6 +15,7 @@ import {
   parsePhotoRefs,
   iecClauseReference,
 } from '@/lib/report-sections';
+import { useModuleStore } from '@/lib/module-store';
 
 interface ReportGeneratorProps {
   session: TestSession | null;
@@ -99,7 +100,8 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
   const [loading, setLoading] = useState<'pdf' | 'word' | null>(null);
   const [operatorName, setOperatorName] = useState('');
   const [labName, setLabName] = useState(BRAND_LAB);
-  const [moduleId, setModuleId] = useState('');
+  const moduleId = useModuleStore((s) => s.moduleId);
+  const setModuleId = useModuleStore((s) => s.setModuleId);
   const [notes, setNotes] = useState('');
   const [rawPath, setRawPath] = useState('');
   const [photoText, setPhotoText] = useState('');
@@ -476,7 +478,12 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
         <h3 className="text-sm font-bold text-gray-200">Report Configuration</h3>
         <div className="grid grid-cols-2 gap-3">
           {[
-            { label: 'Module ID',    value: moduleId,     set: setModuleId,     ph: 'e.g. MOD-2026-001' },
+            {
+              label: 'Module ID',
+              value: moduleId,
+              set: (v: string) => setModuleId(v),
+              ph: 'Scan in any test Setup tab or enter manually',
+            },
             { label: 'Operator',     value: operatorName, set: setOperatorName, ph: 'Your name' },
             { label: 'Laboratory',   value: labName,      set: setLabName,      ph: 'Lab name' },
             { label: 'Raw data path', value: rawPath,     set: setRawPath,      ph: '/data/runs/...' },
