@@ -28,7 +28,10 @@ class Settings(BaseSettings):
     # Hardware
     ITECH_IP: str = "192.168.200.100"
     ITECH_PORT: int = 30000
-    ITECH_TIMEOUT_MS: int = 500
+    # First-connect on multi-homed Windows hosts (Wi-Fi + lab Ethernet) can
+    # take ~1 s while the OS picks the right route — 500 ms was too tight
+    # and caused spurious scpi_reachable=false on the user's lab box.
+    ITECH_TIMEOUT_MS: int = 1500
 
     DEMO_MODE: bool = True
 
