@@ -11,6 +11,9 @@ import AnalogGauge from './AnalogGauge';
 import DataTable from './DataTable';
 import ReportGenerator from './ReportGenerator';
 import AnalysisPanel from './AnalysisPanel';
+import IVModeSelector from './IVModeSelector';
+import { IvModeBanner, IvModeMonitor } from './IvModeViews';
+import { readIvMode, useIvModeStore } from '@/lib/iv-mode-store';
 import { useNotifications } from './notifications/NotificationsStore';
 
 interface TestTabLayoutProps {
@@ -78,6 +81,11 @@ export default function TestTabLayout({
     ? [BASIC_CHECK_TAB, ...SUB_TABS_BASE]
     : [...SUB_TABS_BASE];
   const [subTab, setSubTab] = useState<SubTab>(basicCheckPanel ? 'basic-check' : 'monitor');
+  // Module ID defaults to <testKey>-default so smoke tests don't have to
+  // type one in. Operators override it on the Setup tab.
+  const [moduleId, setModuleId] = useState<string>(`${testKey}-default`);
+  const modes = useIvModeStore((s) => s.modes);
+  const ivMode = readIvMode(modes, moduleId);
   const { push } = useNotifications();
 
   const latest = readings[readings.length - 1];
@@ -192,43 +200,58 @@ export default function TestTabLayout({
           <div className="max-w-5xl" data-testid="subtab-pane-basic-check">{basicCheckPanel}</div>
         )}
 
-        {subTab === 'setup' && <div className="max-w-2xl" data-testid="subtab-pane-setup">{setupPanel}</div>}
+        {subTab === 'setup' && (
+          <div className="max-w-2xl space-y-4" data-testid="subtab-pane-setup">
+            <IVModeSelector moduleId={moduleId} onModuleIdChange={setModuleId} />
+            {setupPanel}
+          </div>
+        )}
 
         {subTab === 'monitor' && (
           <div className="space-y-4" data-testid="subtab-pane-monitor">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <AnalogGauge label="Voltage"     value={latest?.voltage ?? 0} max={limits.maxVoltage} unit="V"  color="#60a5fa" />
-              <AnalogGauge label="Current"     value={latest?.current ?? 0} max={limits.maxCurrent} unit="A"  color="#34d399" />
-              <AnalogGauge label="Power"       value={latest?.power   ?? 0} max={limits.maxPower}   unit="W"  color="#f59e0b" />
-              <AnalogGauge label="Temperature" value={latest?.temperature ?? 0} max={limits.maxTemp || 100} unit="°C" color="#f87171" />
-            </div>
-
-            {extraStats.length > 0 && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {extraStats.map(s => (
-                  <div key={s.label} className="bg-gray-900 rounded-lg p-3 border border-gray-700">
-                    <p className="text-xs text-gray-500">{s.label}</p>
-                    <p className={`text-xl font-mono font-bold ${s.color || 'text-white'}`}>
-                      {s.value} <span className="text-xs font-normal text-gray-400">{s.unit}</span>
-                    </p>
+            <IvModeBanner mode={ivMode} />
+            <IvModeMonitor
+              mode={ivMode}
+              readings={readings}
+              defaultView={
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <AnalogGauge label="Voltage"     value={latest?.voltage ?? 0} max={limits.maxVoltage} unit="V"  color="#60a5fa" />
+                    <AnalogGauge label="Current"     value={latest?.current ?? 0} max={limits.maxCurrent} unit="A"  color="#34d399" />
+                    <AnalogGauge label="Power"       value={latest?.power   ?? 0} max={limits.maxPower}   unit="W"  color="#f59e0b" />
+                    <AnalogGauge label="Temperature" value={latest?.temperature ?? 0} max={limits.maxTemp || 100} unit="°C" color="#f87171" />
                   </div>
-                ))}
-              </div>
-            )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <LiveChart readings={readings} metric="voltage" color="#60a5fa" label="Voltage (V)" />
-              <LiveChart readings={readings} metric="current" color="#34d399" label="Current (A)" />
-              <LiveChart readings={readings} metric="power"   color="#f59e0b" label="Power (W)" />
-              {readings.some(r => r.temperature !== undefined) && (
-                <LiveChart readings={readings} metric="temperature" color="#f87171" label="Temperature (°C)" />
-              )}
-            </div>
+                  {extraStats.length > 0 && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {extraStats.map(s => (
+                        <div key={s.label} className="bg-gray-900 rounded-lg p-3 border border-gray-700">
+                          <p className="text-xs text-gray-500">{s.label}</p>
+                          <p className={`text-xl font-mono font-bold ${s.color || 'text-white'}`}>
+                            {s.value} <span className="text-xs font-normal text-gray-400">{s.unit}</span>
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <LiveChart readings={readings} metric="voltage" color="#60a5fa" label="Voltage (V)" />
+                    <LiveChart readings={readings} metric="current" color="#34d399" label="Current (A)" />
+                    <LiveChart readings={readings} metric="power"   color="#f59e0b" label="Power (W)" />
+                    {readings.some(r => r.temperature !== undefined) && (
+                      <LiveChart readings={readings} metric="temperature" color="#f87171" label="Temperature (°C)" />
+                    )}
+                  </div>
+                </div>
+              }
+            />
           </div>
         )}
 
         {subTab === 'data' && (
           <div data-testid="subtab-pane-data">
+            <IvModeBanner mode={ivMode} />
             <DataTable
               readings={sessionReadings.length > 0 ? sessionReadings : readings}
               testName={testName}
@@ -238,12 +261,14 @@ export default function TestTabLayout({
 
         {subTab === 'analysis' && (
           <div data-testid="subtab-pane-analysis">
+            <IvModeBanner mode={ivMode} />
             <AnalysisPanel session={session} testName={testName} standard={standard} />
           </div>
         )}
 
         {subTab === 'report' && (
           <div data-testid="subtab-pane-report">
+            <IvModeBanner mode={ivMode} />
             <ReportGenerator session={session} testName={testName} standard={standard} />
           </div>
         )}
