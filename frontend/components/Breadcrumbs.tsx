@@ -24,6 +24,8 @@ const LABELS: Record<string, string> = {
   admin: 'Admin',
   logs: 'Logs',
   schedule: 'Schedule',
+  procurement: 'Procurement',
+  rfq: 'RFQs',
   'thermal-cycling': 'Thermal Cycling (MQT 11)',
   'humidity-freeze': 'Humidity Freeze (MQT 12)',
   'damp-heat': 'Damp Heat (MQT 13)',
