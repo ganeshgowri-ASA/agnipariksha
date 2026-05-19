@@ -172,3 +172,15 @@ def test_run_lookup_roundtrip() -> None:
         r = c.get(f"/api/iv/import/{run_id}")
         assert r.status_code == 200
         assert r.json()["run_id"] == run_id
+
+
+def test_lab_header_aliases_accepted() -> None:
+    # Real-world lab exports use unit-bracketed headers; the importer
+    # normalises them to the canonical schema before validation.
+    rows = ["Voltage [V],Current [A],Temperature [°C],Irradiance [W/m^2],Time"]
+    for k in range(11):
+        rows.append(f"{float(k)},{max(0.0, 8.0 - 0.8 * k):.3f},25,1000,t{k}")
+    with TestClient(app) as c:
+        r = _post(c, "\n".join(rows) + "\n")
+        assert r.status_code == 200, r.text
+        assert r.json()["n_points"] == 11

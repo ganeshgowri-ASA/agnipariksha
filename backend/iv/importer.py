@@ -5,7 +5,11 @@ Endpoints
 - POST /api/iv/import                     multipart .csv or .xlsx
 - GET  /api/iv/import/template/{csv|xlsx} starter template download
 
-Required columns: V, I, T_module_c, irradiance_w_m2, timestamp.
+Required columns (canonical): V, I, T_module_c, irradiance_w_m2, timestamp.
+Common lab-export header variants are normalised before validation —
+``Voltage [V]`` → ``V``, ``Current [A]`` → ``I``,
+``Temperature [°C]`` → ``T_module_c``, ``Irradiance [W/m^2]`` →
+``irradiance_w_m2``, ``Time`` → ``timestamp``.
 Optional form field ``area_m2`` (default 1.0) is used to compute eta.
 
 Validation rejects on:
@@ -34,7 +38,33 @@ router = APIRouter(prefix="/api/iv", tags=["iv-import"])
 REQUIRED_COLS = ("V", "I", "T_module_c", "irradiance_w_m2", "timestamp")
 TEMPLATE_DIR = Path(__file__).resolve().parents[2] / "docs" / "templates"
 
+# Common lab-export header variants → canonical column name.  Match is
+# case-insensitive after stripping unit suffixes like "[V]" / "(W/m^2)".
+COLUMN_ALIASES: Dict[str, str] = {
+    "v": "V", "voltage": "V", "u": "V",
+    "i": "I", "current": "I",
+    "t": "T_module_c", "temperature": "T_module_c",
+    "tmodule": "T_module_c", "t_module": "T_module_c",
+    "t_module_c": "T_module_c", "module_temperature": "T_module_c",
+    "irradiance": "irradiance_w_m2", "g": "irradiance_w_m2",
+    "irradiance_w_m2": "irradiance_w_m2", "poa": "irradiance_w_m2",
+    "timestamp": "timestamp", "time": "timestamp", "t_s": "timestamp",
+    "datetime": "timestamp",
+}
+
 _runs: Dict[str, "ImportResult"] = {}
+
+
+def _canonical(raw_name: str) -> str:
+    """Strip unit suffix + whitespace, lowercase, look up alias."""
+    s = str(raw_name).strip().lower()
+    for sep in ("[", "("):
+        if sep in s:
+            s = s.split(sep, 1)[0].strip()
+    s = s.replace(" ", "_").replace("-", "_").replace("/", "_")
+    while "__" in s:
+        s = s.replace("__", "_")
+    return COLUMN_ALIASES.get(s, raw_name)
 
 
 class ImportResult(BaseModel):
@@ -63,6 +93,11 @@ def _read_table(filename: str, raw: bytes) -> pd.DataFrame:
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"unparseable file: {exc}")
     raise HTTPException(status_code=400, detail="file must be .csv or .xlsx")
+
+
+def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
+    renamed = {c: _canonical(c) for c in df.columns}
+    return df.rename(columns=renamed)
 
 
 def _validate(df: pd.DataFrame) -> None:
@@ -146,7 +181,7 @@ async def import_iv(
     raw = await file.read()
     if not raw:
         raise HTTPException(status_code=400, detail="empty upload")
-    df = _read_table(file.filename, raw)
+    df = _normalize_columns(_read_table(file.filename, raw))
     _validate(df)
     return _compute(df, area_m2)
 
