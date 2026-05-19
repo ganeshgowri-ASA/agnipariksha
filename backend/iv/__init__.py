@@ -1,8 +1,7 @@
-"""Offline IV-curve import (CSV / XLSX).
+"""IV-curve acquisition modes.
 
-NO hardware interaction: this module never touches the PSU or SCPI
-transport. It accepts a tabular IV curve, validates it, and computes
-Pmax / Voc / Isc / Vmpp / Impp / FF / eta in pure pandas + numpy.
+- Offline import (CSV / XLSX) via :mod:`backend.iv.importer` — no hardware.
+- PSU + Scope live acquisition via :mod:`backend.iv.psu_scope`.
 """
 from .importer import router
 
