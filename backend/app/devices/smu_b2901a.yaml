@@ -1,0 +1,13 @@
+id: smu_b2901a
+name: Keysight B2901A SMU
+role: smu
+vendor: Keysight
+model: B2901A
+description: Precision source/measure unit used for 4-quadrant IV characterisation (G14).
+transport:
+  kind: scpi_usbtmc
+  resource: USB0::0x0957::0x8B18::INSTR
+  timeout_s: 5.0
+demo: true
+standards:
+  - IV characterisation (single-diode model)

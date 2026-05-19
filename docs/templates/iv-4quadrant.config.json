@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "4-Quadrant IV Acquisition (G14)",
+  "standard": "Module IV characterisation",
+  "instrument": "Keysight B2901A SMU (VISA/SCPI)",
+  "psu_state": "OFF (SMU-only)",
+  "comment": "POST this body to /api/iv/4q/start. The SMU sweeps V across [vmin,vmax]; cross zero in both directions to exercise all four quadrants. Use four_wire=true for Kelvin sensing to remove cable resistance from the IV trace.",
+  "request": {
+    "vmin": -2.0,
+    "vmax": 45.0,
+    "steps": 201,
+    "dwell_ms": 20.0,
+    "compliance_i": 10.5,
+    "nplc": 1.0,
+    "four_wire": true
+  },
+  "derived_metrics": [
+    "pmax  — peak power in Q1 (V·I)",
+    "voc   — open-circuit voltage (linear interp at I=0)",
+    "isc   — short-circuit current (linear interp at V=0)",
+    "vmpp  — voltage at Pmax",
+    "impp  — current at Pmax",
+    "ff    — fill factor = Pmax / (Voc · Isc)",
+    "eta   — efficiency vs 1000 W/m² over 1.6 m² (default)"
+  ],
+  "presets": {
+    "fast_screen": {"vmin": -1.0, "vmax": 42.0, "steps": 51, "dwell_ms": 10.0, "nplc": 0.2, "compliance_i": 10.0, "four_wire": true},
+    "iec_full":    {"vmin": -2.0, "vmax": 45.0, "steps": 401, "dwell_ms": 30.0, "nplc": 2.0, "compliance_i": 10.5, "four_wire": true},
+    "reverse_only":{"vmin": -10.0, "vmax": 0.5, "steps": 201, "dwell_ms": 20.0, "nplc": 1.0, "compliance_i": 5.0,  "four_wire": true}
+  }
+}

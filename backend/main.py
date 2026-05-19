@@ -32,6 +32,7 @@ try:
     # and we fall back to absolute lookup.
     from .config import get_settings
     from .gct_router import router as gct_router, ws_router as gct_ws_router
+    from .iv.router import router as iv_4q_router
     from .scheduler_api import router as scheduler_router
     from .scpi_async import ScpiClient, is_scpi_reachable, run_telemetry_loop
     from .api.scpi_routes import router as scpi_router
@@ -43,6 +44,7 @@ try:
 except ImportError:  # pragma: no cover - script-mode fallback
     from config import get_settings  # type: ignore[no-redef]
     from gct_router import router as gct_router, ws_router as gct_ws_router  # type: ignore[no-redef]
+    from iv.router import router as iv_4q_router  # type: ignore[no-redef]
     from scheduler_api import router as scheduler_router  # type: ignore[no-redef]
     from scpi_async import ScpiClient, is_scpi_reachable, run_telemetry_loop  # type: ignore[no-redef]
     from api.scpi_routes import router as scpi_router  # type: ignore[no-redef]
@@ -165,6 +167,7 @@ app.include_router(scheduler_router)
 app.include_router(scpi_router)
 app.include_router(gct_router)
 app.include_router(gct_ws_router)
+app.include_router(iv_4q_router)
 
 
 # --------------------------------------------------------------------------
