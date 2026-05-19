@@ -12,6 +12,8 @@ export interface LiveReading {
   current: number;
   power: number;
   temperature?: number;
+  /** 4-wire resistance in ohms — set by the GCT live stream. */
+  resistance?: number;
 }
 
 export interface TestSession {
