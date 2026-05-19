@@ -29,9 +29,11 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 try:
+    from ..basic_check import PASS_TTL_S, get_store, is_psu_energize_cmd
     from ..config import get_settings
     from ..scpi_async import ScpiClient, ScpiUnreachable, is_scpi_reachable
 except ImportError:  # pragma: no cover - script-mode fallback
+    from basic_check import PASS_TTL_S, get_store, is_psu_energize_cmd  # type: ignore[no-redef]
     from config import get_settings  # type: ignore[no-redef]
     from scpi_async import ScpiClient, ScpiUnreachable, is_scpi_reachable  # type: ignore[no-redef]
 
@@ -96,6 +98,43 @@ def _unreachable_503(exc: ScpiUnreachable) -> HTTPException:
     )
 
 
+def _enforce_basic_check_gate(cmd: str, module_id: Optional[str]) -> None:
+    """Refuse PSU-energizing commands without a recent Basic Check pass.
+
+    CRITICAL: This guard runs in BOTH demo and live modes. The simulator
+    is still a write path — we want operators to learn the gate in demo
+    before they ever hit live hardware.
+    """
+    if not is_psu_energize_cmd(cmd):
+        return
+    if not module_id:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "basic_check_required",
+                "reason": "module_id query parameter is required for PSU energization commands",
+                "cmd": cmd,
+                "ttl_s": PASS_TTL_S,
+            },
+        )
+    passed, age, _rec = get_store().status(module_id)
+    if not passed:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "basic_check_required",
+                "module_id": module_id,
+                "reason": (
+                    f"no Basic Check PASS for module_id={module_id!r} within last "
+                    f"{PASS_TTL_S}s (age_s={age})"
+                ),
+                "cmd": cmd,
+                "age_s": age,
+                "ttl_s": PASS_TTL_S,
+            },
+        )
+
+
 @router.get("/transport", response_model=TransportInfo)
 async def get_transport() -> TransportInfo:
     s = get_settings()
@@ -150,7 +189,13 @@ async def get_idn() -> IdnResponse:
 @router.get("/query", response_model=QueryResponse)
 async def get_query(
     cmd: str = Query(..., min_length=1, max_length=256, description="SCPI command, e.g. MEAS:VOLT?"),
+    module_id: Optional[str] = Query(
+        default=None,
+        max_length=128,
+        description="Required for PSU-energizing commands (OUTP ON / VOLT / CURR); ignored for queries",
+    ),
 ) -> QueryResponse:
+    _enforce_basic_check_gate(cmd, module_id)
     s = get_settings()
     client = ScpiClient(demo_mode=s.DEMO_MODE)
     t0 = time.monotonic()
