@@ -79,7 +79,8 @@ test.describe('G17 — IV mode selector', () => {
     await page.getByTestId('iv-module-id').fill('MOD-A');
     await page.getByTestId('iv-mode-select').selectOption('ivImport');
     await page.getByTestId('iv-module-id').fill('MOD-B');
-    await expect(page.getByTestId('iv-mode-select')).toHaveValue('iv4q');
+    // MOD-B has never been touched → falls back to the default mode.
+    await expect(page.getByTestId('iv-mode-select')).toHaveValue('ivPsuScope');
     await page.getByTestId('iv-module-id').fill('MOD-A');
     await expect(page.getByTestId('iv-mode-select')).toHaveValue('ivImport');
   });

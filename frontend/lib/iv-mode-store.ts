@@ -30,7 +30,7 @@ export const IV_MODE_TEMPLATE_PATH: Record<IvMode, string> = {
   ivImport: 'import',
 };
 
-export const DEFAULT_IV_MODE: IvMode = 'iv4q';
+export const DEFAULT_IV_MODE: IvMode = 'ivPsuScope';
 
 interface IvModeStore {
   modes: Record<string, IvMode>;
