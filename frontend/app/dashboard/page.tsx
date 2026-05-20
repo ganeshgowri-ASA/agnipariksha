@@ -9,6 +9,7 @@ import BypassDiodeTab from '@/components/tabs/BypassDiodeTab';
 import ReverseCurrentTab from '@/components/tabs/ReverseCurrentTab';
 import GroundContinuityTab from '@/components/tabs/GroundContinuityTab';
 import DampHeatTab from '@/components/tabs/DampHeatTab';
+import ElTab from '@/components/tabs/ElTab';
 import ResultsDashboard from '@/components/ResultsDashboard';
 import AIAssistant from '@/components/AIAssistant';
 import StatusBar from '@/components/StatusBar';
@@ -21,7 +22,7 @@ import { TABS, type TestKey, type TestSession } from '@/types/test-session';
 function Dashboard() {
   const [activeTab, setActiveTab] = useState<string>('tc');
   const [sessions, setSessions] = useState<Record<TestKey, TestSession | null>>({
-    tc: null, hf: null, letid: null, bdt: null, rco: null, gct: null, dh: null,
+    tc: null, hf: null, letid: null, bdt: null, rco: null, gct: null, dh: null, el: null,
   });
   const [demoMode, setDemoMode] = useState(true);
   const { readings, wsStatus, sendCommand } = useWebSocket(demoMode);
@@ -53,6 +54,7 @@ function Dashboard() {
     rco:   <ReverseCurrentTab     readings={readings} session={sessions.rco}   onSessionUpdate={s => handleSessionUpdate('rco',   s)} sendCommand={sendCommand} demoMode={demoMode} />,
     gct:   <GroundContinuityTab   readings={readings} session={sessions.gct}   onSessionUpdate={s => handleSessionUpdate('gct',   s)} sendCommand={sendCommand} demoMode={demoMode} />,
     dh:    <DampHeatTab           readings={readings} session={sessions.dh}    onSessionUpdate={s => handleSessionUpdate('dh',    s)} sendCommand={sendCommand} demoMode={demoMode} />,
+    el:    <ElTab                 readings={readings} session={sessions.el}    onSessionUpdate={s => handleSessionUpdate('el',    s)} sendCommand={sendCommand} demoMode={demoMode} />,
   };
 
   return (

@@ -31,6 +31,7 @@ try:
     # plain script (legacy ``python main.py``), the relative import fails
     # and we fall back to absolute lookup.
     from .config import get_settings
+    from .el.router import router as el_router
     from .gct_router import router as gct_router, ws_router as gct_ws_router
     from .iv.psu_scope import router as iv_psu_scope_router, ws_router as iv_psu_scope_ws_router
     from .scheduler_api import router as scheduler_router
@@ -43,6 +44,7 @@ try:
     from .tickets import router as tickets_router
 except ImportError:  # pragma: no cover - script-mode fallback
     from config import get_settings  # type: ignore[no-redef]
+    from el.router import router as el_router  # type: ignore[no-redef]
     from gct_router import router as gct_router, ws_router as gct_ws_router  # type: ignore[no-redef]
     from iv.psu_scope import router as iv_psu_scope_router, ws_router as iv_psu_scope_ws_router  # type: ignore[no-redef]
     from scheduler_api import router as scheduler_router  # type: ignore[no-redef]
@@ -172,6 +174,7 @@ app.include_router(gct_ws_router)
 app.include_router(iv_router)
 app.include_router(iv_psu_scope_router)
 app.include_router(iv_psu_scope_ws_router)
+app.include_router(el_router)
 
 
 # --------------------------------------------------------------------------

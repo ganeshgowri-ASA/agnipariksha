@@ -38,7 +38,8 @@ export type TestKey =
   | 'bdt'
   | 'rco'
   | 'gct'
-  | 'dh';
+  | 'dh'
+  | 'el';
 
 export interface TabDefinition {
   key: TestKey;
@@ -57,6 +58,7 @@ export const TABS: TabDefinition[] = [
   { key: 'rco',   label: 'Reverse Current Overload', short: 'RCO', color: 'text-red-400',    std: 'IEC 61730 MST 26',   clause: 'MST 26' },
   { key: 'gct',   label: 'Ground Continuity',        short: 'GCT', color: 'text-green-400',  std: 'IEC 61730 MST 13',   clause: 'MST 13' },
   { key: 'dh',    label: 'Damp Heat',                short: 'DH',  color: 'text-cyan-400',   std: 'IEC 61215-2 MQT 13', clause: 'MQT 13' },
+  { key: 'el',    label: 'Electroluminescence',      short: 'EL',  color: 'text-indigo-300', std: 'IEC TS 60904-13',    clause: 'EL' },
 ];
 
 export const GATE2_PMAX_DELTA_PERCENT = -5;
