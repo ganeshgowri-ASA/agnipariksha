@@ -11,9 +11,6 @@ import AnalogGauge from './AnalogGauge';
 import DataTable from './DataTable';
 import ReportGenerator from './ReportGenerator';
 import AnalysisPanel from './AnalysisPanel';
-import IVModeSelector from './IVModeSelector';
-import { IvModeBanner } from './IvModeViews';
-import { readIvMode, useIvModeStore } from '@/lib/iv-mode-store';
 import { useNotifications } from './notifications/NotificationsStore';
 
 interface TestTabLayoutProps {
@@ -81,11 +78,6 @@ export default function TestTabLayout({
     ? [BASIC_CHECK_TAB, ...SUB_TABS_BASE]
     : [...SUB_TABS_BASE];
   const [subTab, setSubTab] = useState<SubTab>(basicCheckPanel ? 'basic-check' : 'monitor');
-  // Module ID defaults to <testKey>-default so smoke tests don't have to
-  // type one in. Operators override it on the Setup tab.
-  const [moduleId, setModuleId] = useState<string>(`${testKey}-default`);
-  const modes = useIvModeStore((s) => s.modes);
-  const ivMode = readIvMode(modes, moduleId);
   const { push } = useNotifications();
 
   const latest = readings[readings.length - 1];
@@ -200,16 +192,10 @@ export default function TestTabLayout({
           <div className="max-w-5xl" data-testid="subtab-pane-basic-check">{basicCheckPanel}</div>
         )}
 
-        {subTab === 'setup' && (
-          <div className="max-w-2xl space-y-4" data-testid="subtab-pane-setup">
-            <IVModeSelector moduleId={moduleId} onModuleIdChange={setModuleId} />
-            {setupPanel}
-          </div>
-        )}
+        {subTab === 'setup' && <div className="max-w-2xl" data-testid="subtab-pane-setup">{setupPanel}</div>}
 
         {subTab === 'monitor' && (
           <div className="space-y-4" data-testid="subtab-pane-monitor">
-            <IvModeBanner mode={ivMode} />
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <AnalogGauge label="Voltage"     value={latest?.voltage ?? 0} max={limits.maxVoltage} unit="V"  color="#60a5fa" />
               <AnalogGauge label="Current"     value={latest?.current ?? 0} max={limits.maxCurrent} unit="A"  color="#34d399" />
@@ -243,7 +229,6 @@ export default function TestTabLayout({
 
         {subTab === 'data' && (
           <div data-testid="subtab-pane-data">
-            <IvModeBanner mode={ivMode} />
             <DataTable
               readings={sessionReadings.length > 0 ? sessionReadings : readings}
               testName={testName}
@@ -253,14 +238,12 @@ export default function TestTabLayout({
 
         {subTab === 'analysis' && (
           <div data-testid="subtab-pane-analysis">
-            <IvModeBanner mode={ivMode} />
             <AnalysisPanel session={session} testName={testName} standard={standard} />
           </div>
         )}
 
         {subTab === 'report' && (
           <div data-testid="subtab-pane-report">
-            <IvModeBanner mode={ivMode} />
             <ReportGenerator session={session} testName={testName} standard={standard} />
           </div>
         )}
