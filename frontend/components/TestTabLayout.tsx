@@ -12,7 +12,7 @@ import DataTable from './DataTable';
 import ReportGenerator from './ReportGenerator';
 import AnalysisPanel from './AnalysisPanel';
 import IVModeSelector from './IVModeSelector';
-import { IvModeBanner, IvModeMonitor } from './IvModeViews';
+import { IvModeBanner } from './IvModeViews';
 import { readIvMode, useIvModeStore } from '@/lib/iv-mode-store';
 import { useNotifications } from './notifications/NotificationsStore';
 
@@ -210,42 +210,34 @@ export default function TestTabLayout({
         {subTab === 'monitor' && (
           <div className="space-y-4" data-testid="subtab-pane-monitor">
             <IvModeBanner mode={ivMode} />
-            <IvModeMonitor
-              mode={ivMode}
-              readings={readings}
-              defaultView={
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <AnalogGauge label="Voltage"     value={latest?.voltage ?? 0} max={limits.maxVoltage} unit="V"  color="#60a5fa" />
-                    <AnalogGauge label="Current"     value={latest?.current ?? 0} max={limits.maxCurrent} unit="A"  color="#34d399" />
-                    <AnalogGauge label="Power"       value={latest?.power   ?? 0} max={limits.maxPower}   unit="W"  color="#f59e0b" />
-                    <AnalogGauge label="Temperature" value={latest?.temperature ?? 0} max={limits.maxTemp || 100} unit="°C" color="#f87171" />
-                  </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <AnalogGauge label="Voltage"     value={latest?.voltage ?? 0} max={limits.maxVoltage} unit="V"  color="#60a5fa" />
+              <AnalogGauge label="Current"     value={latest?.current ?? 0} max={limits.maxCurrent} unit="A"  color="#34d399" />
+              <AnalogGauge label="Power"       value={latest?.power   ?? 0} max={limits.maxPower}   unit="W"  color="#f59e0b" />
+              <AnalogGauge label="Temperature" value={latest?.temperature ?? 0} max={limits.maxTemp || 100} unit="°C" color="#f87171" />
+            </div>
 
-                  {extraStats.length > 0 && (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      {extraStats.map(s => (
-                        <div key={s.label} className="bg-gray-900 rounded-lg p-3 border border-gray-700">
-                          <p className="text-xs text-gray-500">{s.label}</p>
-                          <p className={`text-xl font-mono font-bold ${s.color || 'text-white'}`}>
-                            {s.value} <span className="text-xs font-normal text-gray-400">{s.unit}</span>
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <LiveChart readings={readings} metric="voltage" color="#60a5fa" label="Voltage (V)" />
-                    <LiveChart readings={readings} metric="current" color="#34d399" label="Current (A)" />
-                    <LiveChart readings={readings} metric="power"   color="#f59e0b" label="Power (W)" />
-                    {readings.some(r => r.temperature !== undefined) && (
-                      <LiveChart readings={readings} metric="temperature" color="#f87171" label="Temperature (°C)" />
-                    )}
+            {extraStats.length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {extraStats.map(s => (
+                  <div key={s.label} className="bg-gray-900 rounded-lg p-3 border border-gray-700">
+                    <p className="text-xs text-gray-500">{s.label}</p>
+                    <p className={`text-xl font-mono font-bold ${s.color || 'text-white'}`}>
+                      {s.value} <span className="text-xs font-normal text-gray-400">{s.unit}</span>
+                    </p>
                   </div>
-                </div>
-              }
-            />
+                ))}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <LiveChart readings={readings} metric="voltage" color="#60a5fa" label="Voltage (V)" />
+              <LiveChart readings={readings} metric="current" color="#34d399" label="Current (A)" />
+              <LiveChart readings={readings} metric="power"   color="#f59e0b" label="Power (W)" />
+              {readings.some(r => r.temperature !== undefined) && (
+                <LiveChart readings={readings} metric="temperature" color="#f87171" label="Temperature (°C)" />
+              )}
+            </div>
           </div>
         )}
 

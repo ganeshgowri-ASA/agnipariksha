@@ -1,9 +1,12 @@
 /**
  * G17 — IV Source selector smoke.
  *
- * Verifies the selector mounts, persists per Module ID, and the matching
- * template route returns the expected content type for each of the
- * three modes (4-Quadrant SMU, PSU + Oscilloscope, Offline Import).
+ * Verifies for each of the three modes (4-Quadrant SMU, PSU +
+ * Oscilloscope, Offline Import):
+ *   1. The selector renders on the Setup sub-tab.
+ *   2. Switching modes updates the banner shown on Live Monitor / Data
+ *      Table / Analysis / Report.
+ *   3. The matching template route returns the right content type.
  *
  * PSU OUTPUT NEVER ASSERTED: the test only navigates and reads UI; no
  * SCPI control endpoint is hit.
@@ -25,26 +28,14 @@ test.describe('G17 — IV mode selector', () => {
     await expect(page.getByTestId('iv-template-download')).toBeVisible();
   });
 
-  test('selecting iv4q updates the Live Monitor view', async ({ page }) => {
-    await openSetup(page);
-    await page.getByTestId('iv-mode-select').selectOption('iv4q');
-    await page.getByTestId('subtab-monitor').click();
-    await expect(page.getByTestId('iv-monitor-iv4q')).toBeVisible();
-  });
-
-  test('selecting ivPsuScope updates the Live Monitor view', async ({ page }) => {
-    await openSetup(page);
-    await page.getByTestId('iv-mode-select').selectOption('ivPsuScope');
-    await page.getByTestId('subtab-monitor').click();
-    await expect(page.getByTestId('iv-monitor-ivPsuScope')).toBeVisible();
-  });
-
-  test('selecting ivImport updates the Live Monitor view', async ({ page }) => {
-    await openSetup(page);
-    await page.getByTestId('iv-mode-select').selectOption('ivImport');
-    await page.getByTestId('subtab-monitor').click();
-    await expect(page.getByTestId('iv-monitor-ivImport')).toBeVisible();
-  });
+  for (const mode of ['iv4q', 'ivPsuScope', 'ivImport'] as const) {
+    test(`selecting ${mode} surfaces the mode banner on the Live Monitor pane`, async ({ page }) => {
+      await openSetup(page);
+      await page.getByTestId('iv-mode-select').selectOption(mode);
+      await page.getByTestId('subtab-monitor').click();
+      await expect(page.getByTestId(`iv-mode-banner-${mode}`)).toBeVisible();
+    });
+  }
 
   test('GET /api/iv/4q/template returns JSON', async ({ request }) => {
     const res = await request.get('/api/iv/4q/template');
