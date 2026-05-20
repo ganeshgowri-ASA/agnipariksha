@@ -47,6 +47,9 @@ backend/venv/
 logs/
 *.pid
 
+# claude code tooling (agent worktrees, session caches)
+.claude/
+
 # env files (only .env.example is committed)
 .env
 .env.local
