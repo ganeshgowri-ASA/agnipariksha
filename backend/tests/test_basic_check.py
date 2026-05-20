@@ -126,7 +126,7 @@ class _FakeSettings:
 def _patch_settings():
     fake = _FakeSettings()
     return [
-        patch(f"{_PATCH_PREFIX}scpi_router.get_settings", return_value=fake),
+        patch(f"{_PATCH_PREFIX}api.scpi_routes.get_settings", return_value=fake),
         patch(f"{_PATCH_PREFIX}scpi_async.get_settings", return_value=fake),
     ]
 
@@ -163,7 +163,7 @@ def test_scpi_query_energize_without_module_id_is_403() -> None:
         with TestClient(app) as c:
             r = c.get("/api/scpi/query", params={"cmd": "OUTP ON"})
             assert r.status_code == 403, r.text
-            assert r.json()["detail"]["error"] == "basic_check_required"
+            assert r.json()["detail"]["error"] == "BASIC_CHECK_REQUIRED"
     finally:
         for p in patches:
             p.stop()
@@ -181,7 +181,7 @@ def test_scpi_query_energize_without_basic_check_is_403() -> None:
             )
             assert r.status_code == 403, r.text
             body = r.json()["detail"]
-            assert body["error"] == "basic_check_required"
+            assert body["error"] == "BASIC_CHECK_REQUIRED"
             assert body["module_id"] == "MOD-Z"
     finally:
         for p in patches:
@@ -228,4 +228,4 @@ def test_scpi_post_energize_without_module_id_is_403() -> None:
     with TestClient(app) as c:
         r = c.post("/api/scpi", json={"command": "OUTP ON"})
         assert r.status_code == 403, r.text
-        assert r.json()["detail"]["error"] == "basic_check_required"
+        assert r.json()["detail"]["error"] == "BASIC_CHECK_REQUIRED"
