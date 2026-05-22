@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "IV PSU+Scope Acquisition Config",
+  "description": "Template for POST /api/iv/psu-scope/start. The PSU ramps voltage at psu_ramp_rate_v_s; the scope samples the shunt voltage on scope_channel at sample_rate_hz. Current is recovered as I = V_shunt / shunt_ohms (e.g. 1 mOhm shunt -> 4 mV/A). Every PSU OUTP/VOLT/CURR call routes through the basic-check gate (G1 #52). DEMO_MODE returns a synthetic single-diode sweep; in tests the PSU OUTPUT stays OFF.",
+  "example": {
+    "psu_ramp_rate_v_s": 1.0,
+    "shunt_ohms": 0.001,
+    "scope_channel": 1,
+    "scope_timebase_ms": 10.0,
+    "scope_trigger_v": 0.0,
+    "sample_rate_hz": 1000.0,
+    "sweeps": 1,
+    "v_max": 50.0
+  },
+  "fields": {
+    "psu_ramp_rate_v_s": {
+      "type": "number",
+      "unit": "V/s",
+      "min": 0.0,
+      "max": 100.0,
+      "description": "ITECH PV6000 voltage ramp rate."
+    },
+    "shunt_ohms": {
+      "type": "number",
+      "unit": "Ohm",
+      "min": 0.0,
+      "max": 1.0,
+      "description": "Shunt resistance. Lab default 0.001 (1 mOhm) -> 4 mV per Amp."
+    },
+    "scope_channel": {
+      "type": "integer",
+      "min": 1,
+      "max": 4,
+      "description": "DSO channel reading the shunt voltage (Keysight/Rigol DSO)."
+    },
+    "scope_timebase_ms": {
+      "type": "number",
+      "unit": "ms/div",
+      "min": 0.001,
+      "description": "Horizontal timebase used during the sweep."
+    },
+    "scope_trigger_v": {
+      "type": "number",
+      "unit": "V",
+      "description": "Edge-trigger level on the shunt channel."
+    },
+    "sample_rate_hz": {
+      "type": "number",
+      "unit": "Hz",
+      "min": 1.0,
+      "max": 100000.0,
+      "description": "Rate at which V/I pairs are pushed over the WebSocket."
+    },
+    "sweeps": {
+      "type": "integer",
+      "min": 1,
+      "max": 20,
+      "description": "Number of full sweeps to record before the stream closes."
+    },
+    "v_max": {
+      "type": "number",
+      "unit": "V",
+      "min": 0.0,
+      "max": 1500.0,
+      "description": "Sweep ceiling (typical Voc of one module string)."
+    }
+  },
+  "endpoints": {
+    "start": "POST /api/iv/psu-scope/start",
+    "stream": "WS /api/iv/psu-scope/stream/{run_id}"
+  },
+  "safety_notes": [
+    "Every PSU OUTP/VOLT/CURR call is wrapped by _enforce_basic_check (G1 #52).",
+    "This module never enables PSU OUTPUT; the operator must do so explicitly after the Basic Check gate passes.",
+    "On WS disconnect the run helper drives V -> 0 and OUTP OFF best-effort.",
+    "DEMO_MODE bypasses all SCPI traffic and returns a synthetic single-diode sweep."
+  ]
+}
