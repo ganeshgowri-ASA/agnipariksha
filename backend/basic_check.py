@@ -150,3 +150,33 @@ def get_status(module_id: str = Query(..., min_length=1, max_length=128)) -> Sta
     """Probe the latest Basic Check status for ``module_id``."""
     passed, age, rec = _store.status(module_id)
     return _build_status(module_id, passed=passed, age_s=age, rec=rec)
+
+
+# ---------------------------------------------------------------------------
+# Live-mode toggle — read by the SCPI write path. Default is DISABLED so the
+# CI test that boots the app cannot accidentally drive live hardware. The
+# operator opts in via the Settings panel which POSTs to this endpoint.
+# ---------------------------------------------------------------------------
+LIVE_MODE_ENABLED: bool = False
+
+settings_router = APIRouter(prefix="/api/settings", tags=["settings"])
+
+
+class LiveModeBody(BaseModel):
+    enabled: bool
+
+
+class LiveModeResponse(BaseModel):
+    enabled: bool
+
+
+@settings_router.post("/live-mode", response_model=LiveModeResponse)
+def post_live_mode(body: LiveModeBody) -> LiveModeResponse:
+    global LIVE_MODE_ENABLED
+    LIVE_MODE_ENABLED = bool(body.enabled)
+    return LiveModeResponse(enabled=LIVE_MODE_ENABLED)
+
+
+@settings_router.get("/live-mode", response_model=LiveModeResponse)
+def get_live_mode() -> LiveModeResponse:
+    return LiveModeResponse(enabled=LIVE_MODE_ENABLED)

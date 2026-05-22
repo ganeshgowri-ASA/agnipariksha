@@ -33,6 +33,9 @@ interface TestTabLayoutProps {
    * IEC tabs continue to default to "Live Monitor" unchanged.
    */
   basicCheckPanel?: React.ReactNode;
+  /** Optional server-side Basic Check gate (polled). When blocked, Start
+   *  is disabled with a tooltip explaining why. */
+  basicCheckGate?: { blocked: boolean; reason?: string };
   extraStats?: Array<{ label: string; value: string; unit: string; color?: string }>;
   onStartTest: () => void;
   onStopTest: () => void;
@@ -67,7 +70,7 @@ async function postControl(testId: string, action: string): Promise<void> {
 export default function TestTabLayout({
   testKey, testName, standard, color, readings, session,
   onSessionUpdate, sendCommand, demoMode,
-  limits, setupPanel, basicCheckPanel, extraStats = [],
+  limits, setupPanel, basicCheckPanel, basicCheckGate, extraStats = [],
   onStartTest, onStopTest, onPauseTest, onResumeTest, onEmergencyStop,
 }: TestTabLayoutProps) {
   // When basicCheckPanel is provided, prepend Basic Check and default to
@@ -152,7 +155,15 @@ export default function TestTabLayout({
           {demoMode && <span className="text-[10px] text-yellow-400 bg-yellow-900/30 px-1.5 py-0.5 rounded">DEMO</span>}
         </div>
         <div className="flex flex-wrap gap-1.5">
-          <ControlBtn label="Start"   icon={Play}         onClick={handleStart}  disabled={isRunning} variant="green" />
+          <ControlBtn
+            label="Start"
+            icon={Play}
+            onClick={handleStart}
+            disabled={isRunning || !!basicCheckGate?.blocked}
+            variant="green"
+            title={basicCheckGate?.blocked ? (basicCheckGate.reason ?? 'Basic Check required') : undefined}
+            testId="start-btn"
+          />
           <ControlBtn label="Pause"   icon={Pause}        onClick={handlePause}  disabled={!isRunning} variant="yellow" />
           <ControlBtn label="Resume"  icon={RefreshCw}    onClick={handleResume} disabled={!isPaused} variant="blue" />
           <ControlBtn label="Stop"    icon={Square}       onClick={handleStop}   disabled={!session || session.status === 'idle'} variant="red" />
@@ -253,13 +264,15 @@ export default function TestTabLayout({
 }
 
 function ControlBtn({
-  label, icon: Icon, onClick, disabled, variant,
+  label, icon: Icon, onClick, disabled, variant, title, testId,
 }: {
   label: string;
   icon: typeof Play;
   onClick: () => void;
   disabled?: boolean;
   variant: 'green' | 'yellow' | 'blue' | 'red' | 'estop';
+  title?: string;
+  testId?: string;
 }) {
   const cls = {
     green:  'bg-green-700 hover:bg-green-600',
@@ -271,6 +284,9 @@ function ControlBtn({
   return (
     <button
       type="button" onClick={onClick} disabled={disabled}
+      title={title}
+      aria-disabled={disabled || undefined}
+      data-testid={testId}
       className={`inline-flex items-center gap-1 px-2.5 py-1 text-white text-xs rounded font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${cls}`}
     >
       <Icon className="w-3.5 h-3.5" /> {label}

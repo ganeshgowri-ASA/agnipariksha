@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
 import ThermalCyclingBasicCheck from '../ThermalCyclingBasicCheck';
+import { useBasicCheckGate } from '@/hooks/useBasicCheckGate';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
 interface Props {
@@ -15,9 +16,19 @@ interface Props {
    *  Frontend lamp reflects the dashboard's WebSocket state. Defaults
    *  to 'unknown' when not supplied (keeps callers backwards-compatible). */
   wsStatus?: string;
+  /** Operator's bound Module ID. When supplied, Start is gated on the
+   *  server-side Basic Check pass for this module. */
+  moduleId?: string | null;
 }
 
-export default function ThermalCyclingTab({ readings, session, onSessionUpdate, sendCommand, demoMode, wsStatus = 'unknown' }: Props) {
+export default function ThermalCyclingTab({ readings, session, onSessionUpdate, sendCommand, demoMode, wsStatus = 'unknown', moduleId }: Props) {
+  // Server-side Basic Check gate — polled 10 s. Start stays disabled
+  // until /api/basic-check/status reports passed=true for moduleId.
+  const gate = useBasicCheckGate(moduleId ?? null, 10_000);
+  const startBlocked = !!moduleId && !gate.passed && !gate.polling;
+  const startReason = !moduleId ? undefined
+    : gate.polling ? 'Probing Basic Check status…' : 'Basic Check required';
+
   const [cycles, setCycles] = useState(200);
   const [tMin, setTMin] = useState(-40);
   const [tMax, setTMax] = useState(85);
@@ -101,7 +112,8 @@ export default function ThermalCyclingTab({ readings, session, onSessionUpdate, 
       onSessionUpdate={onSessionUpdate} sendCommand={sendCommand} demoMode={demoMode}
       limits={{ maxVoltage: 100, maxCurrent: 20, maxPower: 2000, maxTemp: 100 }}
       setupPanel={setupPanel}
-      basicCheckPanel={<ThermalCyclingBasicCheck wsStatus={wsStatus} demoMode={demoMode} />}
+      basicCheckPanel={<ThermalCyclingBasicCheck wsStatus={wsStatus} demoMode={demoMode} moduleId={moduleId} />}
+      basicCheckGate={{ blocked: startBlocked, reason: startReason }}
       extraStats={extraStats}
       onStartTest={onStart} onStopTest={onStop} onPauseTest={onPause}
     />

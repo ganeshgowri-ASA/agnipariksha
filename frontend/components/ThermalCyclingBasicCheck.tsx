@@ -51,6 +51,9 @@ interface BasicCheckProps {
   wsStatus: string;
   /** Whether the dashboard-wide DEMO toggle is on (header pill). */
   demoMode: boolean;
+  /** Module ID — when supplied, auto-POSTs /api/basic-check/pass once
+   *  every lamp goes green. Omitted: panel still works manually. */
+  moduleId?: string | null;
 }
 
 const BACKEND = (process.env.NEXT_PUBLIC_BACKEND_HTTP_URL ?? 'http://localhost:8000').replace(/\/+$/, '');
@@ -78,7 +81,7 @@ async function fetchJson<T>(url: string, timeoutMs = 3000): Promise<{ data?: T; 
 // Component
 // ---------------------------------------------------------------------------
 
-export default function ThermalCyclingBasicCheck({ wsStatus, demoMode }: BasicCheckProps) {
+export default function ThermalCyclingBasicCheck({ wsStatus, demoMode, moduleId }: BasicCheckProps) {
   const health = useHealth(5_000);
 
   const [transport, setTransport] = useState<TransportInfo | null>(null);
@@ -222,6 +225,24 @@ export default function ThermalCyclingBasicCheck({ wsStatus, demoMode }: BasicCh
     beFinal === 'green' &&
     feFinal !== 'red' &&
     aiFinal !== 'red';
+
+  // Auto-POST /api/basic-check/pass once the tower flips to all-green.
+  // Guarded by autoPassFor so a flapping lamp doesn't spam the endpoint.
+  const [autoPassFor, setAutoPassFor] = useState<string | null>(null);
+  useEffect(() => {
+    if (!goodToOperate || !moduleId || autoPassFor === moduleId) return;
+    const ctl = new AbortController();
+    (async () => {
+      try {
+        const r = await fetch(`${BACKEND}/api/basic-check/pass`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ module_id: moduleId }), signal: ctl.signal,
+        });
+        if (r.ok) setAutoPassFor(moduleId);
+      } catch { /* non-blocking — gate re-fires on next poll */ }
+    })();
+    return () => ctl.abort();
+  }, [goodToOperate, moduleId, autoPassFor]);
 
   // ---- manual-set + output actions ----
 
