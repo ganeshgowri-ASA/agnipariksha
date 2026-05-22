@@ -76,3 +76,6 @@ backend/alembic/versions/__pycache__/
 frontend/test-results/
 frontend/playwright-report/
 frontend/.playwright/
+
+# claude code tooling (agent worktrees, session caches)
+.claude/
