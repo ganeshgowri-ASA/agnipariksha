@@ -20,7 +20,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -30,6 +30,7 @@ try:
     # and we can use a relative import. When the file is executed as a
     # plain script (legacy ``python main.py``), the relative import fails
     # and we fall back to absolute lookup.
+    from .basic_check import router as basic_check_router, settings_router as settings_live_mode_router
     from .config import get_settings
     from .gct_router import router as gct_router, ws_router as gct_ws_router
     from .scheduler_api import router as scheduler_router
@@ -42,6 +43,7 @@ try:
     from .db.session import init_db
     from .tickets import router as tickets_router
 except ImportError:  # pragma: no cover - script-mode fallback
+    from basic_check import router as basic_check_router, settings_router as settings_live_mode_router  # type: ignore[no-redef]
     from config import get_settings  # type: ignore[no-redef]
     from gct_router import router as gct_router, ws_router as gct_ws_router  # type: ignore[no-redef]
     from scheduler_api import router as scheduler_router  # type: ignore[no-redef]
@@ -165,6 +167,8 @@ app.include_router(reliability_router)
 app.include_router(procurement_router)
 app.include_router(scheduler_router)
 app.include_router(scpi_router)
+app.include_router(basic_check_router)
+app.include_router(settings_live_mode_router)
 app.include_router(gct_router)
 app.include_router(gct_ws_router)
 
@@ -334,7 +338,19 @@ class SCPICommand(BaseModel):
 
 @app.post("/api/scpi")
 async def send_scpi(cmd: SCPICommand) -> dict:
-    _enforce_basic_check_gate(cmd.command, cmd.module_id)
+    # Fail-safe wrapping: a bug INSIDE the gate must NOT unlock the PSU.
+    # HTTPException is re-raised verbatim (legit 403). Any other exception
+    # gets re-cast as a 403 BASIC_CHECK_REQUIRED — better to refuse a real
+    # operator than let a stack trace silently energize the bus.
+    try:
+        _enforce_basic_check_gate(cmd.command, cmd.module_id)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=403,
+            detail={"error": "BASIC_CHECK_REQUIRED", "reason": "fail-safe: gate exception"},
+        )
     client = ScpiClient(demo_mode=_settings.DEMO_MODE)
     await client.connect()
     try:

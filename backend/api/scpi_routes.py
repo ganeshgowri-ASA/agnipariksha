@@ -194,7 +194,17 @@ async def get_query(
         description="Required for PSU-energizing cmds (OUTP ON / VOLT / CURR); ignored for queries",
     ),
 ) -> QueryResponse:
-    _enforce_basic_check_gate(cmd, module_id)
+    # Fail-safe: any non-HTTPException raised inside the gate is converted
+    # to a 403. Better refuse a legit operator than energize on a bug.
+    try:
+        _enforce_basic_check_gate(cmd, module_id)
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=403,
+            detail={"error": "BASIC_CHECK_REQUIRED", "reason": "fail-safe: gate exception"},
+        )
     s = get_settings()
     client = ScpiClient(demo_mode=s.DEMO_MODE)
     t0 = time.monotonic()
