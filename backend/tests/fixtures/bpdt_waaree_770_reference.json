@@ -1,0 +1,17 @@
+{
+  "module": "WAAREE-770",
+  "standard": "IEC 61215-2 MQT 18.1",
+  "test_conditions": {
+    "isc_a": 13.29,
+    "isc_pulse_width_ms_max": 1,
+    "fwd_bias_current_a": 16.6125,
+    "fwd_bias_multiplier": 1.25,
+    "ambient_test_temp_c": 75,
+    "duration_h": 1
+  },
+  "diodes": [
+    {"id": 1, "vd_vs_tj_slope_v_per_c": -0.0011, "vd_vs_tj_intercept_v": 0.4567, "tj_calc_at_1h_c": 97.995},
+    {"id": 2, "vd_vs_tj_slope_v_per_c": -0.0011, "vd_vs_tj_intercept_v": 0.4558, "tj_calc_at_1h_c": 90.372},
+    {"id": 3, "vd_vs_tj_slope_v_per_c": -0.0009, "vd_vs_tj_intercept_v": 0.4554, "tj_calc_at_1h_c": 91.221}
+  ]
+}
