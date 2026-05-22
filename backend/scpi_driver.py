@@ -1,10 +1,21 @@
 """ITECH PV6000 SCPI driver over raw TCP socket.
 Device: 192.168.200.100:30000 (from device.xml)
+
+SAFETY: every method that could energize the bus (output_on, set_voltage,
+set_current, set_ovp/ocp, and the run_*_step orchestrators that call
+them) routes through ``_enforce_basic_check`` and refuses with
+:class:`BasicCheckRequired` unless ``set_active_module()`` has bound a
+Module ID with a fresh Basic Check pass.
 """
 import socket
 import time
 import asyncio
 from typing import Optional
+
+try:
+    from .basic_check import PASS_TTL_S, get_store, is_psu_energize_cmd
+except ImportError:  # pragma: no cover - script-mode fallback
+    from basic_check import PASS_TTL_S, get_store, is_psu_energize_cmd  # type: ignore[no-redef]
 
 DEVICE_IP = "192.168.200.100"
 DEVICE_PORT = 30000
@@ -12,11 +23,42 @@ BUFFER_SIZE = 4096
 TIMEOUT = 5.0
 
 
+class BasicCheckRequired(RuntimeError):
+    """Raised when a PSU-energizing call has no fresh Basic Check pass."""
+
+    def __init__(self, cmd: str, module_id: Optional[str], age_s: int) -> None:
+        self.cmd = cmd
+        self.module_id = module_id
+        self.age_s = age_s
+        self.ttl_s = PASS_TTL_S
+        reason = (
+            f"no module_id bound (call set_active_module first)"
+            if not module_id
+            else f"no Basic Check PASS for {module_id!r} within last {PASS_TTL_S}s (age_s={age_s})"
+        )
+        super().__init__(f"BASIC_CHECK_REQUIRED: {reason}; cmd={cmd!r}")
+
+
 class SCPIDriver:
     def __init__(self, ip: str = DEVICE_IP, port: int = DEVICE_PORT):
         self.ip = ip
         self.port = port
         self._sock: Optional[socket.socket] = None
+        self._module_id: Optional[str] = None
+
+    def set_active_module(self, module_id: Optional[str]) -> None:
+        """Bind the Module ID whose Basic Check pass authorises this driver."""
+        self._module_id = module_id
+
+    def _enforce_basic_check(self, command: str) -> None:
+        if not is_psu_energize_cmd(command):
+            return
+        mid = self._module_id
+        if not mid:
+            raise BasicCheckRequired(command, None, -1)
+        passed, age, _rec = get_store().status(mid)
+        if not passed:
+            raise BasicCheckRequired(command, mid, age)
 
     def connect(self):
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -32,6 +74,9 @@ class SCPIDriver:
             self._sock = None
 
     def send(self, command: str):
+        # Hard interlock: PSU-energizing wires (OUTP ON / VOLT / CURR set)
+        # go nowhere without a fresh Basic Check pass for the active module.
+        self._enforce_basic_check(command)
         if not self._sock:
             raise ConnectionError("Not connected to ITECH device")
         self._sock.sendall((command + "\n").encode())
