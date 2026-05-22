@@ -34,6 +34,7 @@ try:
     from .gct_router import router as gct_router, ws_router as gct_ws_router
     from .scheduler_api import router as scheduler_router
     from .scpi_async import ScpiClient, is_scpi_reachable, run_telemetry_loop
+    from .api.scpi_routes import _enforce_basic_check_gate
     from .api.scpi_routes import router as scpi_router
     from .app.devices_api import router as devices_router
     from .app.health import start_background_health, stop_background_health
@@ -45,6 +46,7 @@ except ImportError:  # pragma: no cover - script-mode fallback
     from gct_router import router as gct_router, ws_router as gct_ws_router  # type: ignore[no-redef]
     from scheduler_api import router as scheduler_router  # type: ignore[no-redef]
     from scpi_async import ScpiClient, is_scpi_reachable, run_telemetry_loop  # type: ignore[no-redef]
+    from api.scpi_routes import _enforce_basic_check_gate  # type: ignore[no-redef]
     from api.scpi_routes import router as scpi_router  # type: ignore[no-redef]
     from app.devices_api import router as devices_router  # type: ignore[no-redef]
     from app.health import start_background_health, stop_background_health  # type: ignore[no-redef]
@@ -327,10 +329,12 @@ async def websocket_live(ws: WebSocket) -> None:
 # --------------------------------------------------------------------------
 class SCPICommand(BaseModel):
     command: str
+    module_id: Optional[str] = None
 
 
 @app.post("/api/scpi")
 async def send_scpi(cmd: SCPICommand) -> dict:
+    _enforce_basic_check_gate(cmd.command, cmd.module_id)
     client = ScpiClient(demo_mode=_settings.DEMO_MODE)
     await client.connect()
     try:
