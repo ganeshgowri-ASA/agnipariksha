@@ -11,7 +11,9 @@ import AnalogGauge from './AnalogGauge';
 import DataTable from './DataTable';
 import ReportGenerator from './ReportGenerator';
 import AnalysisPanel from './AnalysisPanel';
+import NameplatePanel from './NameplatePanel';
 import { useNotifications } from './notifications/NotificationsStore';
+import { getCurrentModuleId, markNameplateUsed } from '@/lib/nameplate-store';
 
 interface TestTabLayoutProps {
   testKey: string;
@@ -104,6 +106,7 @@ export default function TestTabLayout({
 
   const handleStart = () => {
     onStartTest();
+    markNameplateUsed(getCurrentModuleId());
     push({ severity: 'info', source: 'user', title: `Started ${testName}`, message: standard });
     fireControl('start');
   };
@@ -192,7 +195,12 @@ export default function TestTabLayout({
           <div className="max-w-5xl" data-testid="subtab-pane-basic-check">{basicCheckPanel}</div>
         )}
 
-        {subTab === 'setup' && <div className="max-w-2xl" data-testid="subtab-pane-setup">{setupPanel}</div>}
+        {subTab === 'setup' && (
+          <div className="max-w-2xl" data-testid="subtab-pane-setup">
+            <NameplatePanel />
+            {setupPanel}
+          </div>
+        )}
 
         {subTab === 'monitor' && (
           <div className="space-y-4" data-testid="subtab-pane-monitor">
