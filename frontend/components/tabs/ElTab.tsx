@@ -53,6 +53,10 @@ export default function ElTab({ readings, session, onSessionUpdate, sendCommand,
         className="w-full bg-indigo-900/40 border border-indigo-700/40 text-indigo-200 text-xs rounded px-3 py-2 disabled:opacity-50 disabled:cursor-not-allowed">
         Capture EL frame (disabled — pending PR #52)
       </button>
+      <a href="/el" data-testid="el-workspace-link"
+        className="block text-center w-full bg-indigo-700 hover:bg-indigo-600 text-white text-xs rounded px-3 py-2">
+        Open EL workspace (DEMO capture &amp; compare)
+      </a>
     </div>
   );
 
