@@ -82,10 +82,13 @@ function Dashboard() {
                 key={tab.key} value={tab.key}
                 className="data-[state=active]:bg-gray-800 data-[state=active]:text-white text-gray-400 px-3 py-1 rounded text-xs font-medium transition-all whitespace-nowrap"
                 title={tab.std}
+                aria-label={tab.label}
                 data-testid={`dashboard-tab-${tab.key}`}
               >
                 <span className={tab.color}>{tab.short}</span>
-                <span className="ml-1 hidden sm:inline text-gray-300">{tab.label}</span>
+                {tab.label !== tab.short && (
+                  <span className="ml-1 hidden sm:inline text-gray-300">{tab.label}</span>
+                )}
                 {dot && <span className="ml-1 text-gray-300">{dot}</span>}
               </TabsTrigger>
             );
