@@ -33,6 +33,11 @@ interface TestTabLayoutProps {
    * IEC tabs continue to default to "Live Monitor" unchanged.
    */
   basicCheckPanel?: React.ReactNode;
+  /**
+   * Optional custom Analysis pane. When provided it replaces the generic
+   * {@link AnalysisPanel} — used by EB to show per-bonding-point pass/fail.
+   */
+  analysisPanel?: React.ReactNode;
   extraStats?: Array<{ label: string; value: string; unit: string; color?: string }>;
   onStartTest: () => void;
   onStopTest: () => void;
@@ -67,7 +72,7 @@ async function postControl(testId: string, action: string): Promise<void> {
 export default function TestTabLayout({
   testKey, testName, standard, color, readings, session,
   onSessionUpdate, sendCommand, demoMode,
-  limits, setupPanel, basicCheckPanel, extraStats = [],
+  limits, setupPanel, basicCheckPanel, analysisPanel, extraStats = [],
   onStartTest, onStopTest, onPauseTest, onResumeTest, onEmergencyStop,
 }: TestTabLayoutProps) {
   // When basicCheckPanel is provided, prepend Basic Check and default to
@@ -238,7 +243,9 @@ export default function TestTabLayout({
 
         {subTab === 'analysis' && (
           <div data-testid="subtab-pane-analysis">
-            <AnalysisPanel session={session} testName={testName} standard={standard} />
+            {analysisPanel ?? (
+              <AnalysisPanel session={session} testName={testName} standard={standard} />
+            )}
           </div>
         )}
 
