@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ThermalCyclingTab from '@/components/tabs/ThermalCyclingTab';
 import HumidityFreezeTab from '@/components/tabs/HumidityFreezeTab';
 import LeTIDTab from '@/components/tabs/LeTIDTab';
+import PIDTab from '@/components/tabs/PIDTab';
 import BypassDiodeTab from '@/components/tabs/BypassDiodeTab';
 import ReverseCurrentTab from '@/components/tabs/ReverseCurrentTab';
 import GroundContinuityTab from '@/components/tabs/GroundContinuityTab';
@@ -21,7 +22,7 @@ import { TABS, type TestKey, type TestSession } from '@/types/test-session';
 function Dashboard() {
   const [activeTab, setActiveTab] = useState<string>('tc');
   const [sessions, setSessions] = useState<Record<TestKey, TestSession | null>>({
-    tc: null, hf: null, letid: null, bdt: null, rco: null, gct: null, dh: null,
+    tc: null, hf: null, letid: null, pid: null, bdt: null, rco: null, gct: null, dh: null,
   });
   const [demoMode, setDemoMode] = useState(true);
   const { readings, wsStatus, sendCommand } = useWebSocket(demoMode);
@@ -49,6 +50,7 @@ function Dashboard() {
     tc:    <ThermalCyclingTab     readings={readings} session={sessions.tc}    onSessionUpdate={s => handleSessionUpdate('tc',    s)} sendCommand={sendCommand} demoMode={demoMode} wsStatus={wsStatus} />,
     hf:    <HumidityFreezeTab     readings={readings} session={sessions.hf}    onSessionUpdate={s => handleSessionUpdate('hf',    s)} sendCommand={sendCommand} demoMode={demoMode} />,
     letid: <LeTIDTab              readings={readings} session={sessions.letid} onSessionUpdate={s => handleSessionUpdate('letid', s)} sendCommand={sendCommand} demoMode={demoMode} />,
+    pid:   <PIDTab                readings={readings} session={sessions.pid}   onSessionUpdate={s => handleSessionUpdate('pid',   s)} sendCommand={sendCommand} demoMode={demoMode} />,
     bdt:   <BypassDiodeTab        readings={readings} session={sessions.bdt}   onSessionUpdate={s => handleSessionUpdate('bdt',   s)} sendCommand={sendCommand} demoMode={demoMode} />,
     rco:   <ReverseCurrentTab     readings={readings} session={sessions.rco}   onSessionUpdate={s => handleSessionUpdate('rco',   s)} sendCommand={sendCommand} demoMode={demoMode} />,
     gct:   <GroundContinuityTab   readings={readings} session={sessions.gct}   onSessionUpdate={s => handleSessionUpdate('gct',   s)} sendCommand={sendCommand} demoMode={demoMode} />,

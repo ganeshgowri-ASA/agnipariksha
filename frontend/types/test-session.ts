@@ -14,6 +14,8 @@ export interface LiveReading {
   temperature?: number;
   /** 4-wire resistance in ohms — set by the GCT live stream. */
   resistance?: number;
+  /** Chamber relative humidity in % — synthesised by the PID live view. */
+  humidity?: number;
 }
 
 export interface TestSession {
@@ -35,6 +37,7 @@ export type TestKey =
   | 'tc'
   | 'hf'
   | 'letid'
+  | 'pid'
   | 'bdt'
   | 'rco'
   | 'gct'
@@ -53,6 +56,7 @@ export const TABS: TabDefinition[] = [
   { key: 'tc',    label: 'Thermal Cycling',          short: 'TC',  color: 'text-orange-400', std: 'IEC 61215-2 MQT 11', clause: 'MQT 11' },
   { key: 'hf',    label: 'Humidity Freeze',          short: 'HF',  color: 'text-blue-400',   std: 'IEC 61215-2 MQT 12', clause: 'MQT 12' },
   { key: 'letid', label: 'LeTID',                    short: 'LID', color: 'text-purple-400', std: 'IEC TS 63342',       clause: 'TS 63342' },
+  { key: 'pid',   label: 'Potential-Induced Degradation', short: 'PID', color: 'text-pink-400', std: 'IEC TS 62804-1',  clause: 'TS 62804-1' },
   { key: 'bdt',   label: 'Bypass Diode',             short: 'BDT', color: 'text-yellow-400', std: 'IEC 61215-2 MQT 18', clause: 'MQT 18' },
   { key: 'rco',   label: 'Reverse Current Overload', short: 'RCO', color: 'text-red-400',    std: 'IEC 61730 MST 26',   clause: 'MST 26' },
   { key: 'gct',   label: 'Ground Continuity',        short: 'GCT', color: 'text-green-400',  std: 'IEC 61730 MST 13',   clause: 'MST 13' },

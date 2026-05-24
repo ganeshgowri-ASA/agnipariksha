@@ -6,7 +6,7 @@ const SLUG_TO_TAB: Record<string, string> = {
   'humidity-freeze':   'hf',
   'damp-heat':         'dh',
   'bypass-diode':      'bdt',
-  'pid':               'letid',
+  'pid':               'pid',
   'letid':             'letid',
   'reverse-current':   'rco',
   'ground-continuity': 'gct',
