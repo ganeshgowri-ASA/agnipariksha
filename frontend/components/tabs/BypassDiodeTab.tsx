@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
+import SchematicViewer from '../SchematicViewer';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
 interface Props {
@@ -74,6 +75,7 @@ export default function BypassDiodeTab({ readings, session, onSessionUpdate, sen
           </p>
         </div>
       </div>
+      <SchematicViewer testCode="bdt" mode="pulse" />
     </div>
   );
 

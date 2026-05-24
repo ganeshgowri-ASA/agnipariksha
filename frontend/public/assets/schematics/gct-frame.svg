@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 300" role="img" aria-label="Ground continuity frame wiring diagram">
+  <g fill="none" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round">
+    <!-- source / DMM -->
+    <rect x="30" y="115" width="120" height="80" rx="6"/>
+    <circle cx="70" cy="155" r="6" stroke="#34d399"/>
+    <!-- DUT frame -->
+    <rect x="300" y="70" width="150" height="160" rx="6"/>
+    <!-- 25A force into far corner -->
+    <path d="M150 135 H300" stroke="#f87171"/>
+    <!-- return from opposite corner -->
+    <path d="M150 175 H260 V230" />
+    <path d="M260 230 H300"/>
+    <!-- 4-wire sense (dashed) -->
+    <path d="M150 155 H280 V90 H300" stroke="#60a5fa" stroke-dasharray="6 5"/>
+    <!-- bonding earth -->
+    <path d="M375 230 V262 M357 262 H393 M364 270 H386 M371 278 H379" stroke="#34d399"/>
+  </g>
+  <g fill="#e2e8f0" font-family="sans-serif" font-size="13">
+    <text x="90" y="100" text-anchor="middle">25 A source + DMM</text>
+    <text x="375" y="62" text-anchor="middle">DUT frame</text>
+    <text x="225" y="128" text-anchor="middle" font-size="10" fill="#f87171">force 25 A</text>
+    <text x="205" y="148" text-anchor="middle" font-size="10" fill="#60a5fa">sense (4-wire)</text>
+    <text x="375" y="296" text-anchor="middle" font-size="10" fill="#34d399">bonding R &lt; 0.1 Ω</text>
+  </g>
+  <text x="170" y="294" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#64748b">DRAFT — replace with reviewed CAD</text>
+</svg>

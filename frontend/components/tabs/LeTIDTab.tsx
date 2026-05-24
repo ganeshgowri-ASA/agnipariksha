@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
+import SchematicViewer from '../SchematicViewer';
 import LiveChart from '../LiveChart';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
@@ -86,6 +87,7 @@ export default function LeTIDTab({ readings, session, onSessionUpdate, sendComma
           </p>
         </div>
       </div>
+      <SchematicViewer testCode="letid" mode="chamber" />
     </div>
   );
 

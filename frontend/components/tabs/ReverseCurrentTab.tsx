@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
+import SchematicViewer from '../SchematicViewer';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
 interface Props {
@@ -83,6 +84,7 @@ export default function ReverseCurrentTab({ readings, session, onSessionUpdate, 
           </p>
         </div>
       </div>
+      <SchematicViewer testCode="rco" />
     </div>
   );
 

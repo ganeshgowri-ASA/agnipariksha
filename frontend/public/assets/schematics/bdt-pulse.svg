@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 300" role="img" aria-label="BDT pulse wiring diagram">
+  <rect x="0" y="0" width="480" height="300" fill="none"/>
+  <g fill="none" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round">
+    <!-- PSU -->
+    <rect x="30" y="110" width="120" height="80" rx="6"/>
+    <!-- DUT (module / bypass diode) -->
+    <rect x="320" y="100" width="130" height="100" rx="6"/>
+    <!-- diode symbol -->
+    <path d="M360 150 h20 m0 -12 l24 12 l-24 12 z m24 -12 v24" stroke="#fbbf24"/>
+    <!-- force leads -->
+    <path d="M150 130 H320" stroke="#f87171"/>
+    <path d="M150 170 H320"/>
+    <!-- sense leads (dashed) -->
+    <path d="M150 150 H300" stroke="#60a5fa" stroke-dasharray="6 5"/>
+    <!-- ground / bonding -->
+    <path d="M385 200 V240 M365 240 H405 M372 248 H398 M379 256 H391" stroke="#34d399"/>
+  </g>
+  <g fill="#e2e8f0" font-family="sans-serif" font-size="13">
+    <text x="90" y="155" text-anchor="middle">PSU PV6000</text>
+    <text x="90" y="172" text-anchor="middle" font-size="10" fill="#94a3b8">pulsed Isc</text>
+    <text x="385" y="92" text-anchor="middle">DUT bypass diode</text>
+    <text x="235" y="122" text-anchor="middle" font-size="10" fill="#f87171">force +</text>
+    <text x="235" y="186" text-anchor="middle" font-size="10" fill="#cbd5e1">force −</text>
+    <text x="225" y="143" text-anchor="middle" font-size="10" fill="#60a5fa">sense</text>
+    <text x="385" y="276" text-anchor="middle" font-size="10" fill="#34d399">frame ground</text>
+  </g>
+  <text x="240" y="294" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#64748b">DRAFT — replace with reviewed CAD</text>
+</svg>
