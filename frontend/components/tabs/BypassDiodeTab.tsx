@@ -2,7 +2,16 @@
 
 import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
+import ModeToggle from './bdt/ModeToggle';
+import Mqt18SetupForm from './bdt/Mqt18SetupForm';
 import type { TestSession, LiveReading } from '@/types/test-session';
+
+type BdtMode = 'mqt18' | 'iec62979';
+
+const BDT_MODE_OPTIONS = [
+  { value: 'mqt18' as const, label: 'IEC 61215-2 MQT 18.1 (Pulse, V_D vs T_j)' },
+  { value: 'iec62979' as const, label: 'IEC 62979:2017 (Continuous, T_j runaway)' },
+];
 
 interface Props {
   readings: LiveReading[];
@@ -18,6 +27,7 @@ export default function BypassDiodeTab({ readings, session, onSessionUpdate, sen
   const [ambientTemp, setAmbientTemp] = useState(75); // IEC 62979 test temp
   const [duration, setDuration] = useState(1); // hours per diode
   const [currentDiode, setCurrentDiode] = useState(1);
+  const [mode, setMode] = useState<BdtMode>('mqt18');
 
   const onStart = useCallback(() => {
     const newSession: TestSession = {
@@ -42,7 +52,7 @@ export default function BypassDiodeTab({ readings, session, onSessionUpdate, sen
     onSessionUpdate({ ...session, status: 'paused' });
   }, [session, onSessionUpdate, sendCommand]);
 
-  const setupPanel = (
+  const iec62979Panel = (
     <div className="space-y-4">
       <div className="bg-gray-900 rounded-lg border border-gray-700 p-4">
         <h3 className="text-sm font-bold text-yellow-400 mb-3">IEC 62979:2017 — Bypass Diode Thermal Test</h3>
@@ -74,6 +84,19 @@ export default function BypassDiodeTab({ readings, session, onSessionUpdate, sen
           </p>
         </div>
       </div>
+    </div>
+  );
+
+  const setupPanel = (
+    <div className="space-y-4">
+      <ModeToggle
+        name="bdt-mode"
+        legend="Test Mode"
+        value={mode}
+        options={BDT_MODE_OPTIONS}
+        onChange={setMode}
+      />
+      {mode === 'mqt18' ? <Mqt18SetupForm /> : iec62979Panel}
     </div>
   );
 

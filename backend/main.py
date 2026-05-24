@@ -36,6 +36,7 @@ try:
     from .scheduler_api import router as scheduler_router
     from .scpi_async import ScpiClient, is_scpi_reachable, run_telemetry_loop
     from .api.scpi_routes import router as scpi_router
+    from .bdt_router import router as bdt_router
     from .app.devices_api import router as devices_router
     from .app.health import start_background_health, stop_background_health
     from .db.backfill import backfill_csv_runs
@@ -48,6 +49,7 @@ except ImportError:  # pragma: no cover - script-mode fallback
     from scheduler_api import router as scheduler_router  # type: ignore[no-redef]
     from scpi_async import ScpiClient, is_scpi_reachable, run_telemetry_loop  # type: ignore[no-redef]
     from api.scpi_routes import router as scpi_router  # type: ignore[no-redef]
+    from bdt_router import router as bdt_router  # type: ignore[no-redef]
     from app.devices_api import router as devices_router  # type: ignore[no-redef]
     from app.health import start_background_health, stop_background_health  # type: ignore[no-redef]
     from db.backfill import backfill_csv_runs  # type: ignore[no-redef]
@@ -167,6 +169,7 @@ app.include_router(reliability_router)
 app.include_router(procurement_router)
 app.include_router(scheduler_router)
 app.include_router(scpi_router)
+app.include_router(bdt_router)
 app.include_router(gct_router)
 app.include_router(gct_ws_router)
 app.include_router(iv_router)
