@@ -33,6 +33,13 @@ interface TestTabLayoutProps {
    * IEC tabs continue to default to "Live Monitor" unchanged.
    */
   basicCheckPanel?: React.ReactNode;
+  /**
+   * Optional override for the Analysis sub-tab. When provided it replaces
+   * the default Pmax-delta AnalysisPanel — used by BDT to render the
+   * MQT 18.1 V_drop-vs-T_j regression view. Tabs that omit it keep the
+   * default behaviour unchanged.
+   */
+  analysisPanel?: React.ReactNode;
   extraStats?: Array<{ label: string; value: string; unit: string; color?: string }>;
   onStartTest: () => void;
   onStopTest: () => void;
@@ -67,7 +74,7 @@ async function postControl(testId: string, action: string): Promise<void> {
 export default function TestTabLayout({
   testKey, testName, standard, color, readings, session,
   onSessionUpdate, sendCommand, demoMode,
-  limits, setupPanel, basicCheckPanel, extraStats = [],
+  limits, setupPanel, basicCheckPanel, analysisPanel, extraStats = [],
   onStartTest, onStopTest, onPauseTest, onResumeTest, onEmergencyStop,
 }: TestTabLayoutProps) {
   // When basicCheckPanel is provided, prepend Basic Check and default to
@@ -238,7 +245,7 @@ export default function TestTabLayout({
 
         {subTab === 'analysis' && (
           <div data-testid="subtab-pane-analysis">
-            <AnalysisPanel session={session} testName={testName} standard={standard} />
+            {analysisPanel ?? <AnalysisPanel session={session} testName={testName} standard={standard} />}
           </div>
         )}
 
