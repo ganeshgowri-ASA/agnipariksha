@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { LiveReading } from '@/types/test-session';
+import { buildLiveSample } from '@/lib/bdt/liveSample';
 import { useNotifications } from '@/components/notifications/NotificationsStore';
 
 type WsStatus = 'connecting' | 'connected' | 'disconnected' | 'demo';
@@ -40,13 +41,8 @@ export function useWebSocket(demoMode: boolean = true) {
         // Simulate realistic PV test waveform with noise
         const v = 48 + 5 * Math.sin(t / 30) + (Math.random() - 0.5) * 0.8;
         const i = 10 + 2 * Math.cos(t / 20) + (Math.random() - 0.5) * 0.3;
-        addReading({
-          timestamp: Date.now(),
-          voltage: +v.toFixed(3),
-          current: +i.toFixed(3),
-          power: +(v * i / 1000).toFixed(4),
-          temperature: +(75 + Math.sin(t / 60) * 3 + (Math.random() - 0.5)).toFixed(1),
-        });
+        const temp = 75 + Math.sin(t / 60) * 3 + (Math.random() - 0.5);
+        addReading(buildLiveSample(v, i, temp));
       }, 500);
 
       return () => {
