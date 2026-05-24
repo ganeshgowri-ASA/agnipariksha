@@ -33,6 +33,13 @@ interface TestTabLayoutProps {
    * IEC tabs continue to default to "Live Monitor" unchanged.
    */
   basicCheckPanel?: React.ReactNode;
+  /**
+   * Optional shared readiness tower (BasicCheckTower) pinned to the top of the
+   * content area. Rendered by PSU-energizing tabs that don't expose the full
+   * Basic Check sub-tab (HF, LeTID, BDT, RCO, …) so the operator always sees
+   * Power Supply / Backend / Frontend / Cloud-AI readiness.
+   */
+  basicCheckTower?: React.ReactNode;
   extraStats?: Array<{ label: string; value: string; unit: string; color?: string }>;
   onStartTest: () => void;
   onStopTest: () => void;
@@ -67,7 +74,7 @@ async function postControl(testId: string, action: string): Promise<void> {
 export default function TestTabLayout({
   testKey, testName, standard, color, readings, session,
   onSessionUpdate, sendCommand, demoMode,
-  limits, setupPanel, basicCheckPanel, extraStats = [],
+  limits, setupPanel, basicCheckPanel, basicCheckTower, extraStats = [],
   onStartTest, onStopTest, onPauseTest, onResumeTest, onEmergencyStop,
 }: TestTabLayoutProps) {
   // When basicCheckPanel is provided, prepend Basic Check and default to
@@ -188,6 +195,10 @@ export default function TestTabLayout({
 
       {/* Sub-tab Content */}
       <div className="flex-1 overflow-auto p-4">
+        {basicCheckTower && (
+          <div className="max-w-5xl mb-4">{basicCheckTower}</div>
+        )}
+
         {subTab === 'basic-check' && basicCheckPanel && (
           <div className="max-w-5xl" data-testid="subtab-pane-basic-check">{basicCheckPanel}</div>
         )}

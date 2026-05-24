@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
+import BasicCheckTower from '../BasicCheckTower';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
 interface Props {
@@ -10,9 +11,10 @@ interface Props {
   onSessionUpdate: (s: TestSession | null) => void;
   sendCommand: (cmd: string) => void;
   demoMode: boolean;
+  wsStatus?: string;
 }
 
-export default function HumidityFreezeTab({ readings, session, onSessionUpdate, sendCommand, demoMode }: Props) {
+export default function HumidityFreezeTab({ readings, session, onSessionUpdate, sendCommand, demoMode, wsStatus }: Props) {
   const [cycles, setCycles] = useState(10);
   const [tHigh, setTHigh] = useState(85);
   const [rhHigh, setRhHigh] = useState(85);
@@ -80,7 +82,9 @@ export default function HumidityFreezeTab({ readings, session, onSessionUpdate, 
       color="text-blue-400" readings={readings} session={session}
       onSessionUpdate={onSessionUpdate} sendCommand={sendCommand} demoMode={demoMode}
       limits={{ maxVoltage: 100, maxCurrent: 20, maxPower: 2000, maxTemp: 100 }}
-      setupPanel={setupPanel} extraStats={[
+      setupPanel={setupPanel}
+      basicCheckTower={<BasicCheckTower wsStatus={wsStatus} demoMode={demoMode} />}
+      extraStats={[
         { label: 'Cycles', value: cycles.toString(), unit: '', color: 'text-blue-400' },
         { label: 'Target RH', value: rhHigh.toString(), unit: '%', color: 'text-cyan-400' },
         { label: 'T Range', value: `${tLow} to ${tHigh}`, unit: '°C', color: 'text-yellow-400' },

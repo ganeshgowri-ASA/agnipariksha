@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
+import BasicCheckTower from '../BasicCheckTower';
 import LiveChart from '../LiveChart';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
@@ -11,9 +12,10 @@ interface Props {
   onSessionUpdate: (s: TestSession | null) => void;
   sendCommand: (cmd: string) => void;
   demoMode: boolean;
+  wsStatus?: string;
 }
 
-export default function LeTIDTab({ readings, session, onSessionUpdate, sendCommand, demoMode }: Props) {
+export default function LeTIDTab({ readings, session, onSessionUpdate, sendCommand, demoMode, wsStatus }: Props) {
   const [isc, setIsc] = useState(10.0);
   const [imp, setImp] = useState(9.5);
   const [temp, setTemp] = useState(75);
@@ -95,7 +97,9 @@ export default function LeTIDTab({ readings, session, onSessionUpdate, sendComma
       color="text-purple-400" readings={readings} session={session}
       onSessionUpdate={onSessionUpdate} sendCommand={sendCommand} demoMode={demoMode}
       limits={{ maxVoltage: 100, maxCurrent: 20, maxPower: 2000, maxTemp: 85 }}
-      setupPanel={setupPanel} extraStats={[
+      setupPanel={setupPanel}
+      basicCheckTower={<BasicCheckTower wsStatus={wsStatus} demoMode={demoMode} />}
+      extraStats={[
         { label: 'Iₚₐ⭣₉ Dark', value: idark.toString(), unit: 'A', color: 'text-purple-400' },
         { label: 'Temperature', value: temp.toString(), unit: '°C', color: 'text-red-400' },
         { label: 'Elapsed', value: elapsedHr, unit: 'hr', color: 'text-yellow-400' },

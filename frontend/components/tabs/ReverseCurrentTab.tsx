@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
+import BasicCheckTower from '../BasicCheckTower';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
 interface Props {
@@ -10,9 +11,10 @@ interface Props {
   onSessionUpdate: (s: TestSession | null) => void;
   sendCommand: (cmd: string) => void;
   demoMode: boolean;
+  wsStatus?: string;
 }
 
-export default function ReverseCurrentTab({ readings, session, onSessionUpdate, sendCommand, demoMode }: Props) {
+export default function ReverseCurrentTab({ readings, session, onSessionUpdate, sendCommand, demoMode, wsStatus }: Props) {
   const [isc, setIsc] = useState(10.0);
   const [fuseRating, setFuseRating] = useState(10.0);
   const [duration, setDuration] = useState(2); // hours
@@ -92,7 +94,9 @@ export default function ReverseCurrentTab({ readings, session, onSessionUpdate, 
       color="text-red-400" readings={readings} session={session}
       onSessionUpdate={onSessionUpdate} sendCommand={sendCommand} demoMode={demoMode}
       limits={{ maxVoltage: 10, maxCurrent: testCurrent * 1.1, maxPower: 100, maxTemp: 60 }}
-      setupPanel={setupPanel} extraStats={[
+      setupPanel={setupPanel}
+      basicCheckTower={<BasicCheckTower wsStatus={wsStatus} demoMode={demoMode} />}
+      extraStats={[
         { label: 'Fuse Rating', value: fuseRating.toString(), unit: 'A', color: 'text-gray-400' },
         { label: 'Test Current (135%)', value: testCurrent.toString(), unit: 'A', color: 'text-red-400' },
         { label: 'Duration', value: duration.toString(), unit: 'hr', color: 'text-yellow-400' },

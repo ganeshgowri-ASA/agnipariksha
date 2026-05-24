@@ -47,10 +47,10 @@ function Dashboard() {
 
   const tabRender: Record<TestKey, React.ReactNode> = {
     tc:    <ThermalCyclingTab     readings={readings} session={sessions.tc}    onSessionUpdate={s => handleSessionUpdate('tc',    s)} sendCommand={sendCommand} demoMode={demoMode} wsStatus={wsStatus} />,
-    hf:    <HumidityFreezeTab     readings={readings} session={sessions.hf}    onSessionUpdate={s => handleSessionUpdate('hf',    s)} sendCommand={sendCommand} demoMode={demoMode} />,
-    letid: <LeTIDTab              readings={readings} session={sessions.letid} onSessionUpdate={s => handleSessionUpdate('letid', s)} sendCommand={sendCommand} demoMode={demoMode} />,
-    bdt:   <BypassDiodeTab        readings={readings} session={sessions.bdt}   onSessionUpdate={s => handleSessionUpdate('bdt',   s)} sendCommand={sendCommand} demoMode={demoMode} />,
-    rco:   <ReverseCurrentTab     readings={readings} session={sessions.rco}   onSessionUpdate={s => handleSessionUpdate('rco',   s)} sendCommand={sendCommand} demoMode={demoMode} />,
+    hf:    <HumidityFreezeTab     readings={readings} session={sessions.hf}    onSessionUpdate={s => handleSessionUpdate('hf',    s)} sendCommand={sendCommand} demoMode={demoMode} wsStatus={wsStatus} />,
+    letid: <LeTIDTab              readings={readings} session={sessions.letid} onSessionUpdate={s => handleSessionUpdate('letid', s)} sendCommand={sendCommand} demoMode={demoMode} wsStatus={wsStatus} />,
+    bdt:   <BypassDiodeTab        readings={readings} session={sessions.bdt}   onSessionUpdate={s => handleSessionUpdate('bdt',   s)} sendCommand={sendCommand} demoMode={demoMode} wsStatus={wsStatus} />,
+    rco:   <ReverseCurrentTab     readings={readings} session={sessions.rco}   onSessionUpdate={s => handleSessionUpdate('rco',   s)} sendCommand={sendCommand} demoMode={demoMode} wsStatus={wsStatus} />,
     gct:   <GroundContinuityTab   readings={readings} session={sessions.gct}   onSessionUpdate={s => handleSessionUpdate('gct',   s)} sendCommand={sendCommand} demoMode={demoMode} />,
     dh:    <DampHeatTab           readings={readings} session={sessions.dh}    onSessionUpdate={s => handleSessionUpdate('dh',    s)} sendCommand={sendCommand} demoMode={demoMode} />,
   };

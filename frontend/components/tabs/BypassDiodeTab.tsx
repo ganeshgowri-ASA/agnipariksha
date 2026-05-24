@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
+import BasicCheckTower from '../BasicCheckTower';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
 interface Props {
@@ -10,9 +11,10 @@ interface Props {
   onSessionUpdate: (s: TestSession | null) => void;
   sendCommand: (cmd: string) => void;
   demoMode: boolean;
+  wsStatus?: string;
 }
 
-export default function BypassDiodeTab({ readings, session, onSessionUpdate, sendCommand, demoMode }: Props) {
+export default function BypassDiodeTab({ readings, session, onSessionUpdate, sendCommand, demoMode, wsStatus }: Props) {
   const [isc, setIsc] = useState(10.0);
   const [numDiodes, setNumDiodes] = useState(3);
   const [ambientTemp, setAmbientTemp] = useState(75); // IEC 62979 test temp
@@ -83,7 +85,9 @@ export default function BypassDiodeTab({ readings, session, onSessionUpdate, sen
       color="text-yellow-400" readings={readings} session={session}
       onSessionUpdate={onSessionUpdate} sendCommand={sendCommand} demoMode={demoMode}
       limits={{ maxVoltage: 100, maxCurrent: 20, maxPower: 2000, maxTemp: 130 }}
-      setupPanel={setupPanel} extraStats={[
+      setupPanel={setupPanel}
+      basicCheckTower={<BasicCheckTower wsStatus={wsStatus} demoMode={demoMode} />}
+      extraStats={[
         { label: 'Diodes', value: numDiodes.toString(), unit: '', color: 'text-yellow-400' },
         { label: 'Active Diode', value: currentDiode.toString(), unit: `/ ${numDiodes}`, color: 'text-orange-400' },
         { label: 'Ambient', value: ambientTemp.toString(), unit: '°C', color: 'text-red-400' },
