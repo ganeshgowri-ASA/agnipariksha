@@ -5,6 +5,9 @@ import TestTabLayout from '../TestTabLayout';
 import SchematicViewer from '../SchematicViewer';
 import type { TestSession, LiveReading } from '@/types/test-session';
 import { useNameplate } from '@/lib/nameplate-store';
+import BdtAnalysisPanel from '@/features/bdt/analysis/BdtAnalysisPanel';
+import { DEMO_DIODES } from '@/features/bdt/analysis/demoData';
+import type { DiodeSeries } from '@/features/bdt/analysis/regression';
 
 interface Props {
   readings: LiveReading[];
@@ -88,13 +91,20 @@ export default function BypassDiodeTab({ readings, session, onSessionUpdate, sen
     </div>
   );
 
+  // IEC 61215-2 MQT 18.1 — per-diode V_D-vs-T_j characteristic. No live
+  // per-diode capture exists yet, so in DEMO with no active session we seed
+  // the Mitsui WAAREE-770 example so reviewers see a populated panel.
+  const analysisDiodes: DiodeSeries[] = demoMode && !session ? DEMO_DIODES : [];
+
   return (
     <TestTabLayout
       testKey="bdt" testName="Bypass Diode Thermal" standard="IEC 62979:2017"
       color="text-yellow-400" readings={readings} session={session}
       onSessionUpdate={onSessionUpdate} sendCommand={sendCommand} demoMode={demoMode}
       limits={{ maxVoltage: 100, maxCurrent: 20, maxPower: 2000, maxTemp: 130 }}
-      setupPanel={setupPanel} extraStats={[
+      setupPanel={setupPanel}
+      analysisPanel={<BdtAnalysisPanel diodes={analysisDiodes} />}
+      extraStats={[
         { label: 'Diodes', value: numDiodes.toString(), unit: '', color: 'text-yellow-400' },
         { label: 'Active Diode', value: currentDiode.toString(), unit: `/ ${numDiodes}`, color: 'text-orange-400' },
         { label: 'Ambient', value: ambientTemp.toString(), unit: '°C', color: 'text-red-400' },
