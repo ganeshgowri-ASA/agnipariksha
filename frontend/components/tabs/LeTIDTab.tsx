@@ -54,7 +54,7 @@ export default function LeTIDTab({ readings, session, onSessionUpdate, sendComma
   const setupPanel = (
     <div className="space-y-4">
       <div className="bg-gray-900 rounded-lg border border-gray-700 p-4">
-        <h3 className="text-sm font-bold text-purple-400 mb-3">IEC TS 63342:2022 — LeTID Test</h3>
+        <h3 className="text-sm font-bold text-purple-400 mb-3">Light- and elevated-Temperature-Induced Degradation (LeTID) — IEC TS 63342</h3>
         <p className="text-xs text-gray-400 mb-4">
           Light and elevated Temperature Induced Degradation. Dark current Iₚₐ⭣₉ = Isc − Imp.
           Temperature = 75°C ± 3°C. Duration ≥ 162 hours.
