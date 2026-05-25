@@ -8,6 +8,7 @@ import LeTIDTab from '@/components/tabs/LeTIDTab';
 import BypassDiodeTab from '@/components/tabs/BypassDiodeTab';
 import ReverseCurrentTab from '@/components/tabs/ReverseCurrentTab';
 import GroundContinuityTab from '@/components/tabs/GroundContinuityTab';
+import EquipotentialBondingTab from '@/components/tabs/EquipotentialBondingTab';
 import DampHeatTab from '@/components/tabs/DampHeatTab';
 import InvertedIRTab from '@/components/tabs/InvertedIRTab';
 import ResultsDashboard from '@/components/ResultsDashboard';
@@ -23,6 +24,7 @@ function Dashboard() {
   const [activeTab, setActiveTab] = useState<string>('tc');
   const [sessions, setSessions] = useState<Record<TestKey, TestSession | null>>({
     tc: null, hf: null, letid: null, bdt: null, rco: null, gct: null, iir: null, dh: null,
+    tc: null, hf: null, letid: null, bdt: null, rco: null, gct: null, eb: null, dh: null,
   });
   const [demoMode, setDemoMode] = useState(true);
   const { readings, wsStatus, sendCommand } = useWebSocket(demoMode);
@@ -54,6 +56,7 @@ function Dashboard() {
     rco:   <ReverseCurrentTab     readings={readings} session={sessions.rco}   onSessionUpdate={s => handleSessionUpdate('rco',   s)} sendCommand={sendCommand} demoMode={demoMode} />,
     gct:   <GroundContinuityTab   readings={readings} session={sessions.gct}   onSessionUpdate={s => handleSessionUpdate('gct',   s)} sendCommand={sendCommand} demoMode={demoMode} />,
     iir:   <InvertedIRTab         readings={readings} session={sessions.iir}   onSessionUpdate={s => handleSessionUpdate('iir',   s)} sendCommand={sendCommand} demoMode={demoMode} />,
+    eb:    <EquipotentialBondingTab readings={readings} session={sessions.eb} onSessionUpdate={s => handleSessionUpdate('eb',    s)} sendCommand={sendCommand} demoMode={demoMode} />,
     dh:    <DampHeatTab           readings={readings} session={sessions.dh}    onSessionUpdate={s => handleSessionUpdate('dh',    s)} sendCommand={sendCommand} demoMode={demoMode} />,
   };
 
@@ -84,10 +87,13 @@ function Dashboard() {
                 key={tab.key} value={tab.key}
                 className="data-[state=active]:bg-gray-800 data-[state=active]:text-white text-gray-400 px-3 py-1 rounded text-xs font-medium transition-all whitespace-nowrap"
                 title={tab.std}
+                aria-label={tab.label}
                 data-testid={`dashboard-tab-${tab.key}`}
               >
                 <span className={tab.color}>{tab.short}</span>
-                <span className="ml-1 hidden sm:inline text-gray-300">{tab.label}</span>
+                {tab.label !== tab.short && (
+                  <span className="ml-1 hidden sm:inline text-gray-300">{tab.label}</span>
+                )}
                 {dot && <span className="ml-1 text-gray-300">{dot}</span>}
               </TabsTrigger>
             );

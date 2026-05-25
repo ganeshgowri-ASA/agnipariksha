@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import TestTabLayout from '../TestTabLayout';
+import SchematicViewer from '../SchematicViewer';
 import type { TestSession, LiveReading } from '@/types/test-session';
+import { useNameplate } from '@/lib/nameplate-store';
 
 interface Props {
   readings: LiveReading[];
@@ -18,6 +20,14 @@ export default function BypassDiodeTab({ readings, session, onSessionUpdate, sen
   const [ambientTemp, setAmbientTemp] = useState(75); // IEC 62979 test temp
   const [duration, setDuration] = useState(1); // hours per diode
   const [currentDiode, setCurrentDiode] = useState(1);
+
+  // Pre-fill the IEC 62979 Isc / diode count from the shared module nameplate.
+  const nameplate = useNameplate();
+  useEffect(() => {
+    if (!nameplate) return;
+    if (nameplate.isc > 0) setIsc(nameplate.isc);
+    if (nameplate.bypassDiodes > 0) setNumDiodes(nameplate.bypassDiodes);
+  }, [nameplate?.isc, nameplate?.bypassDiodes]);
 
   const onStart = useCallback(() => {
     const newSession: TestSession = {
@@ -74,6 +84,7 @@ export default function BypassDiodeTab({ readings, session, onSessionUpdate, sen
           </p>
         </div>
       </div>
+      <SchematicViewer testCode="bdt" mode="pulse" />
     </div>
   );
 

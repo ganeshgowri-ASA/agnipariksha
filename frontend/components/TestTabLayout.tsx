@@ -11,7 +11,9 @@ import AnalogGauge from './AnalogGauge';
 import DataTable from './DataTable';
 import ReportGenerator from './ReportGenerator';
 import AnalysisPanel from './AnalysisPanel';
+import NameplatePanel from './NameplatePanel';
 import { useNotifications } from './notifications/NotificationsStore';
+import { getCurrentModuleId, markNameplateUsed } from '@/lib/nameplate-store';
 
 interface TestTabLayoutProps {
   testKey: string;
@@ -33,6 +35,11 @@ interface TestTabLayoutProps {
    * IEC tabs continue to default to "Live Monitor" unchanged.
    */
   basicCheckPanel?: React.ReactNode;
+  /**
+   * Optional custom Analysis pane. When provided it replaces the generic
+   * {@link AnalysisPanel} — used by EB to show per-bonding-point pass/fail.
+   */
+  analysisPanel?: React.ReactNode;
   extraStats?: Array<{ label: string; value: string; unit: string; color?: string }>;
   onStartTest: () => void;
   onStopTest: () => void;
@@ -67,7 +74,7 @@ async function postControl(testId: string, action: string): Promise<void> {
 export default function TestTabLayout({
   testKey, testName, standard, color, readings, session,
   onSessionUpdate, sendCommand, demoMode,
-  limits, setupPanel, basicCheckPanel, extraStats = [],
+  limits, setupPanel, basicCheckPanel, analysisPanel, extraStats = [],
   onStartTest, onStopTest, onPauseTest, onResumeTest, onEmergencyStop,
 }: TestTabLayoutProps) {
   // When basicCheckPanel is provided, prepend Basic Check and default to
@@ -104,6 +111,7 @@ export default function TestTabLayout({
 
   const handleStart = () => {
     onStartTest();
+    markNameplateUsed(getCurrentModuleId());
     push({ severity: 'info', source: 'user', title: `Started ${testName}`, message: standard });
     fireControl('start');
   };
@@ -192,7 +200,12 @@ export default function TestTabLayout({
           <div className="max-w-5xl" data-testid="subtab-pane-basic-check">{basicCheckPanel}</div>
         )}
 
-        {subTab === 'setup' && <div className="max-w-2xl" data-testid="subtab-pane-setup">{setupPanel}</div>}
+        {subTab === 'setup' && (
+          <div className="max-w-2xl" data-testid="subtab-pane-setup">
+            <NameplatePanel />
+            {setupPanel}
+          </div>
+        )}
 
         {subTab === 'monitor' && (
           <div className="space-y-4" data-testid="subtab-pane-monitor">
@@ -238,7 +251,9 @@ export default function TestTabLayout({
 
         {subTab === 'analysis' && (
           <div data-testid="subtab-pane-analysis">
-            <AnalysisPanel session={session} testName={testName} standard={standard} />
+            {analysisPanel ?? (
+              <AnalysisPanel session={session} testName={testName} standard={standard} />
+            )}
           </div>
         )}
 

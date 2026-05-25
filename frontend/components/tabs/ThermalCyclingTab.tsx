@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
+import SchematicViewer from '../SchematicViewer';
 import ThermalCyclingBasicCheck from '../ThermalCyclingBasicCheck';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
@@ -84,6 +85,7 @@ export default function ThermalCyclingTab({ readings, session, onSessionUpdate, 
       <div className="bg-blue-900/20 border border-blue-700/40 rounded p-3 text-xs text-blue-300">
         ℹ️ SCPI sequence: SOUR:CURR {isc}A → OUTP ON → PROG:STEP 1,{tMin},{tMax},{rampRate} → PROG:REPE {cycles} → PROG:EXEC
       </div>
+      <SchematicViewer testCode="tc" mode="chamber" />
     </div>
   );
 

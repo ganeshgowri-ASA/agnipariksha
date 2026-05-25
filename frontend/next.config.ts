@@ -7,6 +7,10 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // Legacy /lid path renamed to /letid per IEC TS 63342. 308 keeps old links working.
+  async redirects() {
+    return [{ source: '/lid', destination: '/letid', permanent: true }];
+  },
 }
 
 export default nextConfig
