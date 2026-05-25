@@ -42,6 +42,8 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: TypeScript
         run: npx tsc --noEmit
+      - name: Unit tests
+        run: npm run test:unit
       - name: Build
         run: npx next build
 
