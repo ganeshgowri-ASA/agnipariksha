@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
+import SchematicViewer from '../SchematicViewer';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
 interface Props {
@@ -84,6 +85,7 @@ export default function DampHeatTab({ readings, session, onSessionUpdate, sendCo
           {' · '}Progress: <span className="font-mono text-cyan-400">{progress.toFixed(1)}%</span>
         </div>
       </div>
+      <SchematicViewer testCode="dh" />
     </div>
   );
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import TestTabLayout from '../TestTabLayout';
+import SchematicViewer from '../SchematicViewer';
 import type { TestSession, LiveReading } from '@/types/test-session';
 import { useGctLive } from '@/hooks/useGctLive';
 
@@ -148,6 +149,7 @@ export default function GroundContinuityTab({
           </div>
         )}
       </div>
+      <SchematicViewer testCode="gct" mode="frame" />
     </div>
   );
 

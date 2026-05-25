@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 300" role="img" aria-label="Thermal cycling chamber wiring diagram">
+  <g fill="none" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round">
+    <!-- environmental chamber -->
+    <rect x="250" y="50" width="200" height="200" rx="8" stroke="#60a5fa"/>
+    <!-- DUT inside -->
+    <rect x="290" y="110" width="120" height="80" rx="6"/>
+    <!-- PSU outside -->
+    <rect x="30" y="110" width="120" height="80" rx="6"/>
+    <!-- feedthrough force leads -->
+    <path d="M150 135 H290" stroke="#f87171"/>
+    <path d="M150 165 H290"/>
+    <!-- sense -->
+    <path d="M150 150 H270 V200 H290" stroke="#60a5fa" stroke-dasharray="6 5"/>
+    <!-- thermocouple -->
+    <path d="M350 110 V70" stroke="#fbbf24"/>
+    <circle cx="350" cy="66" r="4" stroke="#fbbf24"/>
+    <!-- ground -->
+    <path d="M350 190 V222 M332 222 H368 M339 230 H361 M346 238 H354" stroke="#34d399"/>
+  </g>
+  <g fill="#e2e8f0" font-family="sans-serif" font-size="13">
+    <text x="90" y="155" text-anchor="middle">PSU PV6000</text>
+    <text x="350" y="44" text-anchor="middle" fill="#60a5fa">chamber −40…+85 °C</text>
+    <text x="350" y="155" text-anchor="middle" font-size="11">DUT</text>
+    <text x="210" y="128" text-anchor="middle" font-size="10" fill="#f87171">force</text>
+    <text x="210" y="146" text-anchor="middle" font-size="10" fill="#60a5fa">sense</text>
+    <text x="385" y="80" text-anchor="middle" font-size="10" fill="#fbbf24">T/C</text>
+  </g>
+  <text x="240" y="294" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#64748b">DRAFT — replace with reviewed CAD</text>
+</svg>

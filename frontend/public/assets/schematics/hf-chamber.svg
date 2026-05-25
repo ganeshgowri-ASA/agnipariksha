@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 300" role="img" aria-label="Humidity freeze chamber wiring diagram">
+  <g fill="none" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round">
+    <rect x="250" y="50" width="200" height="200" rx="8" stroke="#22d3ee"/>
+    <rect x="290" y="110" width="120" height="80" rx="6"/>
+    <rect x="30" y="110" width="120" height="80" rx="6"/>
+    <path d="M150 135 H290" stroke="#f87171"/>
+    <path d="M150 165 H290"/>
+    <path d="M150 150 H270 V200 H290" stroke="#60a5fa" stroke-dasharray="6 5"/>
+    <!-- humidity droplet marker -->
+    <path d="M350 110 V72 m0 0 c-7 8 -7 14 0 14 c7 0 7 -6 0 -14" stroke="#22d3ee"/>
+    <path d="M350 190 V222 M332 222 H368 M339 230 H361 M346 238 H354" stroke="#34d399"/>
+  </g>
+  <g fill="#e2e8f0" font-family="sans-serif" font-size="13">
+    <text x="90" y="155" text-anchor="middle">PSU PV6000</text>
+    <text x="350" y="44" text-anchor="middle" fill="#22d3ee">chamber 85% RH, +85…−40 °C</text>
+    <text x="350" y="155" text-anchor="middle" font-size="11">DUT</text>
+    <text x="210" y="128" text-anchor="middle" font-size="10" fill="#f87171">force</text>
+    <text x="210" y="146" text-anchor="middle" font-size="10" fill="#60a5fa">sense</text>
+  </g>
+  <text x="240" y="294" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#64748b">DRAFT — replace with reviewed CAD</text>
+</svg>
