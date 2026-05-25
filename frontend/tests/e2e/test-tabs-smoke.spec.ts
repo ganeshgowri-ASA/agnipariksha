@@ -22,7 +22,7 @@
 import { test, expect, type Page } from '@playwright/test';
 
 interface IecTab {
-  key: 'tc' | 'hf' | 'letid' | 'bdt' | 'rco' | 'gct' | 'dh';
+  key: 'tc' | 'hf' | 'letid' | 'bdt' | 'rco' | 'gct' | 'eb' | 'dh';
   name: string;
   hasBasicCheck: boolean;
 }
@@ -34,6 +34,7 @@ const IEC_TABS: IecTab[] = [
   { key: 'bdt',   name: 'Bypass Diode Thermal',     hasBasicCheck: false },
   { key: 'rco',   name: 'Reverse Current Overload', hasBasicCheck: false },
   { key: 'gct',   name: 'Ground Continuity',        hasBasicCheck: false },
+  { key: 'eb',    name: 'Equipotential Bonding',    hasBasicCheck: false },
   { key: 'dh',    name: 'Damp Heat',                hasBasicCheck: false },
 ];
 

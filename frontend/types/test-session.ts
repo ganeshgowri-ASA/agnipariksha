@@ -38,6 +38,7 @@ export type TestKey =
   | 'bdt'
   | 'rco'
   | 'gct'
+  | 'eb'
   | 'dh';
 
 export interface TabDefinition {
@@ -56,6 +57,7 @@ export const TABS: TabDefinition[] = [
   { key: 'bdt',   label: 'Bypass Diode',             short: 'BDT', color: 'text-yellow-400', std: 'IEC 61215-2 MQT 18', clause: 'MQT 18' },
   { key: 'rco',   label: 'Reverse Current Overload', short: 'RCO', color: 'text-red-400',    std: 'IEC 61730 MST 26',   clause: 'MST 26' },
   { key: 'gct',   label: 'Ground Continuity',        short: 'GCT', color: 'text-green-400',  std: 'IEC 61730 MST 13',   clause: 'MST 13' },
+  { key: 'eb',    label: 'Equipotential Bonding',     short: 'EB',  color: 'text-emerald-400', std: 'IEC 61730 MST 13',  clause: 'MST 13' },
   { key: 'dh',    label: 'Damp Heat',                short: 'DH',  color: 'text-cyan-400',   std: 'IEC 61215-2 MQT 13', clause: 'MQT 13' },
 ];
 
