@@ -4,10 +4,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ThermalCyclingTab from '@/components/tabs/ThermalCyclingTab';
 import HumidityFreezeTab from '@/components/tabs/HumidityFreezeTab';
+import PIDTab from '@/components/tabs/PIDTab';
 import LeTIDTab from '@/components/tabs/LeTIDTab';
 import BypassDiodeTab from '@/components/tabs/BypassDiodeTab';
 import ReverseCurrentTab from '@/components/tabs/ReverseCurrentTab';
 import GroundContinuityTab from '@/components/tabs/GroundContinuityTab';
+import ELTab from '@/components/tabs/ELTab';
 import EquipotentialBondingTab from '@/components/tabs/EquipotentialBondingTab';
 import DampHeatTab from '@/components/tabs/DampHeatTab';
 import InvertedIRTab from '@/components/tabs/InvertedIRTab';
@@ -23,8 +25,8 @@ import { TABS, type TestKey, type TestSession } from '@/types/test-session';
 function Dashboard() {
   const [activeTab, setActiveTab] = useState<string>('tc');
   const [sessions, setSessions] = useState<Record<TestKey, TestSession | null>>({
-    tc: null, hf: null, letid: null, bdt: null, rco: null, gct: null, iir: null, dh: null,
-    tc: null, hf: null, letid: null, bdt: null, rco: null, gct: null, eb: null, dh: null,
+    tc: null, hf: null, pid: null, letid: null, bdt: null, rco: null,
+    gct: null, el: null, iir: null, dh: null, eb: null,
   });
   const [demoMode, setDemoMode] = useState(true);
   const { readings, wsStatus, sendCommand } = useWebSocket(demoMode);
@@ -51,10 +53,12 @@ function Dashboard() {
   const tabRender: Record<TestKey, React.ReactNode> = {
     tc:    <ThermalCyclingTab     readings={readings} session={sessions.tc}    onSessionUpdate={s => handleSessionUpdate('tc',    s)} sendCommand={sendCommand} demoMode={demoMode} wsStatus={wsStatus} />,
     hf:    <HumidityFreezeTab     readings={readings} session={sessions.hf}    onSessionUpdate={s => handleSessionUpdate('hf',    s)} sendCommand={sendCommand} demoMode={demoMode} />,
+    pid:   <PIDTab                readings={readings} session={sessions.pid}   onSessionUpdate={s => handleSessionUpdate('pid',   s)} sendCommand={sendCommand} demoMode={demoMode} />,
     letid: <LeTIDTab              readings={readings} session={sessions.letid} onSessionUpdate={s => handleSessionUpdate('letid', s)} sendCommand={sendCommand} demoMode={demoMode} />,
     bdt:   <BypassDiodeTab        readings={readings} session={sessions.bdt}   onSessionUpdate={s => handleSessionUpdate('bdt',   s)} sendCommand={sendCommand} demoMode={demoMode} />,
     rco:   <ReverseCurrentTab     readings={readings} session={sessions.rco}   onSessionUpdate={s => handleSessionUpdate('rco',   s)} sendCommand={sendCommand} demoMode={demoMode} />,
     gct:   <GroundContinuityTab   readings={readings} session={sessions.gct}   onSessionUpdate={s => handleSessionUpdate('gct',   s)} sendCommand={sendCommand} demoMode={demoMode} />,
+    el:    <ELTab                 readings={readings} session={sessions.el}    onSessionUpdate={s => handleSessionUpdate('el',    s)} sendCommand={sendCommand} demoMode={demoMode} />,
     iir:   <InvertedIRTab         readings={readings} session={sessions.iir}   onSessionUpdate={s => handleSessionUpdate('iir',   s)} sendCommand={sendCommand} demoMode={demoMode} />,
     eb:    <EquipotentialBondingTab readings={readings} session={sessions.eb} onSessionUpdate={s => handleSessionUpdate('eb',    s)} sendCommand={sendCommand} demoMode={demoMode} />,
     dh:    <DampHeatTab           readings={readings} session={sessions.dh}    onSessionUpdate={s => handleSessionUpdate('dh',    s)} sendCommand={sendCommand} demoMode={demoMode} />,
