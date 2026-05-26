@@ -5,6 +5,9 @@ import TestTabLayout from '../TestTabLayout';
 import SchematicViewer from '../SchematicViewer';
 import LiveChart from '../LiveChart';
 import type { TestSession, LiveReading } from '@/types/test-session';
+import LetidAnalysisPanel from '@/features/letid/analysis/LetidAnalysisPanel';
+import { DEMO_LETID_POINTS } from '@/features/letid/analysis/demoData';
+import type { LetidPoint } from '@/features/letid/analysis/regeneration';
 
 interface Props {
   readings: LiveReading[];
@@ -91,13 +94,20 @@ export default function LeTIDTab({ readings, session, onSessionUpdate, sendComma
     </div>
   );
 
+  // IEC TS 63342 — dark V_oc regeneration. No live dark-V_oc capture exists
+  // yet, so in DEMO with no active session we seed a synthetic curve so
+  // reviewers see onset + stop-criterion detection firing.
+  const analysisPoints: LetidPoint[] = demoMode && !session ? DEMO_LETID_POINTS : [];
+
   return (
     <TestTabLayout
       testKey="letid" testName="LeTID" standard="IEC TS 63342:2022"
       color="text-purple-400" readings={readings} session={session}
       onSessionUpdate={onSessionUpdate} sendCommand={sendCommand} demoMode={demoMode}
       limits={{ maxVoltage: 100, maxCurrent: 20, maxPower: 2000, maxTemp: 85 }}
-      setupPanel={setupPanel} extraStats={[
+      setupPanel={setupPanel}
+      analysisPanel={<LetidAnalysisPanel points={analysisPoints} tjmaxc={temp} />}
+      extraStats={[
         { label: 'Iₚₐ⭣₉ Dark', value: idark.toString(), unit: 'A', color: 'text-purple-400' },
         { label: 'Temperature', value: temp.toString(), unit: '°C', color: 'text-red-400' },
         { label: 'Elapsed', value: elapsedHr, unit: 'hr', color: 'text-yellow-400' },
