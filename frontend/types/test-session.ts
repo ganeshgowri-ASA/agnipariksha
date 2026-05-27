@@ -38,6 +38,7 @@ export type TestKey =
   | 'letid'
   | 'bdt'
   | 'rco'
+  | 'rcot'
   | 'gct'
   | 'el'
   | 'iir'
@@ -60,6 +61,7 @@ export const TABS: TabDefinition[] = [
   { key: 'letid', label: 'LeTID',                    short: 'LeTID', color: 'text-purple-400',  std: 'IEC TS 63342',       clause: 'TS 63342' },
   { key: 'bdt',   label: 'Bypass Diode',             short: 'BDT',   color: 'text-yellow-400',  std: 'IEC 61215-2 MQT 18', clause: 'MQT 18' },
   { key: 'rco',   label: 'Reverse Current Overload', short: 'RCO',   color: 'text-red-400',     std: 'IEC 61730 MST 26',   clause: 'MST 26' },
+  { key: 'rcot',  label: 'Reverse Current Overload', short: 'RCOT',  color: 'text-rose-400',    std: 'IEC 61730-2 MST 26', clause: 'MST 26' },
   { key: 'gct',   label: 'Ground Continuity',        short: 'GCT',   color: 'text-green-400',   std: 'IEC 61730 MST 13',   clause: 'MST 13' },
   { key: 'el',    label: 'Electroluminescence',      short: 'EL',    color: 'text-sky-400',     std: 'IEC TS 60904-13',    clause: 'TS 60904-13' },
   { key: 'iir',   label: 'Inverted IR',              short: 'IIR',   color: 'text-pink-400',    std: 'Forward-bias IR thermography', clause: 'IR' },
