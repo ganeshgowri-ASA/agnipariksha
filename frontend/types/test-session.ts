@@ -41,6 +41,7 @@ export type TestKey =
   | 'gct'
   | 'el'
   | 'iir'
+  | 'ir'
   | 'dh'
   | 'eb';
 
@@ -63,6 +64,7 @@ export const TABS: TabDefinition[] = [
   { key: 'gct',   label: 'Ground Continuity',        short: 'GCT',   color: 'text-green-400',   std: 'IEC 61730 MST 13',   clause: 'MST 13' },
   { key: 'el',    label: 'Electroluminescence',      short: 'EL',    color: 'text-sky-400',     std: 'IEC TS 60904-13',    clause: 'TS 60904-13' },
   { key: 'iir',   label: 'Inverted IR',              short: 'IIR',   color: 'text-pink-400',    std: 'Forward-bias IR thermography', clause: 'IR' },
+  { key: 'ir',    label: 'IR Forward-Bias Thermography', short: 'IR', color: 'text-amber-400', std: 'IEC TS 60904-12-1',  clause: 'TS 60904-12-1' },
   { key: 'dh',    label: 'Damp Heat',                short: 'DH',    color: 'text-cyan-400',    std: 'IEC 61215-2 MQT 13', clause: 'MQT 13' },
   { key: 'eb',    label: 'Equipotential Bonding',    short: 'EB',    color: 'text-emerald-400', std: 'IEC 61730 MST 13',   clause: 'MST 13' },
 ];
