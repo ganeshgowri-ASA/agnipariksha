@@ -76,3 +76,7 @@ backend/alembic/versions/__pycache__/
 frontend/test-results/
 frontend/playwright-report/
 frontend/.playwright/
+
+# LeTID checkpoint markers (runtime output of backend/app/letid.py)
+tests/letid/
+backend/tests/letid/
