@@ -115,3 +115,87 @@ def test_to_dict_snapshot_shape():
     assert d["module_id"] == "MOD-HF"
     assert d["state"] == HFState.SOAK_HUMID_HOT.value
     assert d["rh_pct"] == 85.0
+
+
+def test_cycle_profile_exact_order():
+    """One cycle visits the MQT 12 phases in the exact specified order."""
+    seen = _drive_until_done(_make(cycles=1))
+    assert seen == [
+        HFState.SOAK_HUMID_HOT, HFState.RAMP_DOWN, HFState.SOAK_COLD,
+        HFState.RAMP_UP, HFState.CYCLE_COMPLETE, HFState.DONE,
+    ]
+
+
+def test_dwell_timing_hot_and_cold():
+    """Hot/cold dwells hold for their configured durations before advancing."""
+    o = _make(cycles=1)  # hot_soak_s=1.0, cold_soak_s=0.5
+    o.start(now_s=0.0)
+    assert o.tick(0.9) is HFState.SOAK_HUMID_HOT   # before hot dwell elapses
+    assert o.tick(1.0) is HFState.RAMP_DOWN        # hot dwell satisfied
+    t = 1.0
+    while o.state is not HFState.SOAK_COLD:
+        t += 0.5
+        o.tick(t)
+        assert t < 1e4, "ramp_down never reached SOAK_COLD"
+    enter = t
+    assert o.tick(enter + 0.4) is HFState.SOAK_COLD  # before cold dwell elapses
+    assert o.tick(enter + 0.5) is HFState.RAMP_UP    # cold dwell satisfied
+
+
+def test_ramp_down_monotonic_and_clamped():
+    """RAMP_DOWN temperature falls monotonically and clamps at t_cold."""
+    o = _make(cycles=1)
+    o.start(now_s=0.0)
+    assert o.tick(1.0) is HFState.RAMP_DOWN
+    prev = o.temp_c
+    t = 1.0
+    while o.state is HFState.RAMP_DOWN:
+        t += 1.0
+        o.tick(t)
+        assert o.temp_c <= prev + 1e-9        # never warms mid-ramp
+        assert o.temp_c >= o.t_cold_c - 1e-9  # never overshoots cold
+        prev = o.temp_c
+    assert o.state is HFState.SOAK_COLD
+    assert o.temp_c == o.t_cold_c
+
+
+def test_rh_enforced_only_in_hot_dwell():
+    """RH holds at nominal in SOAK_HUMID_HOT and is 0 in every other phase."""
+    o = _make(cycles=1)
+    o.start(now_s=0.0)
+    rh_by_state = {o.state: o.rh_active_pct()}
+    t = 0.0
+    for _ in range(5000):
+        t += 0.5
+        s = o.tick(t)
+        rh_by_state.setdefault(s, o.rh_active_pct())
+        if s is HFState.DONE:
+            break
+    assert rh_by_state[HFState.SOAK_HUMID_HOT] == 85.0
+    for dry in (HFState.RAMP_DOWN, HFState.SOAK_COLD, HFState.RAMP_UP):
+        assert rh_by_state[dry] == 0.0
+
+
+def test_verdict_pending_until_done_then_manual_inputs():
+    """Verdict needs all cycles done plus both manual checks; PASS needs both."""
+    o = _make(cycles=1)
+    assert o.verdict() == "PENDING"            # IDLE, nothing recorded
+    _drive_until_done(o)
+    assert o.state is HFState.DONE
+    assert o.verdict() == "PENDING"            # done but awaiting inspection
+    o.record_inspection(visual_pass=True, insulation_retained=False)
+    assert o.verdict() == "FAIL"               # insulation not retained
+    o.record_inspection(visual_pass=True, insulation_retained=True)
+    assert o.verdict() == "PASS"
+    assert o.to_dict()["verdict"] == "PASS"
+
+
+def test_meets_spec_profile():
+    """Short test config fails the MQT 12 timing reference; full config passes."""
+    assert _make(cycles=10).meets_spec_profile() is False  # 60 s / 30 s dwells
+    spec = HumidityFreezeOrchestrator(
+        module_id="MOD-HF", isc_a=9.0, cycles=10,
+        hot_soak_s=20 * 3600, cold_soak_s=30 * 60,
+        ramp_rate_c_per_min=1.0,  # 125 C swing in 125 min < 4 h
+    )
+    assert spec.meets_spec_profile() is True

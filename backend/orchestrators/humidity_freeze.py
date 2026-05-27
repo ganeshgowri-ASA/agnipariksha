@@ -44,8 +44,19 @@ class HumidityFreezeOrchestrator:
     temp_c: float = field(default=25.0, init=False)
     started_at_s: Optional[float] = field(default=None, init=False)
     _phase_start_s: float = field(default=0.0, init=False)
+    # Manual post-test checkboxes (MQT 12 verdict inputs). None until recorded.
+    visual_pass: Optional[bool] = field(default=None, init=False)
+    insulation_retained: Optional[bool] = field(default=None, init=False)
 
     RAMP_RATE_CAP = 200.0  # MQT 12 ramp is faster than MQT 11
+
+    # MQT 12 reference profile for one 24 h cycle: hot/humid dwell >= 20 h,
+    # cold dwell >= 30 min, each temperature transition completes within 4 h.
+    # The dwell defaults above are short for test speed; meets_spec_profile()
+    # validates a production-configured run against these reference values.
+    SPEC_HOT_SOAK_S = 20 * 3600
+    SPEC_COLD_SOAK_S = 30 * 60
+    SPEC_MAX_TRANSITION_S = 4 * 3600
 
     def __post_init__(self) -> None:
         if self.ramp_rate_c_per_min <= 0:
@@ -116,6 +127,34 @@ class HumidityFreezeOrchestrator:
         """RH controlled to nominal only during the hot humid soak."""
         return self.rh_pct if self.state is HFState.SOAK_HUMID_HOT else 0.0
 
+    @property
+    def transition_s(self) -> float:
+        """Seconds for one full hot<->cold swing at the configured ramp."""
+        return (self.t_hot_c - self.t_cold_c) / (self.ramp_rate_c_per_min / 60.0)
+
+    def meets_spec_profile(self) -> bool:
+        """True when dwell/transition timings conform to the MQT 12 reference."""
+        return (
+            self.hot_soak_s >= self.SPEC_HOT_SOAK_S
+            and self.cold_soak_s >= self.SPEC_COLD_SOAK_S
+            and self.transition_s <= self.SPEC_MAX_TRANSITION_S
+        )
+
+    def record_inspection(self, *, visual_pass: bool, insulation_retained: bool) -> None:
+        """Record the two manual MQT 12 verdict inputs (UI checkboxes)."""
+        self.visual_pass = bool(visual_pass)
+        self.insulation_retained = bool(insulation_retained)
+
+    def verdict(self) -> str:
+        """MQT 12 verdict. PENDING until all cycles complete AND both manual
+        checks are recorded; then PASS only if visual inspection passed and
+        insulation resistance was retained, otherwise FAIL."""
+        if self.state is not HFState.DONE:
+            return "PENDING"
+        if self.visual_pass is None or self.insulation_retained is None:
+            return "PENDING"
+        return "PASS" if (self.visual_pass and self.insulation_retained) else "FAIL"
+
     def to_dict(self) -> dict:
         return {
             "module_id": self.module_id,
@@ -128,4 +167,7 @@ class HumidityFreezeOrchestrator:
             "current_a": round(self.current_a(), 4),
             "ramp_rate_c_per_min": self.ramp_rate_c_per_min,
             "started_at_s": self.started_at_s,
+            "visual_pass": self.visual_pass,
+            "insulation_retained": self.insulation_retained,
+            "verdict": self.verdict(),
         }
