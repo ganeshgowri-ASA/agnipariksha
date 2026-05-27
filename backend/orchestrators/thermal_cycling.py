@@ -2,8 +2,9 @@
 
 State machine: ``IDLE -> SOAK_HOT -> RAMP_DOWN -> SOAK_COLD -> RAMP_UP
 -> CYCLE_COMPLETE`` (loop until ``cycles`` reached, then ``DONE``).
-Defaults follow MQT 11: 200 cycles, -40 .. +85 C, ramp <= 100 C/min.
-Dwell defaults to 60 s for testability; production runs override.
+Defaults follow MQT 11: 200 cycles, -40 .. +85 C, ramp <= 100 C/h,
+dwell >= 10 min at each extreme. Current injection is the Imp setpoint
+(NON-IV) applied while module temperature is >= 25 C.
 """
 from __future__ import annotations
 
@@ -27,12 +28,12 @@ class TCState(str, Enum):
 @dataclass
 class ThermalCyclingOrchestrator:
     module_id: str
-    isc_a: float
+    imp_a: float
     cycles: int = 200
     t_hot_c: float = 85.0
     t_cold_c: float = -40.0
-    ramp_rate_c_per_min: float = 100.0
-    dwell_s: float = 60.0
+    ramp_rate_c_per_h: float = 100.0
+    dwell_s: float = 600.0
 
     state: TCState = field(default=TCState.IDLE, init=False)
     cycle_index: int = field(default=0, init=False)
@@ -40,12 +41,19 @@ class ThermalCyclingOrchestrator:
     started_at_s: Optional[float] = field(default=None, init=False)
     _phase_start_s: float = field(default=0.0, init=False)
 
-    RAMP_RATE_CAP = 100.0  # MQT 11 ceiling
+    # Manual acceptance checks (operator-set; MQT 11 verdict inputs).
+    manual_visual_pass: Optional[bool] = field(default=None, init=False)
+    manual_insulation_retained: Optional[bool] = field(default=None, init=False)
+
+    RAMP_RATE_CAP = 100.0  # MQT 11 ceiling, deg C per hour
+    MIN_DWELL_S = 600.0    # MQT 11 dwell: >= 10 min at each extreme
 
     def __post_init__(self) -> None:
-        if self.ramp_rate_c_per_min <= 0:
-            raise ValueError("ramp_rate_c_per_min must be > 0")
-        self.ramp_rate_c_per_min = min(self.ramp_rate_c_per_min, self.RAMP_RATE_CAP)
+        if self.ramp_rate_c_per_h <= 0:
+            raise ValueError("ramp_rate_c_per_h must be > 0")
+        self.ramp_rate_c_per_h = min(self.ramp_rate_c_per_h, self.RAMP_RATE_CAP)
+        if self.dwell_s <= 0:
+            raise ValueError("dwell_s must be > 0")
         if self.t_hot_c <= self.t_cold_c:
             raise ValueError("t_hot_c must be > t_cold_c")
         if self.cycles <= 0:
@@ -67,7 +75,7 @@ class ThermalCyclingOrchestrator:
         if self.state in (TCState.IDLE, TCState.DONE):
             return self.state
         elapsed = now_s - self._phase_start_s
-        ramp = self.ramp_rate_c_per_min / 60.0 * elapsed
+        ramp = self.ramp_rate_c_per_h / 3600.0 * elapsed
         if self.state is TCState.SOAK_HOT:
             self.temp_c = self.t_hot_c
             if elapsed >= self.dwell_s:
@@ -102,10 +110,36 @@ class ThermalCyclingOrchestrator:
     _ENERGIZED = (TCState.SOAK_HOT, TCState.RAMP_DOWN, TCState.RAMP_UP)
 
     def current_a(self) -> float:
-        """MQT 11: I = Isc when T >= 25 C and energized, else 0."""
+        """MQT 11: I = Imp setpoint when T >= 25 C and energized, else 0.
+
+        NON-IV: a commanded setpoint magnitude, not a measurement.
+        """
         if self.temp_c >= 25.0 and self.state in self._ENERGIZED:
-            return self.isc_a
+            return self.imp_a
         return 0.0
+
+    def profile_compliant(self) -> bool:
+        """True if the configured profile meets MQT 11 limits: dwell
+        >= 10 min, ramp <= 100 C/h, and the -40 .. +85 C extremes."""
+        return (
+            self.dwell_s >= self.MIN_DWELL_S
+            and self.ramp_rate_c_per_h <= self.RAMP_RATE_CAP
+            and self.t_hot_c >= 85.0
+            and self.t_cold_c <= -40.0
+        )
+
+    def verdict(self) -> str:
+        """MQT 11 verdict. PASS needs a completed, compliant run plus both
+        manual checks: visual inspection and insulation resistance retained."""
+        if self.state is not TCState.DONE:
+            return "INCOMPLETE"
+        if (
+            self.profile_compliant()
+            and self.manual_visual_pass
+            and self.manual_insulation_retained
+        ):
+            return "PASS"
+        return "FAIL"
 
     def to_dict(self) -> dict:
         return {
@@ -114,8 +148,13 @@ class ThermalCyclingOrchestrator:
             "cycle_index": self.cycle_index,
             "cycles": self.cycles,
             "temp_c": round(self.temp_c, 2),
-            "isc_a": self.isc_a,
+            "imp_a": self.imp_a,
             "current_a": round(self.current_a(), 4),
-            "ramp_rate_c_per_min": self.ramp_rate_c_per_min,
+            "ramp_rate_c_per_h": self.ramp_rate_c_per_h,
+            "dwell_s": self.dwell_s,
             "started_at_s": self.started_at_s,
+            "profile_compliant": self.profile_compliant(),
+            "manual_visual_pass": self.manual_visual_pass,
+            "manual_insulation_retained": self.manual_insulation_retained,
+            "verdict": self.verdict(),
         }
