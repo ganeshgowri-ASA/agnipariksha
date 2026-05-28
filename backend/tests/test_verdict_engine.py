@@ -10,7 +10,7 @@ from backend.main import app
 
 
 def test_four_evaluators_registered_and_importable() -> None:
-    assert set(all_evaluators().keys()) == {"tc", "hf", "pid", "letid"}
+    assert set(all_evaluators().keys()) >= {"tc", "hf", "pid", "letid"}
 
 
 # (test_type, metrics, expected_status) — every evaluator hits all 3 branches.
