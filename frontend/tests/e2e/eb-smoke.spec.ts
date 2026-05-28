@@ -24,7 +24,7 @@ test.describe('EB standalone page — /eb', () => {
 
     // Setup form fields per the spec.
     await expect(page.getByText('Test Current (A)')).toBeVisible();
-    await expect(page.getByText('Max Duration (s)')).toBeVisible();
+    await expect(page.getByText('Duration / pair (s)')).toBeVisible();
     await expect(page.getByText('Pass Threshold (Ω)')).toBeVisible();
 
     // Bonding-point list with add/remove.

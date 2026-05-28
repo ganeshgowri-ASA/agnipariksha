@@ -20,9 +20,9 @@ export default function EquipotentialBondingTab({
   readings: _psuReadings,  // intentionally unused: EB uses the DMM, not the PSU
   session, onSessionUpdate, sendCommand, demoMode,
 }: Props) {
-  const [testCurrent, setTestCurrent] = useState(25);      // A — sourced by DMM
-  const [maxDuration, setMaxDuration] = useState(5);       // s per measurement
-  const [threshold, setThreshold] = useState(0.1);         // Ω per IEC 61730-2 MST 13
+  const [testCurrent, setTestCurrent] = useState(25);            // A — sourced by DMM
+  const [durationPerPair, setDurationPerPair] = useState(120);   // s per measured pair
+  const [threshold, setThreshold] = useState(0.1);               // Ω per IEC 61730-2 MST 13
   const [bondingPoints, setBondingPoints] = useState<string[]>(DEFAULT_POINTS);
   const [newPoint, setNewPoint] = useState('');
 
@@ -51,20 +51,26 @@ export default function EquipotentialBondingTab({
 
   const measuredR = latestEb?.resistance ?? null;
 
-  // Per-bonding-point resistance. Each point is probed in turn; for the demo
-  // / live single-channel feed we derive a small deterministic per-point
-  // offset from the latest measurement so each point reads distinctly.
-  const pointMeasurements = useMemo(
-    () => bondingPoints.map((label, i) => {
-      const r = measuredR === null ? null : measuredR + i * 0.0015;
-      return { label, resistance: r, pass: r === null ? null : r < threshold };
-    }),
-    [bondingPoints, measuredR, threshold],
-  );
+  // Pairwise bonding resistance — EB verifies every unique pair (i<j) of
+  // exposed parts is mutually bonded. The single-channel demo/live feed is
+  // offset by a small deterministic per-pair delta so the NxN matrix reads
+  // distinctly; the canonical sweep + synthesis lives in backend/app/eb.py.
+  const pairs = useMemo(() => {
+    const out: { i: number; j: number; a: string; b: string; r: number | null; pass: boolean | null }[] = [];
+    for (let i = 0; i < bondingPoints.length; i++)
+      for (let j = i + 1; j < bondingPoints.length; j++) {
+        const r = measuredR === null ? null : measuredR + (((i * 7 + j * 13) % 9) * 0.0012);
+        out.push({ i, j, a: bondingPoints[i], b: bondingPoints[j], r, pass: r === null ? null : r < threshold });
+      }
+    return out;
+  }, [bondingPoints, measuredR, threshold]);
 
-  const failingPoints = pointMeasurements.filter(p => p.pass === false);
-  const allMeasured = pointMeasurements.length > 0 && pointMeasurements.every(p => p.resistance !== null);
-  const overallPass = allMeasured ? failingPoints.length === 0 : null;
+  const rAt = (i: number, j: number) =>
+    i === j ? null : pairs.find(p => p.i === Math.min(i, j) && p.j === Math.max(i, j)) ?? null;
+
+  const offendingPairs = pairs.filter(p => p.pass === false);
+  const allMeasured = pairs.length > 0 && pairs.every(p => p.r !== null);
+  const overallPass = allMeasured ? offendingPairs.length === 0 : null;
 
   // Mirror live samples into the active session for Report / Data Table.
   useEffect(() => {
@@ -114,7 +120,7 @@ export default function EquipotentialBondingTab({
     setNewPoint('');
   };
   const removePoint = (label: string) =>
-    setBondingPoints(prev => prev.filter(p => p !== label));
+    setBondingPoints(prev => (prev.length <= 2 ? prev : prev.filter(p => p !== label)));
 
   const liveBadge = (() => {
     if (demoMode) return { text: 'DEMO', cls: 'bg-yellow-900/40 text-yellow-300 border-yellow-700/50' };
@@ -128,10 +134,10 @@ export default function EquipotentialBondingTab({
       <div className="bg-gray-900 rounded-lg border border-gray-700 p-4">
         <h3 className="text-sm font-bold text-emerald-400 mb-3">IEC 61730-2 MST 13 — Equipotential Bonding</h3>
         <p className="text-xs text-gray-400 mb-2">
-          Verify low-resistance bonding between exposed conductive parts and the
-          protective earthing terminal. Each bonding point passes if its measured
-          resistance is &lt; {threshold} Ω. Measurement is 4-wire via the DMM — the
-          PV6000 output stays OFF for the entire test.
+          Companion to Ground Continuity: verify exposed conductive parts are bonded
+          to each other so they share one potential. Every unique pair of points
+          passes if its 4-wire resistance is &lt; {threshold} Ω. Measurement is
+          DMM-only — the PV6000 output stays OFF for the entire test.
         </p>
         <div className="mb-3 rounded border border-blue-700/40 bg-blue-900/20 p-2">
           <p className="text-[11px] text-blue-200">
@@ -143,7 +149,7 @@ export default function EquipotentialBondingTab({
         <div className="grid grid-cols-2 gap-3">
           {[
             { label: 'Test Current (A)', value: testCurrent, set: setTestCurrent, min: 10, max: 30, step: 1, unit: 'A' },
-            { label: 'Max Duration (s)', value: maxDuration, set: setMaxDuration, min: 1, max: 60, step: 1, unit: 's' },
+            { label: 'Duration / pair (s)', value: durationPerPair, set: setDurationPerPair, min: 1, max: 600, step: 1, unit: 's' },
             { label: 'Pass Threshold (Ω)', value: threshold, set: setThreshold, min: 0.01, max: 1.0, step: 0.01, unit: 'Ω' },
           ].map(f => (
             <div key={f.label}>
@@ -198,6 +204,11 @@ export default function EquipotentialBondingTab({
     </div>
   );
 
+  const heatCls = (r: number | null, pass: boolean | null) =>
+    r === null ? 'bg-gray-800 text-gray-600'
+      : pass ? 'bg-green-900/40 text-green-300'
+      : 'bg-red-900/50 text-red-200 font-bold';
+
   const analysisPanel = (
     <div className="space-y-4 max-w-3xl" data-testid="eb-analysis">
       <div className={`rounded-lg border p-4 ${
@@ -213,34 +224,38 @@ export default function EquipotentialBondingTab({
         </p>
         <p className="text-xs text-gray-400 mt-1">
           {overallPass === null
-            ? 'Awaiting measurements for all bonding points.'
+            ? `Awaiting measurements for all ${pairs.length} point pairs.`
             : overallPass
-              ? `All ${bondingPoints.length} bonding points measured < ${threshold} Ω.`
-              : `Failing points (≥ ${threshold} Ω): ${failingPoints.map(p => p.label).join(', ')}`}
+              ? `All ${pairs.length} pairs bonded < ${threshold} Ω — parts are equipotential.`
+              : `Offending pairs (≥ ${threshold} Ω): ${offendingPairs.map(p => `${p.a}↔${p.b}`).join(', ')}`}
         </p>
       </div>
 
-      <div className="bg-gray-900 rounded-lg border border-gray-700 overflow-hidden">
-        <table className="w-full text-xs">
-          <thead className="bg-gray-800 text-gray-400">
+      <div className="bg-gray-900 rounded-lg border border-gray-700 p-3 overflow-auto">
+        <h3 className="text-xs font-bold text-emerald-400 mb-2">Pair resistance matrix (Ω)</h3>
+        <table className="border-collapse text-[10px]">
+          <thead>
             <tr>
-              <th className="text-left px-3 py-2 font-medium">Bonding Point</th>
-              <th className="text-right px-3 py-2 font-medium">Measured R (Ω)</th>
-              <th className="text-right px-3 py-2 font-medium">Result</th>
+              <th className="p-1" />
+              {bondingPoints.map(l => (
+                <th key={l} className="p-1 font-mono font-normal text-gray-500 align-bottom">{l}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {pointMeasurements.map(p => (
-              <tr key={p.label} className="border-t border-gray-800">
-                <td className="px-3 py-2 font-mono text-gray-200">{p.label}</td>
-                <td className="px-3 py-2 text-right font-mono text-gray-300">
-                  {p.resistance === null ? '—' : p.resistance.toFixed(4)}
-                </td>
-                <td className={`px-3 py-2 text-right font-bold ${
-                  p.pass === null ? 'text-gray-500' : p.pass ? 'text-green-400' : 'text-red-400'
-                }`}>
-                  {p.pass === null ? '—' : p.pass ? 'PASS' : 'FAIL'}
-                </td>
+            {bondingPoints.map((rowLabel, i) => (
+              <tr key={rowLabel}>
+                <td className="p-1 font-mono text-gray-500 text-right whitespace-nowrap">{rowLabel}</td>
+                {bondingPoints.map((colLabel, j) => {
+                  const cell = rAt(i, j);
+                  const rv = cell?.r ?? null;
+                  return (
+                    <td key={colLabel}
+                      className={`p-1 text-center font-mono border border-gray-800 ${heatCls(rv, cell?.pass ?? null)}`}>
+                      {i === j ? '—' : rv === null ? '·' : rv.toFixed(3)}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
           </tbody>
@@ -283,7 +298,7 @@ export default function EquipotentialBondingTab({
             { label: 'Measured R', value: verdictText, unit: 'Ω', color: verdictColor },
             { label: 'Result',     value: passLabel,   unit: '',  color: verdictColor },
             { label: 'Threshold',  value: threshold.toString(), unit: 'Ω', color: 'text-yellow-400' },
-            { label: 'Points',     value: bondingPoints.length.toString(), unit: '', color: 'text-blue-400' },
+            { label: 'Pairs',      value: pairs.length.toString(), unit: '', color: 'text-blue-400' },
           ]}
           onStartTest={onStart} onStopTest={onStop} onPauseTest={onPause}
         />
