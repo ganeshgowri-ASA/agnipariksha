@@ -22,6 +22,8 @@ jobs:
           cache-dependency-path: backend/requirements.txt
       - name: Install backend deps
         run: pip install --upgrade pip && pip install -r requirements.txt
+      - name: Import-path smoke test
+        run: pytest -q tests/test_import_paths.py
       - name: pytest
         run: pytest -q
 
