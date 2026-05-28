@@ -72,6 +72,8 @@ backups/
 # Alembic compiled cache
 backend/alembic/versions/__pycache__/
 
+# GC orchestrator demo run artifacts (backend/app/gc.py)
+/tests/gc/
 # playwright
 frontend/test-results/
 frontend/playwright-report/

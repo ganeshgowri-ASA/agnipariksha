@@ -11,6 +11,7 @@ const SLUG_TO_TAB: Record<string, string> = {
   'reverse-current':   'rco',
   'ground-continuity': 'gct',
   'equipotential-bonding': 'eb',
+  'gc-ground-continuity': 'gc',
 };
 
 export function generateStaticParams(): Array<{ slug: string }> {
