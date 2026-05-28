@@ -14,6 +14,7 @@ import EquipotentialBondingTab from '@/components/tabs/EquipotentialBondingTab';
 import DampHeatTab from '@/components/tabs/DampHeatTab';
 import InvertedIRTab from '@/components/tabs/InvertedIRTab';
 import GcGroundContinuityTab from '@/components/tabs/GcGroundContinuityTab';
+import IRTab from '@/components/tabs/IRTab';
 import ResultsDashboard from '@/components/ResultsDashboard';
 import AIAssistant from '@/components/AIAssistant';
 import StatusBar from '@/components/StatusBar';
@@ -27,7 +28,7 @@ function Dashboard() {
   const [activeTab, setActiveTab] = useState<string>('tc');
   const [sessions, setSessions] = useState<Record<TestKey, TestSession | null>>({
     tc: null, hf: null, pid: null, letid: null, bdt: null, rco: null,
-    gct: null, el: null, iir: null, dh: null, eb: null, gc: null,
+    gct: null, el: null, iir: null, ir: null, dh: null, eb: null, gc: null,
   });
   const [demoMode, setDemoMode] = useState(true);
   const { readings, wsStatus, sendCommand } = useWebSocket(demoMode);
@@ -61,6 +62,7 @@ function Dashboard() {
     gct:   <GroundContinuityTab   readings={readings} session={sessions.gct}   onSessionUpdate={s => handleSessionUpdate('gct',   s)} sendCommand={sendCommand} demoMode={demoMode} />,
     el:    <ELTab                 readings={readings} session={sessions.el}    onSessionUpdate={s => handleSessionUpdate('el',    s)} sendCommand={sendCommand} demoMode={demoMode} />,
     iir:   <InvertedIRTab         readings={readings} session={sessions.iir}   onSessionUpdate={s => handleSessionUpdate('iir',   s)} sendCommand={sendCommand} demoMode={demoMode} />,
+    ir:    <IRTab                 readings={readings} session={sessions.ir}    onSessionUpdate={s => handleSessionUpdate('ir',    s)} sendCommand={sendCommand} demoMode={demoMode} />,
     eb:    <EquipotentialBondingTab readings={readings} session={sessions.eb} onSessionUpdate={s => handleSessionUpdate('eb',    s)} sendCommand={sendCommand} demoMode={demoMode} />,
     dh:    <DampHeatTab           readings={readings} session={sessions.dh}    onSessionUpdate={s => handleSessionUpdate('dh',    s)} sendCommand={sendCommand} demoMode={demoMode} />,
     gc:    <GcGroundContinuityTab readings={readings} session={sessions.gc}    onSessionUpdate={s => handleSessionUpdate('gc',    s)} sendCommand={sendCommand} demoMode={demoMode} />,
