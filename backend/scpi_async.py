@@ -243,6 +243,20 @@ class DemoSimulator:
 
     The shape is keyed by the ``mqt`` argument (e.g. ``"MQT11"``) so
     the same simulator can serve all tabs.
+
+    Output / setpoint state (Issue #106 — PR-1)
+    --------------------------------------------
+    The simulator now tracks ``output_on`` plus ``v_setpoint`` /
+    ``i_setpoint``. SCPI write commands of the form ``OUTP[ut] {ON|OFF|1|0}``
+    and ``SOUR[ce]:VOLT[age][:LEVel[:IMMediate]] <v>`` /
+    ``SOUR[ce]:CURR[ent][:LEVel[:IMMediate]] <i>`` mutate this state.
+    ``MEAS:*?`` queries then return values that track the setpoints
+    when output is ON (with a small Gaussian noise model) and a small
+    idle-leakage reading when output is OFF — matching what an operator
+    sees on a real PV6000 front panel.
+
+    LIVE PSU at 192.168.200.100:30000 stays READ-ONLY; this state only
+    lives inside the DEMO simulator. Safety gate (Issue #96) unchanged.
     """
 
     PROFILES = {
@@ -257,22 +271,117 @@ class DemoSimulator:
         "LETID":  (36.0, 8.5,  70.0,  80.0, 300.0),
     }
 
+    # Idle leakage when OUTP is OFF — matches what the PV6000 reports
+    # with a cold load attached.
+    IDLE_V = 21.91
+    IDLE_I = -0.02
+    AMBIENT_T = 25.0
+
     def __init__(self) -> None:
         self._t0 = time.monotonic()
         self._last_cmd: str = ""
+        # Setpoint + output state — mutated by note_command()
+        self.output_on: bool = False
+        self.v_setpoint: float = 48.0
+        self.i_setpoint: float = 9.5
+
+    # ------------------------------------------------------------------
+    # Command parsing (write path)
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _normalise(cmd: str) -> str:
+        """Upper-case + strip — SCPI is case-insensitive and tolerates
+        long/short mnemonics (``OUTPut`` vs ``OUTP``). We only need to
+        recognise the prefix, so a normalised, upper-cased view is enough."""
+        return cmd.strip().upper()
+
+    @staticmethod
+    def _parse_on_off(token: str) -> Optional[bool]:
+        t = token.strip().upper()
+        if t in ("1", "ON"):
+            return True
+        if t in ("0", "OFF"):
+            return False
+        return None
 
     def note_command(self, cmd: str) -> None:
+        """Apply a SCPI write (OUTP / SOUR:VOLT / SOUR:CURR) to sim state.
+
+        Unknown commands are recorded but otherwise ignored — matches the
+        permissive behaviour of the real PV6000 front panel.
+        """
         self._last_cmd = cmd
+        norm = self._normalise(cmd)
+
+        # OUTP / OUTPut <on|off|1|0>
+        if norm.startswith("OUTP") and "?" not in norm:
+            parts = norm.split()
+            if len(parts) >= 2:
+                val = self._parse_on_off(parts[1])
+                if val is not None:
+                    self.output_on = val
+            return
+
+        # SOUR[CE]:VOLT[AGE][:LEVel[:IMMediate]] <value>
+        if ("SOUR" in norm and "VOLT" in norm and "?" not in norm) or \
+                norm.startswith("VOLT "):
+            try:
+                self.v_setpoint = float(norm.rsplit(maxsplit=1)[-1])
+            except (ValueError, IndexError):
+                pass
+            return
+
+        # SOUR[CE]:CURR[ENT][:LEVel[:IMMediate]] <value>
+        if ("SOUR" in norm and "CURR" in norm and "?" not in norm) or \
+                norm.startswith("CURR "):
+            try:
+                self.i_setpoint = float(norm.rsplit(maxsplit=1)[-1])
+            except (ValueError, IndexError):
+                pass
+            return
+
+    # ------------------------------------------------------------------
+    # Query handling (read path)
+    # ------------------------------------------------------------------
+    def _meas_voltage(self) -> float:
+        if not self.output_on:
+            return self.IDLE_V + random.gauss(0, 0.02)
+        return self.v_setpoint + random.gauss(0, max(0.01, 0.005 * abs(self.v_setpoint)))
+
+    def _meas_current(self) -> float:
+        if not self.output_on:
+            return self.IDLE_I + random.gauss(0, 0.005)
+        return self.i_setpoint + random.gauss(0, max(0.005, 0.005 * abs(self.i_setpoint)))
+
+    def _meas_temperature(self) -> float:
+        # When output is ON we add a modest self-heating delta over ambient,
+        # proportional to dissipated power (capped so DEMO doesn't drift
+        # into thermal-runaway territory).
+        if not self.output_on:
+            return self.AMBIENT_T + random.gauss(0, 0.1)
+        power = self.v_setpoint * self.i_setpoint
+        delta = min(35.0, max(0.0, abs(power) * 0.05))
+        return self.AMBIENT_T + delta + random.gauss(0, 0.2)
 
     def respond(self, cmd: str) -> str:
-        if "IDN" in cmd:
+        norm = self._normalise(cmd)
+        if "IDN" in norm:
             return "ITECH,PV6000-DEMO,SIM,1.0"
-        if "VOLT?" in cmd:
-            return f"{48.0 + random.gauss(0, 0.05):.4f}"
-        if "CURR?" in cmd:
-            return f"{9.5 + random.gauss(0, 0.02):.4f}"
-        if "POW" in cmd:
-            return f"{48.0 * 9.5 + random.gauss(0, 0.5):.3f}"
+        # OUTP? — return the simulator's current output state, not UNKNOWN.
+        if norm.startswith("OUTP") and "?" in norm:
+            return "1" if self.output_on else "0"
+        if "VOLT?" in norm:
+            return f"{self._meas_voltage():.4f}"
+        if "CURR?" in norm:
+            return f"{self._meas_current():.4f}"
+        if "TEMP?" in norm:
+            return f"{self._meas_temperature():.4f}"
+        if "POW" in norm and "?" in norm:
+            # Derive P from the (just-computed) V and I so callers always
+            # see P ≈ V·I within tolerance.
+            v = self._meas_voltage()
+            i = self._meas_current()
+            return f"{v * i:.4f}"
         return "OK"
 
     def next_reading(self, test_id: str = "", mqt: str = "", t: Optional[float] = None) -> Reading:
