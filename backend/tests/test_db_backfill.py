@@ -52,6 +52,24 @@ def test_backfill_inserts_and_is_idempotent(tmp_path, db_session: Session) -> No
     assert len(db_session.exec(select(TestRun)).all()) == 2
 
 
+def test_backfill_symlinked_runs_dir_stays_runs_relative(
+    tmp_path, db_session: Session
+) -> None:
+    """Issue #101: a symlinked runs dir used to ``resolve()`` outside its
+    own parent, storing an absolute / non-``runs/`` csv_path. The stored
+    path must remain ``runs/``-relative regardless of symlinks."""
+    target = tmp_path / "external_store"
+    _write_csv(target / "20260501T140312_tc_modA.csv", rows=4)
+    runs = tmp_path / "runs"
+    runs.symlink_to(target, target_is_directory=True)
+
+    inserted = backfill_csv_runs(runs, session=db_session)
+    assert inserted == 1
+    row = db_session.exec(select(TestRun)).one()
+    assert row.csv_path == "runs/20260501T140312_tc_modA.csv"
+    assert row.test_type == "tc"
+
+
 def test_backfill_handles_missing_directory(tmp_path, db_session: Session) -> None:
     assert backfill_csv_runs(tmp_path / "does-not-exist", session=db_session) == 0
     assert db_session.exec(select(TestRun)).all() == []

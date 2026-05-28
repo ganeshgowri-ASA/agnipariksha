@@ -22,6 +22,7 @@ from typing import Optional
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.websockets import WebSocketState
 from pydantic import BaseModel
 
 try:
@@ -224,6 +225,34 @@ async def deep_health() -> dict:
 HEARTBEAT_S = 5.0
 
 
+def _ws_connected(ws: WebSocket) -> bool:
+    """True only while both directions of the socket are still open."""
+    return (
+        ws.application_state == WebSocketState.CONNECTED
+        and ws.client_state == WebSocketState.CONNECTED
+    )
+
+
+async def _safe_send(ws: WebSocket, stop_evt: asyncio.Event, text: str) -> bool:
+    """Send ``text`` unless the peer has already gone away.
+
+    Returns ``False`` and trips ``stop_evt`` when the socket is closing or
+    closed, swallowing the ASGI ``websocket.send`` "after close" RuntimeError
+    (and WebSocketDisconnect) that otherwise escapes the telemetry tasks and
+    spams the uvicorn log on every client reconnect (Issues #100/#98).
+    Callers must stop sending once this returns ``False``.
+    """
+    if stop_evt.is_set() or not _ws_connected(ws):
+        stop_evt.set()
+        return False
+    try:
+        await ws.send_text(text)
+        return True
+    except (RuntimeError, WebSocketDisconnect):
+        stop_evt.set()
+        return False
+
+
 @app.websocket("/ws/telemetry")
 async def websocket_telemetry(ws: WebSocket) -> None:
     await ws.accept()
@@ -237,7 +266,7 @@ async def websocket_telemetry(ws: WebSocket) -> None:
     stop_evt = asyncio.Event()
 
     async def send_reading(payload: dict) -> None:
-        await ws.send_text(json.dumps(payload))
+        await _safe_send(ws, stop_evt, json.dumps(payload))
 
     async def producer() -> None:
         try:
@@ -252,12 +281,11 @@ async def websocket_telemetry(ws: WebSocket) -> None:
         nonlocal last_hb
         while not stop_evt.is_set():
             await asyncio.sleep(HEARTBEAT_S)
-            try:
-                await ws.send_text(json.dumps({"type": "hb", "ts": int(time.time() * 1000)}))
-                last_hb = time.monotonic()
-            except Exception:
-                stop_evt.set()
+            if not await _safe_send(
+                ws, stop_evt, json.dumps({"type": "hb", "ts": int(time.time() * 1000)})
+            ):
                 return
+            last_hb = time.monotonic()
 
     async def consumer() -> None:
         try:
@@ -270,7 +298,7 @@ async def websocket_telemetry(ws: WebSocket) -> None:
                 if msg.get("type") == "scpi" and isinstance(msg.get("command"), str):
                     await client.enqueue(msg["command"])
                 elif msg.get("type") == "ping":
-                    await ws.send_text(json.dumps({"type": "pong", "ts": int(time.time() * 1000)}))
+                    await _safe_send(ws, stop_evt, json.dumps({"type": "pong", "ts": int(time.time() * 1000)}))
         except WebSocketDisconnect:
             stop_evt.set()
         except Exception:
@@ -300,7 +328,13 @@ async def websocket_live(ws: WebSocket) -> None:
     stop_evt = asyncio.Event()
 
     async def send_reading(payload: dict) -> None:
-        await ws.send_text(json.dumps(payload))
+        await _safe_send(ws, stop_evt, json.dumps(payload))
+
+    async def producer() -> None:
+        try:
+            await run_telemetry_loop(client, send_reading, mqt="MQT11", interval_s=0.5)
+        except asyncio.CancelledError:
+            pass
 
     async def consumer() -> None:
         try:
@@ -317,15 +351,14 @@ async def websocket_live(ws: WebSocket) -> None:
         except Exception:
             stop_evt.set()
 
+    prod_task = asyncio.create_task(producer())
     cons_task = asyncio.create_task(consumer())
     try:
-        await run_telemetry_loop(client, send_reading, mqt="MQT11", interval_s=0.5)
-    except asyncio.CancelledError:
-        pass
+        await stop_evt.wait()
     finally:
-        stop_evt.set()
-        cons_task.cancel()
-        await asyncio.gather(cons_task, return_exceptions=True)
+        for t in (prod_task, cons_task):
+            t.cancel()
+        await asyncio.gather(prod_task, cons_task, return_exceptions=True)
         await client.close()
 
 

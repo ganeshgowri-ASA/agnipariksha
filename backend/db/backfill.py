@@ -90,11 +90,17 @@ def _count_samples(path: Path) -> int:
         return 0
 
 
-def _relpath(path: Path, root: Path) -> str:
-    try:
-        return str(path.resolve().relative_to(root.resolve()))
-    except ValueError:
-        return str(path.resolve())
+def _relpath(path: Path, runs_dir: Path) -> str:
+    """Path of ``path`` relative to ``runs_dir``'s parent — i.e. prefixed
+    with the runs-dir name (``runs/…``).
+
+    Computed lexically against ``runs_dir`` (no ``resolve()``): a symlinked
+    runs directory must not push the result outside the root, which used to
+    trip ``relative_to`` and silently fall back to an absolute, non-``runs/``
+    path (Issue #101). ``path`` always sits under ``runs_dir`` because it
+    comes from ``runs_dir.rglob`` in :func:`iter_csv_files`.
+    """
+    return str(Path(runs_dir.name) / path.relative_to(runs_dir))
 
 
 def iter_csv_files(runs_dir: Path) -> Iterable[Path]:
@@ -116,12 +122,11 @@ def backfill_csv_runs(
     session against the configured engine is used.
     """
     runs_path = Path(runs_dir)
-    root = runs_path.parent if runs_path.exists() else runs_path
 
     def _do(sess: Session) -> int:
         inserted = 0
         for csv_file in iter_csv_files(runs_path):
-            rel = _relpath(csv_file, root)
+            rel = _relpath(csv_file, runs_path)
             existing = sess.exec(
                 select(TestRun).where(TestRun.csv_path == rel)
             ).first()
