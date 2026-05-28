@@ -22,6 +22,12 @@ jobs:
           cache-dependency-path: backend/requirements.txt
       - name: Install backend deps
         run: pip install --upgrade pip && pip install -r requirements.txt
+      - name: DEMO-only gate (no live/SCPI imports in analysis/)
+        run: |
+          if grep -rnE --include='*.py' '^[[:space:]]*(import|from)[[:space:]]+.*(scpi|psu\.live|psu_live)' app/analysis/; then
+            echo "::error::live/SCPI import found in backend/app/analysis (must stay DEMO-only)"; exit 1
+          fi
+          echo "analysis/ DEMO-only gate passed"
       - name: pytest
         run: pytest -q
 

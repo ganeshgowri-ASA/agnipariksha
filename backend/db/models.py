@@ -226,3 +226,19 @@ class Schedule(SQLModel, table=True):
     ends_at: Optional[datetime] = None
     notes: Optional[str] = None
     created_at: datetime = Field(default_factory=_utcnow, nullable=False)
+
+
+class AnalysisVerdict(SQLModel, table=True):
+    __tablename__ = "analysis_verdicts"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    run_id: str = Field(index=True, max_length=128)
+    test_type: str = Field(max_length=32)
+    status: str = Field(max_length=16)  # PASS / FAIL / INCONCLUSIVE
+    clause_id: str = Field(max_length=64)
+    clause_text: str
+    measured: Optional[float] = None
+    threshold: float
+    margin: Optional[float] = None
+    evidence_refs: list = Field(default_factory=list, sa_column=Column(JSON))
+    computed_at: datetime = Field(default_factory=_utcnow, nullable=False)
