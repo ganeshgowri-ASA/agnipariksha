@@ -33,3 +33,4 @@ alembic>=1.13.1
 pytest>=8.0.0
 pytest-rerunfailures>=14.0  # mitigates the intermittent WS-lifecycle race in test_ws_lifecycle.py — see Notion runbook 2026-05-28/29
 pytest-asyncio>=0.23.0
+pypdf>=4.0          # round-trip PDF text extraction for report-builder tests (PR #123/PR-E)
