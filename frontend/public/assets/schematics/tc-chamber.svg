@@ -1,29 +1,77 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 300" role="img" aria-label="Thermal cycling chamber wiring diagram">
-  <g fill="none" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round">
-    <!-- environmental chamber -->
-    <rect x="250" y="50" width="200" height="200" rx="8" stroke="#60a5fa"/>
-    <!-- DUT inside -->
-    <rect x="290" y="110" width="120" height="80" rx="6"/>
-    <!-- PSU outside -->
-    <rect x="30" y="110" width="120" height="80" rx="6"/>
-    <!-- feedthrough force leads -->
-    <path d="M150 135 H290" stroke="#f87171"/>
-    <path d="M150 165 H290"/>
-    <!-- sense -->
-    <path d="M150 150 H270 V200 H290" stroke="#60a5fa" stroke-dasharray="6 5"/>
-    <!-- thermocouple -->
-    <path d="M350 110 V70" stroke="#fbbf24"/>
-    <circle cx="350" cy="66" r="4" stroke="#fbbf24"/>
-    <!-- ground -->
-    <path d="M350 190 V222 M332 222 H368 M339 230 H361 M346 238 H354" stroke="#34d399"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 360" role="img" aria-label="Thermal cycling test wiring — IEC 61215-2 MQT 11 (10-channel PSU + chamber + thermocouple)">
+  <defs>
+    <marker id="tcArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#94a3b8"/>
+    </marker>
+  </defs>
+
+  <!-- ESPEC SH-242 chamber outline -->
+  <rect x="270" y="40" width="260" height="270" rx="10" fill="none" stroke="#60a5fa" stroke-width="2"/>
+  <text x="400" y="32" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#60a5fa">ESPEC SH-242 chamber · −40 … +85 °C · ramp ≤ 100 °C/h</text>
+
+  <!-- PV module DUT inside chamber -->
+  <rect x="310" y="120" width="180" height="120" rx="8" fill="#0b1220" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="400" y="155" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#e2e8f0">PV Module DUT</text>
+  <text x="400" y="172" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#94a3b8">V_oc 45 V · I_sc 9.5 A (typ.)</text>
+  <text x="400" y="188" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#94a3b8">backsheet thermocouples ×3</text>
+
+  <!-- PSU box outside chamber -->
+  <rect x="20" y="100" width="180" height="160" rx="8" fill="#0b1220" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="110" y="124" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#e2e8f0">ITECH PV6000 SAS</text>
+  <text x="110" y="142" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#94a3b8">IT6005C-80-150 · 10 channels</text>
+  <text x="110" y="160" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#94a3b8">0–100 V · 0–60 A</text>
+
+  <!-- Channel terminal block on PSU -->
+  <g font-family="sans-serif" font-size="9" fill="#94a3b8">
+    <rect x="30"  y="180" width="160" height="60" fill="none" stroke="#475569" stroke-dasharray="4 3"/>
+    <text x="110" y="194" text-anchor="middle">CH1 … CH10 (4-wire Kelvin)</text>
+    <g stroke="#f87171" stroke-width="1.4">
+      <line x1="40"  y1="205" x2="40"  y2="232"/>
+      <line x1="60"  y1="205" x2="60"  y2="232"/>
+      <line x1="80"  y1="205" x2="80"  y2="232"/>
+      <line x1="100" y1="205" x2="100" y2="232"/>
+      <line x1="120" y1="205" x2="120" y2="232"/>
+      <line x1="140" y1="205" x2="140" y2="232"/>
+      <line x1="160" y1="205" x2="160" y2="232"/>
+      <line x1="180" y1="205" x2="180" y2="232"/>
+    </g>
+    <text x="110" y="252" text-anchor="middle" fill="#cbd5e1">MC4 connectors · 10 m cable</text>
   </g>
-  <g fill="#e2e8f0" font-family="sans-serif" font-size="13">
-    <text x="90" y="155" text-anchor="middle">PSU PV6000</text>
-    <text x="350" y="44" text-anchor="middle" fill="#60a5fa">chamber −40…+85 °C</text>
-    <text x="350" y="155" text-anchor="middle" font-size="11">DUT</text>
-    <text x="210" y="128" text-anchor="middle" font-size="10" fill="#f87171">force</text>
-    <text x="210" y="146" text-anchor="middle" font-size="10" fill="#60a5fa">sense</text>
-    <text x="385" y="80" text-anchor="middle" font-size="10" fill="#fbbf24">T/C</text>
+
+  <!-- Force / sense feedthrough (current injection path) -->
+  <g fill="none" stroke-width="2" stroke-linecap="round">
+    <path d="M200 180 H270 H310" stroke="#f87171" marker-end="url(#tcArrow)"/>
+    <path d="M200 210 H300 V230 H310" stroke="#f87171" marker-end="url(#tcArrow)"/>
+    <path d="M200 195 H260 V172 H310" stroke="#60a5fa" stroke-dasharray="6 4"/>
+    <path d="M200 225 H280 V250 H310" stroke="#60a5fa" stroke-dasharray="6 4"/>
   </g>
-  <text x="240" y="294" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#64748b">DRAFT — replace with reviewed CAD</text>
+  <text x="245" y="173" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#f87171">FORCE +Isc (heating phase)</text>
+  <text x="245" y="226" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#f87171">FORCE −</text>
+  <text x="245" y="165" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#60a5fa">SENSE +</text>
+  <text x="245" y="263" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#60a5fa">SENSE −</text>
+
+  <!-- Thermocouple chain -->
+  <g stroke="#fbbf24" stroke-width="2" fill="none">
+    <path d="M400 120 V80 H530 V120"/>
+    <circle cx="400" cy="115" r="3" fill="#fbbf24"/>
+    <circle cx="370" cy="180" r="3" fill="#fbbf24"/>
+    <circle cx="430" cy="220" r="3" fill="#fbbf24"/>
+  </g>
+  <text x="525" y="72" font-family="sans-serif" font-size="10" fill="#fbbf24">Keysight 34465A DMM</text>
+  <text x="525" y="86" font-family="sans-serif" font-size="9" fill="#94a3b8">T-type T/C × 3</text>
+
+  <!-- Isc gate annotation -->
+  <g font-family="sans-serif" font-size="10">
+    <rect x="20" y="280" width="510" height="32" rx="6" fill="#0b1220" stroke="#f59e0b" stroke-dasharray="4 4"/>
+    <text x="30" y="298" fill="#f59e0b">MQT 11.6.3 a</text>
+    <text x="120" y="298" fill="#cbd5e1">Isc applied ONLY when T_module &gt; 25 °C — orchestrator gates SOUR:CURR via iscGateSetpoint().</text>
+  </g>
+
+  <!-- Cycle profile thumbnail -->
+  <g stroke="#fb923c" stroke-width="1.5" fill="none">
+    <polyline points="20,340 60,340 80,322 100,322 120,340 140,340 160,322 180,322 200,340 240,340"/>
+  </g>
+  <text x="130" y="354" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#94a3b8">Profile: −40 °C ⇄ +85 °C · 200 cycles · ≥10 min dwell</text>
+
+  <text x="540" y="354" text-anchor="end" font-family="sans-serif" font-size="9" fill="#475569">Reliance 10-channel TC station</text>
 </svg>
