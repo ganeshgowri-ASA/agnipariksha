@@ -42,8 +42,7 @@ export type TestKey =
   | 'el'
   | 'iir'
   | 'dh'
-  | 'eb'
-  | 'gc';
+  | 'eb';
 
 export interface TabDefinition {
   key: TestKey;
@@ -66,7 +65,6 @@ export const TABS: TabDefinition[] = [
   { key: 'iir',   label: 'Inverted IR',              short: 'IIR',   color: 'text-pink-400',    std: 'Forward-bias IR thermography', clause: 'IR' },
   { key: 'dh',    label: 'Damp Heat',                short: 'DH',    color: 'text-cyan-400',    std: 'IEC 61215-2 MQT 13', clause: 'MQT 13' },
   { key: 'eb',    label: 'Equipotential Bonding',    short: 'EB',    color: 'text-emerald-400', std: 'IEC 61730 MST 13',   clause: 'MST 13' },
-  { key: 'gc',    label: 'GC Ground Continuity',     short: 'GC',    color: 'text-teal-400',    std: 'IEC 61730-2 MST 13', clause: 'MST 13' },
 ];
 
 export const GATE2_PMAX_DELTA_PERCENT = -5;

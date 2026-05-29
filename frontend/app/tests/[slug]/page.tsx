@@ -11,7 +11,8 @@ const SLUG_TO_TAB: Record<string, string> = {
   'reverse-current':   'rco',
   'ground-continuity': 'gct',
   'equipotential-bonding': 'eb',
-  'gc-ground-continuity': 'gc',
+  // Legacy GC deep-link now resolves to the consolidated canonical GCT tab.
+  'gc-ground-continuity': 'gct',
 };
 
 export function generateStaticParams(): Array<{ slug: string }> {

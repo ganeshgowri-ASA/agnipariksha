@@ -31,6 +31,7 @@ try:
         DEFAULT_MAX_RESISTANCE_OHM,
         GctReading,
         KeysightDmmGct,
+        demo_per_path_resistances,
     )
     from .config import get_settings
     from .scpi_async import ScpiClient, ScpiUnreachable
@@ -40,6 +41,7 @@ except ImportError:  # pragma: no cover - script-mode fallback
         DEFAULT_MAX_RESISTANCE_OHM,
         GctReading,
         KeysightDmmGct,
+        demo_per_path_resistances,
     )
     from config import get_settings  # type: ignore[no-redef]
     from scpi_async import ScpiClient, ScpiUnreachable  # type: ignore[no-redef]
@@ -78,6 +80,9 @@ class GctConfigResponse(BaseModel):
     dmm_demo: bool
     standard: str = "IEC 61730-2 MST 13"
     method: str = "4-wire resistance via Keysight 34465A"
+    # Per-path 4-wire resistance breakdown for the Analysis view. Populated
+    # only in DEMO mode (the live DMM measures one path at a time).
+    per_path_resistances: list[dict] = Field(default_factory=list)
 
 
 _DMM_DEVICE_ID = "dmm_keysight"
@@ -144,6 +149,7 @@ async def gct_config() -> GctConfigResponse:
         max_resistance=DEFAULT_MAX_RESISTANCE_OHM,
         dmm_device_id=_DMM_DEVICE_ID,
         dmm_demo=dmm_demo,
+        per_path_resistances=demo_per_path_resistances() if dmm_demo else [],
     )
 
 
