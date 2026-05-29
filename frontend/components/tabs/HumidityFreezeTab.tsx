@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
 import SchematicViewer from '../SchematicViewer';
+import HfAnalysisPanel from '@/features/hf/analysis/HfAnalysisPanel';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
 interface Props {
@@ -19,6 +20,10 @@ export default function HumidityFreezeTab({ readings, session, onSessionUpdate, 
   const [rhHigh, setRhHigh] = useState(85);
   const [tLow, setTLow] = useState(-40);
   const [dwellHours, setDwellHours] = useState(20);
+  // Isc is shared with the TC tab semantics — default to the same 9.5 A so
+  // the HF Analysis pane's Isc-gate pill reflects the operator's actual
+  // chamber setpoint. Operators can tweak in the Setup field.
+  const [isc, setIsc] = useState(9.5);
 
   const onStart = useCallback(() => {
     const newSession: TestSession = {
@@ -59,6 +64,7 @@ export default function HumidityFreezeTab({ readings, session, onSessionUpdate, 
             { label: 'RH (%)', value: rhHigh, set: setRhHigh, min: 60, max: 100, step: 1, unit: '%RH' },
             { label: 'Low Temp (°C)', value: tLow, set: setTLow, min: -60, max: 0, step: 1, unit: '°C' },
             { label: 'Dwell (hr)', value: dwellHours, set: setDwellHours, min: 1, max: 24, step: 1, unit: 'hr' },
+            { label: 'Isc (A)', value: isc, set: setIsc, min: 0, max: 30, step: 0.1, unit: 'A' },
           ].map(f => (
             <div key={f.label}>
               <label className="text-xs text-gray-400 block mb-1">{f.label}</label>
@@ -76,13 +82,25 @@ export default function HumidityFreezeTab({ readings, session, onSessionUpdate, 
     </div>
   );
 
+  // IEC-aware Analysis pane — mirrors the TC tab pattern. Reads live
+  // readings + setpoints and derives the four MQT 12 KPIs (cycles,
+  // module T & RH chart, dwell durations, RH compliance, Isc gate).
+  const analysisPanel = (
+    <HfAnalysisPanel
+      readings={readings}
+      config={{ cycles, tHigh, rhHigh, tLow, dwellHours, isc }}
+    />
+  );
+
   return (
     <TestTabLayout
       testKey="hf" testName="Humidity Freeze" standard="IEC 61215-2 MQT 12"
       color="text-blue-400" readings={readings} session={session}
       onSessionUpdate={onSessionUpdate} sendCommand={sendCommand} demoMode={demoMode}
       limits={{ maxVoltage: 100, maxCurrent: 20, maxPower: 2000, maxTemp: 100 }}
-      setupPanel={setupPanel} extraStats={[
+      setupPanel={setupPanel}
+      analysisPanel={analysisPanel}
+      extraStats={[
         { label: 'Cycles', value: cycles.toString(), unit: '', color: 'text-blue-400' },
         { label: 'Target RH', value: rhHigh.toString(), unit: '%', color: 'text-cyan-400' },
         { label: 'T Range', value: `${tLow} to ${tHigh}`, unit: '°C', color: 'text-yellow-400' },
