@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
 import SchematicViewer from '../SchematicViewer';
 import ThermalCyclingBasicCheck from '../ThermalCyclingBasicCheck';
+import TcAnalysisPanel from '@/features/tc/analysis/TcAnalysisPanel';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
 interface Props {
@@ -96,6 +97,18 @@ export default function ThermalCyclingTab({ readings, session, onSessionUpdate, 
     { label: 'T Range', value: `${tMin} to ${tMax}`, unit: '°C', color: 'text-yellow-400' },
   ];
 
+  // The new IEC-aware Analysis pane — ramp rate, cycle counter, Isc gate,
+  // module-temperature-vs-time chart. Pure-frontend, derives KPIs from
+  // the live `readings` stream (same data the Live Monitor displays) so
+  // it works in DEMO and against the real bench identically. See
+  // frontend/features/tc/analysis/tcAnalysis.ts for the verdict math.
+  const analysisPanel = (
+    <TcAnalysisPanel
+      readings={readings}
+      config={{ cycles, tMin, tMax, rampRateCph: rampRate, isc }}
+    />
+  );
+
   return (
     <TestTabLayout
       testKey="tc" testName="Thermal Cycling" standard="IEC 61215-2 MQT 11"
@@ -104,6 +117,7 @@ export default function ThermalCyclingTab({ readings, session, onSessionUpdate, 
       limits={{ maxVoltage: 100, maxCurrent: 20, maxPower: 2000, maxTemp: 100 }}
       setupPanel={setupPanel}
       basicCheckPanel={<ThermalCyclingBasicCheck wsStatus={wsStatus} demoMode={demoMode} />}
+      analysisPanel={analysisPanel}
       extraStats={extraStats}
       onStartTest={onStart} onStopTest={onStop} onPauseTest={onPause}
     />
