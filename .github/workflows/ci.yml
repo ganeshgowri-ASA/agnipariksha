@@ -25,7 +25,12 @@ jobs:
       - name: Import-path smoke test
         run: pytest -q tests/test_import_paths.py
       - name: pytest
-        run: pytest -q
+        # `--reruns 2 --reruns-delay 1` mitigates the WS-lifecycle race in
+        # test_ws_lifecycle.py that has hit PR #110/#111/#114/#125 — see
+        # Notion runbook 2026-05-29. Other intermittent CancelledError
+        # races picked up by rerunfailures are also flagged in the report.
+        # When the underlying race is fully fixed remove these flags.
+        run: pytest -q --reruns 2 --reruns-delay 1
 
   frontend:
     runs-on: ubuntu-latest
