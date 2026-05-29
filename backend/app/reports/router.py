@@ -4,7 +4,7 @@ Routes
 ------
 - GET /api/reports               — list available demo runs
 - GET /api/reports/{run_id}.html — HTML twin (rendered as Tab 5 in the UI)
-- GET /api/reports/{run_id}.pdf  — ReportLab PDF twin
+- GET /api/reports/{run_id}.pdf  — WeasyPrint PDF twin
 """
 from __future__ import annotations
 

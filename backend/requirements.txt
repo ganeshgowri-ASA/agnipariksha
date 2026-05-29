@@ -14,9 +14,10 @@ pyvisa-py>=0.7.2
 # Device registry manifests
 PyYAML>=6.0
 
-# Report generation (server-side)
+# Report generation (server-side): WeasyPrint renders the PDF from the same
+# HTML twin (app/reports); matplotlib draws the chamber/module overlay charts.
 python-docx>=1.1.2
-reportlab>=4.2.0
+weasyprint>=60
 matplotlib>=3.9.0
 jinja2>=3.1.0
 

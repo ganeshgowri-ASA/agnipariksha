@@ -4,10 +4,23 @@
 <meta charset="utf-8" />
 <title>IEC Report {{ run.run_id }} — {{ meta.brand }}</title>
 <style>
+  /* (6) Traceability footer on every printed page — module · run · git · n/N */
+  @page {
+    size: A4;
+    margin: 15mm 13mm 18mm;
+    @bottom-left {
+      content: "{{ run.module_id }} · {{ run.run_id }} · git {{ meta.git_sha }}";
+      font-size: 8pt; color: #475569;
+    }
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font-size: 8pt; color: #475569;
+    }
+  }
   :root { --ink:#0f172a; --muted:#475569; --line:#cbd5e1; --head:#111827; --accent:#fbbf24; }
   * { box-sizing: border-box; }
   body { font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-         color: var(--ink); margin: 0; padding: 0 0 64px; background: #fff; font-size: 13px; line-height: 1.45; }
+         color: var(--ink); margin: 0; padding: 0; background: #fff; font-size: 13px; line-height: 1.45; }
   .page { max-width: 900px; margin: 0 auto; padding: 24px 28px; }
   h1 { font-size: 22px; margin: 0; }
   h2 { font-size: 15px; margin: 26px 0 8px; padding-bottom: 4px; border-bottom: 2px solid var(--line); }
@@ -23,20 +36,16 @@
   table.summary tr:nth-child(even) td { background: #f1f5f9; }
   .pill { display: inline-block; color: #fff; font-weight: 700; font-size: 11px;
           padding: 2px 8px; border-radius: 999px; }
-  .test { page-break-inside: avoid; margin-top: 8px; }
+  .test { break-inside: avoid; page-break-inside: avoid; margin-top: 8px; }
   .test img { width: 100%; max-width: 760px; border: 1px solid var(--line); border-radius: 4px; }
   .detail { color: var(--muted); font-size: 12px; margin: 6px 0; }
   .clause { background: #f8fafc; border-left: 3px solid var(--accent); padding: 6px 10px; margin: 6px 0; }
   .signoff td { padding: 18px 8px 6px; }
   .signoff .line { border-bottom: 1px solid #94a3b8; min-width: 220px; display: inline-block; }
-  .footer { position: fixed; bottom: 0; left: 0; right: 0; background: #f8fafc;
-            border-top: 1px solid var(--line); color: var(--muted); font-size: 11px;
-            padding: 6px 28px; display: flex; justify-content: space-between; }
-  @media print {
-    @page { margin: 16mm 14mm 20mm; }
-    .footer { position: fixed; }
-    .test { page-break-inside: avoid; }
-  }
+  .footer { background: #f8fafc; border-top: 1px solid var(--line); color: var(--muted);
+            font-size: 11px; padding: 6px 28px; display: flex; justify-content: space-between; }
+  @media screen { .footer { position: fixed; bottom: 0; left: 0; right: 0; } body { padding-bottom: 60px; } }
+  @media print  { .footer { display: none; } }
 </style>
 </head>
 <body>
@@ -59,13 +68,14 @@
       <thead><tr><th>Test</th><th>IEC clause</th><th>Verdict</th><th>Measured</th><th>Threshold</th><th>Margin</th></tr></thead>
       <tbody>
         {% for t in run.tests %}
+        {% set m = t.result.metric %}{% set thr = t.result.threshold %}
         <tr>
           <td>{{ t.name }}</td>
           <td>{{ t.clause }}</td>
           <td><span class="pill" style="background: {{ t.verdict | vcolor }}">{{ t.verdict }}</span></td>
-          <td>{{ t.measured }}</td>
-          <td>{{ t.threshold }}</td>
-          <td>{{ t.margin }}</td>
+          <td>{{ "%.3f %s"|format(m, t.unit) if m is not none else "—" }}</td>
+          <td>{{ "%.3f %s"|format(thr, t.unit) }}</td>
+          <td>{{ "%.3f %s"|format(m - thr, t.unit) if m is not none else "—" }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -96,7 +106,7 @@
     </table>
   </div>
 
-  <!-- (6) Traceability footer -->
+  <!-- (6) On-screen traceability footer (PDF uses the @page boxes above) -->
   <div class="footer">
     <span>{{ run.module_id }} &middot; {{ run.run_id }} &middot; git {{ meta.git_sha }}</span>
     <span>{{ meta.brand }} &middot; generated {{ meta.generated_at }}</span>
