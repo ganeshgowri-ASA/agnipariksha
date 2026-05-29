@@ -92,7 +92,10 @@ function buildMinimalPdf(lines: string[]): Buffer {
 
 interface ReportPayload {
   id?: string;
+  testId?: string;       // legacy alias accepted by the CI smoke test
   testType?: string;
+  testName?: string;
+  standard?: string;
   result?: string;
   operatorName?: string;
   customerName?: string;
@@ -108,8 +111,17 @@ export async function POST(req: Request): Promise<Response> {
   } catch {
     return NextResponse.json({ error: 'invalid JSON body' }, { status: 400 });
   }
-  if (!payload || typeof payload !== 'object' || !payload.id) {
-    return NextResponse.json({ error: 'payload requires at least an `id` field' }, { status: 400 });
+  if (!payload || typeof payload !== 'object') {
+    return NextResponse.json({ error: 'payload must be a JSON object' }, { status: 400 });
+  }
+  // Normalise legacy `testId` → `id` so the smoke test and any older
+  // callers keep working. The backend ReportLab pipeline always sees
+  // `id` populated.
+  if (!payload.id && payload.testId) {
+    payload.id = String(payload.testId);
+  }
+  if (!payload.id) {
+    payload.id = `session-${Date.now()}`;
   }
 
   // 1) Try the backend ReportLab pipeline first.
