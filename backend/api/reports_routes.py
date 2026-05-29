@@ -25,7 +25,11 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import Response
 
-from backend.reports import build_iec_report
+try:
+    # Package mode (uvicorn backend.main:app)
+    from backend.reports import build_iec_report
+except ImportError:  # script mode (uvicorn main:app from inside backend/)
+    from reports import build_iec_report  # type: ignore[no-redef]
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
 log = logging.getLogger(__name__)
