@@ -94,10 +94,22 @@ export default function LeTIDTab({ readings, session, onSessionUpdate, sendComma
     </div>
   );
 
-  // IEC TS 63342 — dark V_oc regeneration. No live dark-V_oc capture exists
-  // yet, so in DEMO with no active session we seed a synthetic curve so
-  // reviewers see onset + stop-criterion detection firing.
-  const analysisPoints: LetidPoint[] = demoMode && !session ? DEMO_LETID_POINTS : [];
+  // IEC TS 63342 — dark V_oc regeneration.
+  //
+  // 1. If a session is running we synthesise LetidPoint[] from the live
+  //    `readings` stream by mapping `(timestamp − startTime)→hours` and
+  //    `voltage→darkVoc`. This is the dark V_oc that the operator's
+  //    real PSU reports during a dark-current soak.
+  // 2. If no session is active (e.g. operator just landed on the tab)
+  //    we seed the canonical demo curve so reviewers immediately see
+  //    the moving-average, onset-detection and stop-criterion firing.
+  //    This is what fixes the prior "LeTID analysis blank" complaint.
+  const analysisPoints: LetidPoint[] = session && readings.length > 0
+    ? readings.map(r => ({
+        hours: (r.timestamp - session.startTime) / 3_600_000,
+        darkVoc: r.voltage,
+      }))
+    : DEMO_LETID_POINTS;
 
   return (
     <TestTabLayout
