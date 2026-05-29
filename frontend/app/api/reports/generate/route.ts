@@ -1,5 +1,30 @@
 import { NextResponse } from 'next/server';
 
+/**
+ * POST /api/reports/generate
+ *
+ * Strategy:
+ *   1. Forward the session payload to the backend ReportLab pipeline at
+ *      ``${BACKEND_HTTP_URL}/api/reports/generate``. The backend returns
+ *      a multi-section IEC PDF with proper charts, KPIs, CSV appendix,
+ *      and Operator/Customer/Equipment metadata stamped onto the
+ *      TestSession via stampOperatorContext().
+ *   2. If the backend is unreachable (offline lab, DEMO with no API
+ *      running, or the operator is using the Vercel preview without a
+ *      backend deployment) we fall back to a tiny text-only PDF built
+ *      in this Node route. The fallback is intentionally minimal —
+ *      operators see "(degraded report)" so they know to retry once
+ *      the backend is back online.
+ *
+ * The fallback path also services the CI smoke test which exercises
+ * this URL without bringing up a backend.
+ */
+
+const BACKEND_URL =
+  process.env.BACKEND_HTTP_URL ||
+  process.env.NEXT_PUBLIC_BACKEND_HTTP_URL ||
+  '';
+
 function escapePdfString(s: string): string {
   return s
     .replace(/\\/g, '\\\\')
@@ -7,20 +32,14 @@ function escapePdfString(s: string): string {
     .replace(/\)/g, '\\)');
 }
 
-/**
- * Build a tiny but spec-valid PDF (single page, Helvetica) so demo-mode
- * report downloads work without a heavyweight server-side PDF lib.
- * Production reports are generated client-side via jspdf in
- * components/ReportGenerator.tsx; this endpoint exists so external tooling
- * (CI smoke tests, the "Quick export" header button) has a stable URL.
- */
+/** Build a tiny but spec-valid PDF — fallback when backend is unreachable. */
 function buildMinimalPdf(lines: string[]): Buffer {
   const header = '%PDF-1.4\n%\xe2\xe3\xcf\xd3\n';
 
   const obj1 = '1 0 obj\n<</Type /Catalog /Pages 2 0 R>>\nendobj\n';
   const obj2 = '2 0 obj\n<</Type /Pages /Kids [3 0 R] /Count 1>>\nendobj\n';
 
-  const contentParts: string[] = ['BT', '/F1 14 Tf'];
+  const contentParts: string[] = ['BT', '/F1 12 Tf'];
   let y = 740;
   for (const line of lines) {
     contentParts.push(`1 0 0 1 60 ${y} Tm`);
@@ -58,8 +77,7 @@ function buildMinimalPdf(lines: string[]): Buffer {
     `${pad(off5)} 00000 n \n` +
     'trailer\n' +
     '<</Size 6 /Root 1 0 R>>\n' +
-    `startxref\n${xrefOffset}\n` +
-    '%%EOF\n';
+    `startxref\n${xrefOffset}\n%%EOF\n`;
 
   return Buffer.concat([
     Buffer.from(header, 'latin1'),
@@ -72,57 +90,80 @@ function buildMinimalPdf(lines: string[]): Buffer {
   ]);
 }
 
-interface GenerateBody {
-  testId?: string;
-  testName?: string;
-  standard?: string;
-  operator?: string;
-  moduleId?: string;
+interface ReportPayload {
+  id?: string;
+  testType?: string;
   result?: string;
-  format?: 'pdf';
+  operatorName?: string;
+  customerName?: string;
+  moduleSerial?: string;
+  status?: string;
+  [k: string]: unknown;
 }
 
-export async function POST(request: Request): Promise<Response> {
-  let body: GenerateBody = {};
+export async function POST(req: Request): Promise<Response> {
+  let payload: ReportPayload;
   try {
-    body = (await request.json()) as GenerateBody;
+    payload = (await req.json()) as ReportPayload;
   } catch {
-    /* empty body is allowed; demo report */
+    return NextResponse.json({ error: 'invalid JSON body' }, { status: 400 });
+  }
+  if (!payload || typeof payload !== 'object' || !payload.id) {
+    return NextResponse.json({ error: 'payload requires at least an `id` field' }, { status: 400 });
   }
 
-  const now = new Date().toISOString();
+  // 1) Try the backend ReportLab pipeline first.
+  if (BACKEND_URL) {
+    try {
+      const upstream = await fetch(`${BACKEND_URL.replace(/\/$/, '')}/api/reports/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        // Short timeout — if the backend is slow we fall back to text-only
+        // so the operator gets *some* PDF instead of a stuck spinner.
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (upstream.ok) {
+        const ab = await upstream.arrayBuffer();
+        const filename = `${payload.id ?? 'session'}-iec-report.pdf`;
+        return new Response(ab, {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `attachment; filename="${filename}"`,
+            'X-Report-Source': 'backend-reportlab',
+          },
+        });
+      }
+      // Non-OK upstream — log via header and fall through to fallback.
+    } catch {
+      // Upstream unreachable / timed out — fall through.
+    }
+  }
+
+  // 2) Fallback: minimal text-only PDF so the UI always succeeds.
   const lines = [
-    'AGNIPARIKSHA — PV Module Reliability Report',
-    '------------------------------------------',
-    `Generated:  ${now}`,
-    `Test ID:    ${body.testId    ?? 'demo-stub'}`,
-    `Test:       ${body.testName  ?? 'Demo Stub'}`,
-    `Standard:   ${body.standard  ?? 'IEC 61215-2'}`,
-    `Module ID:  ${body.moduleId  ?? 'N/A'}`,
-    `Operator:   ${body.operator  ?? 'demo'}`,
-    `Result:     ${body.result    ?? 'PASS'}`,
+    'Agnipariksha IEC Test Report (degraded)',
+    `Session ID:   ${payload.id ?? '-'}`,
+    `Test type:    ${payload.testType ?? '-'}`,
+    `Result:       ${(payload.result ?? payload.status ?? '-').toString().toUpperCase()}`,
+    `Operator:     ${payload.operatorName ?? 'Anonymous'}`,
+    `Customer:     ${payload.customerName ?? '-'}`,
+    `Module SN:    ${payload.moduleSerial ?? '-'}`,
+    `Generated:    ${new Date().toISOString()}`,
     '',
-    'This is a server-rendered demo stub. Use the in-app',
-    'Report tab (jspdf + docx) for full reports with charts.',
+    '(backend PDF builder unreachable - showing minimal fallback)',
   ];
-
   const pdf = buildMinimalPdf(lines);
-  const safe = (body.testId ?? 'demo').replace(/[^A-Za-z0-9_.-]+/g, '_');
-
-  return new NextResponse(new Uint8Array(pdf), {
+  const filename = `${payload.id ?? 'session'}-iec-report.pdf`;
+  // `Response` expects BodyInit; in Next.js's Node runtime we pass a
+  // typed array view of the Buffer so the TS Response type accepts it.
+  return new Response(new Uint8Array(pdf), {
     status: 200,
     headers: {
       'Content-Type': 'application/pdf',
-      'Content-Length': pdf.length.toString(),
-      'Content-Disposition': `attachment; filename="agnipariksha-${safe}.pdf"`,
-      'Cache-Control': 'no-store',
+      'Content-Disposition': `attachment; filename="${filename}"`,
+      'X-Report-Source': 'frontend-fallback',
     },
   });
-}
-
-export function GET(): Response {
-  return NextResponse.json(
-    { error: 'POST only', example: { testId: 'demo', format: 'pdf' } },
-    { status: 405, headers: { Allow: 'POST' } },
-  );
 }
