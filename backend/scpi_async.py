@@ -276,6 +276,10 @@ class DemoSimulator:
     IDLE_V = 21.91
     IDLE_I = -0.02
     AMBIENT_T = 25.0
+    # IEC 61215-2 MQT 11 ramp ceiling — the DEMO chamber must NOT exceed
+    # this so the frontend's ramp-compliance pill (TC analysis) reports
+    # PASS in DEMO instead of artificially failing the simulator.
+    MAX_RAMP_C_PER_S = 100.0 / 3600.0  # 100 °C / h → 0.0278 °C / s
 
     def __init__(self) -> None:
         self._t0 = time.monotonic()
@@ -284,6 +288,12 @@ class DemoSimulator:
         self.output_on: bool = False
         self.v_setpoint: float = 48.0
         self.i_setpoint: float = 9.5
+        # Thermal model — module temperature ramps toward the operating
+        # target at ≤ MAX_RAMP_C_PER_S (MQT 11.6.2 compliant). State is
+        # updated lazily on every MEAS:TEMP? call so we don't need a
+        # background asyncio loop just for the simulator.
+        self._t_module_c: float = self.AMBIENT_T
+        self._last_temp_sample_t: float = time.monotonic()
 
     # ------------------------------------------------------------------
     # Command parsing (write path)
@@ -354,14 +364,41 @@ class DemoSimulator:
         return self.i_setpoint + random.gauss(0, max(0.005, 0.005 * abs(self.i_setpoint)))
 
     def _meas_temperature(self) -> float:
-        # When output is ON we add a modest self-heating delta over ambient,
-        # proportional to dissipated power (capped so DEMO doesn't drift
-        # into thermal-runaway territory).
-        if not self.output_on:
-            return self.AMBIENT_T + random.gauss(0, 0.1)
-        power = self.v_setpoint * self.i_setpoint
-        delta = min(35.0, max(0.0, abs(power) * 0.05))
-        return self.AMBIENT_T + delta + random.gauss(0, 0.2)
+        """Realistic IEC-compliant ramp model.
+
+        When ``output_on`` flips ON we choose an operating target
+        proportional to the dissipated power (same shape as before)
+        but we approach it at ≤ 100 °C/h (MQT 11.6.2 ceiling). When
+        OUTP flips OFF we ramp back to ambient at the same rate. The
+        result is that the TC Analysis pane sees a believable ≈90 °C/h
+        ramp instead of an instantaneous step that the (correct) IEC
+        verdict logic was flagging as FAIL.
+
+        Side-effects: updates ``self._t_module_c`` and
+        ``self._last_temp_sample_t``. Idempotent within a single
+        scheduler tick because the elapsed time is measured against the
+        last call's wall-clock.
+        """
+        now = time.monotonic()
+        dt = max(0.0, now - self._last_temp_sample_t)
+        self._last_temp_sample_t = now
+
+        # Target: ambient when output is OFF; self-heating delta when ON.
+        if self.output_on:
+            power = self.v_setpoint * self.i_setpoint
+            target = self.AMBIENT_T + min(60.0, max(0.0, abs(power) * 0.08))
+        else:
+            target = self.AMBIENT_T
+
+        # Approach target at the IEC ramp ceiling — deterministic step.
+        max_step = self.MAX_RAMP_C_PER_S * dt
+        delta = target - self._t_module_c
+        if abs(delta) <= max_step:
+            self._t_module_c = target
+        else:
+            self._t_module_c += max_step if delta > 0 else -max_step
+
+        return self._t_module_c + random.gauss(0, 0.1)
 
     def respond(self, cmd: str) -> str:
         norm = self._normalise(cmd)
