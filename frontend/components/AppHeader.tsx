@@ -5,6 +5,7 @@ import { Activity, Flame, Cpu, PowerOff, Wifi, WifiOff, Ticket as TicketIcon, Li
 import { NotificationsBell } from './notifications/NotificationsDrawer';
 import Breadcrumbs from './Breadcrumbs';
 import ThemeToggle from './theme/ThemeToggle';
+import OperatorPicker from './OperatorPicker';
 import { useHealth } from '@/hooks/useHealth';
 import { useNotifications } from './notifications/NotificationsStore';
 
@@ -72,6 +73,9 @@ export default function AppHeader({
 
       {/* Right cluster */}
       <div className="flex items-center gap-3">
+        {/* Operator / Customer / Equipment context — stamps every new
+            test session so reports stop saying "NA". */}
+        <OperatorPicker />
         <div className="hidden sm:flex gap-1.5 text-[11px] font-medium">
           <span className="px-2 py-1 bg-blue-900/40 text-blue-200 rounded">{statusCounts.running} Running</span>
           <span className="px-2 py-1 bg-green-900/40 text-green-200 rounded">{statusCounts.pass} Pass</span>
