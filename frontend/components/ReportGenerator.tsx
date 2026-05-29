@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { GATE2_PMAX_DELTA_PERCENT, type TestSession } from '@/types/test-session';
 import RaiseTicketButton from '@/components/tickets/RaiseTicketButton';
+import { useNotifications } from '@/components/notifications/NotificationsStore';
+import { resolveReportSession } from '@/lib/report-demo-session';
 import {
   REPORT_SECTIONS,
   ALL_SECTIONS_ON,
@@ -95,7 +97,7 @@ function buildPowerChartPng(session: TestSession, w = 720, h = 220): string | nu
   return canvas.toDataURL('image/png');
 }
 
-export default function ReportGenerator({ session, testName, standard }: ReportGeneratorProps) {
+export default function ReportGenerator({ session: sessionProp, testName, standard }: ReportGeneratorProps) {
   const [loading, setLoading] = useState<'pdf' | 'word' | null>(null);
   const [operatorName, setOperatorName] = useState('');
   const [labName, setLabName] = useState(BRAND_LAB);
@@ -104,6 +106,15 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
   const [rawPath, setRawPath] = useState('');
   const [photoText, setPhotoText] = useState('');
   const [sections, setSections] = useState<ReportSectionSelection>(ALL_SECTIONS_ON);
+  const { push } = useNotifications();
+
+  // DEMO_MODE: guarantee a renderable session so Export PDF/Word work
+  // without a live run. A real run (with readings) is used verbatim;
+  // otherwise content is synthesized — see lib/report-demo-session.
+  const { session, isDemo } = useMemo(
+    () => resolveReportSession(sessionProp, { testType: testName }),
+    [sessionProp, testName],
+  );
 
   // Load persisted section selection + photo refs whenever the Module ID
   // changes. Empty IDs share a single "__default__" template so the
@@ -153,7 +164,6 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
     : session?.result ?? (stats.gatePass ? 'PASS' : 'FAIL');
 
   const generatePDF = async () => {
-    if (!session) return;
     setLoading('pdf');
     try {
       const { default: jsPDF } = await import('jspdf');
@@ -299,15 +309,21 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
         );
       }
 
-      doc.save(`${testName.replace(/\s+/g, '_')}_Report_${Date.now()}.pdf`);
+      const fileName = `${testName.replace(/\s+/g, '_')}_Report_${Date.now()}.pdf`;
+      doc.save(fileName);
+      push({ severity: 'success', source: 'user', title: 'PDF downloaded', message: fileName });
     } catch (e) {
       console.error(e);
+      push({
+        severity: 'error', source: 'system',
+        title: 'Export failed',
+        message: e instanceof Error ? e.message : String(e),
+      });
     }
     setLoading(null);
   };
 
   const generateWord = async () => {
-    if (!session) return;
     setLoading('word');
     try {
       const docx = await import('docx');
@@ -456,14 +472,21 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
       });
 
       const blob = await Packer.toBlob(doc);
+      const fileName = `${testName.replace(/\s+/g, '_')}_Report_${Date.now()}.docx`;
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${testName.replace(/\s+/g, '_')}_Report_${Date.now()}.docx`;
+      a.download = fileName;
       a.click();
       URL.revokeObjectURL(url);
+      push({ severity: 'success', source: 'user', title: 'Word downloaded', message: fileName });
     } catch (e) {
       console.error(e);
+      push({
+        severity: 'error', source: 'system',
+        title: 'Export failed',
+        message: e instanceof Error ? e.message : String(e),
+      });
     }
     setLoading(null);
   };
@@ -552,7 +575,17 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
 
       {stats && (
         <div className="bg-gray-900 rounded-lg border border-gray-700 p-4">
-          <h3 className="text-sm font-bold text-gray-200 mb-3">Test Summary</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-bold text-gray-200">Test Summary</h3>
+            {isDemo && (
+              <span
+                className="text-[10px] font-semibold text-yellow-400 bg-yellow-900/30 px-1.5 py-0.5 rounded"
+                data-testid="report-sample-data"
+              >
+                SAMPLE DATA
+              </span>
+            )}
+          </div>
           <div className="grid grid-cols-3 gap-3 text-center">
             <Stat label="Avg Voltage" value={stats.avgV.toFixed(3)} unit="V" color="text-blue-400" />
             <Stat label="Avg Current" value={stats.avgI.toFixed(3)} unit="A" color="text-green-400" />
@@ -575,7 +608,7 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
       <div className="flex gap-3">
         <button
           type="button" onClick={generatePDF}
-          disabled={loading !== null || !session || selectedCount === 0}
+          disabled={loading !== null || selectedCount === 0}
           className="flex-1 py-2 bg-red-700 hover:bg-red-600 disabled:opacity-50 text-white text-sm rounded font-medium transition-colors"
           data-testid="export-pdf-btn"
         >
@@ -583,7 +616,7 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
         </button>
         <button
           type="button" onClick={generateWord}
-          disabled={loading !== null || !session || selectedCount === 0}
+          disabled={loading !== null || selectedCount === 0}
           className="flex-1 py-2 bg-blue-700 hover:bg-blue-600 disabled:opacity-50 text-white text-sm rounded font-medium transition-colors"
           data-testid="export-word-btn"
         >
@@ -601,11 +634,11 @@ export default function ReportGenerator({ session, testName, standard }: ReportG
           defaults={{
             type: 'complaint',
             source: 'report_tab',
-            title: session ? `${testName}: report issue (${session.id})` : `${testName}: report issue`,
-            description: session
-              ? `Standard: ${standard}\nSession: ${session.id}\nStatus: ${session.status}\nReadings: ${session.readings.length}`
+            title: sessionProp ? `${testName}: report issue (${sessionProp.id})` : `${testName}: report issue`,
+            description: sessionProp
+              ? `Standard: ${standard}\nSession: ${sessionProp.id}\nStatus: ${sessionProp.status}\nReadings: ${sessionProp.readings.length}`
               : `Standard: ${standard}`,
-            links: session ? { test_run_id: session.id } : undefined,
+            links: sessionProp ? { test_run_id: sessionProp.id } : undefined,
             tags: [testName, standard],
           }}
         />

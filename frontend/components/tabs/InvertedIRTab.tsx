@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Settings, Activity, Table2, BarChart3, FileText } from 'lucide-react';
 import type { TestSession, LiveReading } from '@/types/test-session';
+import ReportGenerator from '@/components/ReportGenerator';
 
 interface Props {
   readings: LiveReading[];
@@ -72,7 +73,7 @@ function median(values: number[]): number {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-export default function InvertedIRTab({ demoMode }: Props) {
+export default function InvertedIRTab({ session, demoMode }: Props) {
   const [subTab, setSubTab] = useState<SubTab>('setup');
 
   // Setup
@@ -245,6 +246,13 @@ export default function InvertedIRTab({ demoMode }: Props) {
             <p className="col-span-3 text-xs text-gray-500">No hot-spots detected above threshold.</p>
           )}
         </div>
+      </div>
+      <div className="mt-4">
+        <ReportGenerator
+          session={session}
+          testName="Inverted IR"
+          standard="Forward-bias IR thermography"
+        />
       </div>
     </div>
   );
