@@ -22,6 +22,7 @@ from backend.app.gct import (  # noqa: E402
     GctReading,
     GctSimulator,
     KeysightDmmGct,
+    demo_per_path_resistances,
     evaluate_pass,
 )
 from backend.main import app  # noqa: E402
@@ -226,3 +227,32 @@ def test_ws_gct_live_rejects_bad_max_resistance() -> None:
         err = ws.receive_json()
         assert err["type"] == "error"
         assert err["error"] == "bad_max_resistance"
+
+
+# ---------------------------------------------------------------------------
+# Per-path resistance breakdown (Analysis view, DEMO mode)
+# ---------------------------------------------------------------------------
+
+def test_demo_per_path_resistances_shape_and_pass() -> None:
+    paths = demo_per_path_resistances()
+    assert [p["path_id"] for p in paths] == [
+        "PATH-01", "PATH-02", "PATH-03", "PATH-04", "PATH-05", "PATH-06"
+    ]
+    assert all(p["passed"] for p in paths)                # all < 0.1 Ω
+    assert max(p["resistance"] for p in paths) == 0.094   # worst is PATH-06
+    assert paths[0]["from_point"] == "Frame-A"
+    assert paths[0]["to_point"] == "JBox"
+
+
+def test_demo_per_path_resistances_regrade_on_tighter_threshold() -> None:
+    # A 0.05 Ω ceiling fails the four paths above it (0.067/0.051/0.089/0.094).
+    paths = demo_per_path_resistances(max_resistance=0.05)
+    assert sum(1 for p in paths if not p["passed"]) == 4
+
+
+def test_gct_config_emits_per_path_resistances_in_demo() -> None:
+    body = client.get("/api/gct/config").json()
+    paths = body["per_path_resistances"]
+    assert len(paths) == 6
+    assert paths[0]["path_id"] == "PATH-01"
+    assert all(p["passed"] for p in paths)

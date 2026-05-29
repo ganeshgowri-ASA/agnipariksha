@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import TestTabLayout from '../TestTabLayout';
 import SchematicViewer from '../SchematicViewer';
+import LiveChart from '../LiveChart';
 import type { TestSession, LiveReading } from '@/types/test-session';
 import { useGctLive } from '@/hooks/useGctLive';
 
@@ -19,9 +20,9 @@ export default function GroundContinuityTab({
   session, onSessionUpdate, sendCommand, demoMode,
 }: Props) {
   const [testCurrent, setTestCurrent] = useState(25); // A — informational, sourced by DMM
-  const [duration, setDuration] = useState(2);
+  const [duration, setDuration] = useState(120); // s — hold time at ≥ 2.5× rated bonding current
   const [maxResistance, setMaxResistance] = useState(0.1); // Ω per IEC 61730-2 MST 13
-  const [numPoints, setNumPoints] = useState(5);
+  const [bonding, setBonding] = useState(''); // operator bonding-point label (e.g. frame-corner-A)
 
   // GCT live feed (DMM 4-wire R + pass/fail). Stays connected the whole time
   // the tab is mounted so the operator can see live continuity even before
@@ -67,14 +68,15 @@ export default function GroundContinuityTab({
       id: `GCT-${Date.now()}`, testType: 'ground_continuity',
       startTime: Date.now(), status: 'running', readings: [],
       iecClause: 'MST 13',
+      notes: bonding ? `Bonding point: ${bonding}` : undefined,
     };
     onSessionUpdate(newSession);
     // Belt-and-braces: PSU output stays OFF for the entire GCT. Per
     // IEC 61730-2 MST 13 the test current is sourced by the DMM, not
     // the PV6000. We never send OUTP ON from this tab.
     sendCommand('OUTP OFF');
-    sendCommand(`SYST:LOG "GCT start; max R = ${maxResistance} Ohm; points=${numPoints}"`);
-  }, [maxResistance, numPoints, onSessionUpdate, sendCommand]);
+    sendCommand(`SYST:LOG "GCT start; max R = ${maxResistance} Ohm${bonding ? `; bonding=${bonding}` : ''}"`);
+  }, [maxResistance, bonding, onSessionUpdate, sendCommand]);
 
   const onStop = useCallback(() => {
     if (!session) return;
@@ -119,9 +121,8 @@ export default function GroundContinuityTab({
         <div className="grid grid-cols-2 gap-3">
           {[
             { label: 'Test Current (A)', value: testCurrent, set: setTestCurrent, min: 10, max: 30, step: 1, unit: 'A' },
-            { label: 'Duration (min)', value: duration, set: setDuration, min: 1, max: 10, step: 0.5, unit: 'min' },
-            { label: 'Max R (Ω)', value: maxResistance, set: setMaxResistance, min: 0.01, max: 1.0, step: 0.01, unit: 'Ω' },
-            { label: 'Test Points', value: numPoints, set: setNumPoints, min: 1, max: 20, step: 1, unit: '' },
+            { label: 'Duration (s)', value: duration, set: setDuration, min: 60, max: 300, step: 1, unit: 's' },
+            { label: 'R_max Threshold (Ω)', value: maxResistance, set: setMaxResistance, min: 0.05, max: 0.5, step: 0.01, unit: 'Ω' },
           ].map(f => (
             <div key={f.label}>
               <label className="text-xs text-gray-400 block mb-1">{f.label}</label>
@@ -133,6 +134,12 @@ export default function GroundContinuityTab({
               </div>
             </div>
           ))}
+          <div>
+            <label className="text-xs text-gray-400 block mb-1">Bonding Point Label</label>
+            <input type="text" value={bonding} placeholder="e.g. frame-corner-A"
+              onChange={e => setBonding(e.target.value)}
+              className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-200" />
+          </div>
         </div>
         {measuredR !== null && (
           <div className={`mt-3 rounded p-3 ${
@@ -181,7 +188,9 @@ export default function GroundContinuityTab({
           color="text-green-400" readings={liveReadings} session={session}
           onSessionUpdate={onSessionUpdate} sendCommand={sendCommand} demoMode={demoMode}
           limits={{ maxVoltage: 5, maxCurrent: 30, maxPower: 150, maxTemp: 40 }}
-          setupPanel={setupPanel} extraStats={[
+          setupPanel={setupPanel}
+          analysisPanel={<GctAnalysisPanel maxResistance={maxResistance} />}
+          extraStats={[
             { label: 'Measured R', value: verdictText, unit: 'Ω', color: verdictColor },
             { label: 'Result',     value: passLabel,   unit: '',  color: verdictColor },
             { label: 'Max R Limit', value: maxResistance.toString(), unit: 'Ω', color: 'text-yellow-400' },
@@ -189,6 +198,124 @@ export default function GroundContinuityTab({
           ]}
           onStartTest={onStart} onStopTest={onStop} onPauseTest={onPause}
         />
+      </div>
+    </div>
+  );
+}
+
+// Canonical single-point grounding paths for the GCT Analysis view in DEMO
+// mode. Mirrors backend/app/gct.demo_per_path_resistances() so the UI and the
+// REST contract agree — each path is a 4-wire (Kelvin) resistance from an
+// exposed conductive part to the main grounding terminal.
+const DEMO_PATHS: Array<{ id: string; from: string; to: string; r: number }> = [
+  { id: 'PATH-01', from: 'Frame-A', to: 'JBox',        r: 0.042 },
+  { id: 'PATH-02', from: 'Frame-B', to: 'JBox',        r: 0.067 },
+  { id: 'PATH-03', from: 'Frame-C', to: 'JBox',        r: 0.051 },
+  { id: 'PATH-04', from: 'Frame-D', to: 'JBox',        r: 0.038 },
+  { id: 'PATH-05', from: 'Frame',   to: 'MountHole-1', r: 0.089 },
+  { id: 'PATH-06', from: 'Frame',   to: 'MountHole-2', r: 0.094 },
+];
+
+/**
+ * GCT Analysis — IEC 61730-2 MST 13 single-point ground continuity.
+ *
+ * Replaces the generic degradation template (Pmax / ΔPmax / Gate-2) that the
+ * default AnalysisPanel renders — that template is wrong for a resistance
+ * test. Shows the per-path resistance table, R_min/R_mean/R_max stats, an
+ * R(t) sparkline with the threshold line, the module verdict, and an AI
+ * summary. Paths re-grade live against the operator's R_max threshold.
+ */
+function GctAnalysisPanel({ maxResistance }: { maxResistance: number }) {
+  const paths = DEMO_PATHS.map(p => ({ ...p, pass: p.r <= maxResistance }));
+  const rs = paths.map(p => p.r);
+  const rMin = Math.min(...rs);
+  const rMax = Math.max(...rs);
+  const rMean = rs.reduce((a, b) => a + b, 0) / rs.length;
+  const passCount = paths.filter(p => p.pass).length;
+  const allPass = passCount === paths.length;
+  const worst = paths.reduce((a, b) => (b.r > a.r ? b : a), paths[0]);
+
+  // Feed the shared LiveChart a per-path resistance series so the sparkline +
+  // threshold line render with zero backend dependency in demo.
+  const series: LiveReading[] = paths.map((p, i) => ({
+    timestamp: i, voltage: 0, current: 0, power: 0, resistance: p.r,
+  }));
+
+  const summary =
+    `Ground Continuity (IEC 61730-2 MST 13): ${passCount}/${paths.length} paths ≤${maxResistance}Ω. ` +
+    `Worst: ${worst.id} at ${worst.r.toFixed(3)}Ω. Verdict: ${allPass ? 'PASS' : 'FAIL'}.`;
+
+  const stats: Array<[string, number]> = [['R_min', rMin], ['R_mean', rMean], ['R_max', rMax]];
+
+  return (
+    <div className="space-y-4 max-w-3xl" data-testid="gct-analysis">
+      <div
+        className={`rounded-lg border p-4 ${allPass ? 'border-green-700/40 bg-green-900/20' : 'border-red-700/40 bg-red-900/20'}`}
+        data-testid="gct-verdict"
+      >
+        <h3 className="text-sm font-bold text-green-400 mb-1">Ground Continuity — Module Verdict</h3>
+        <p className={`text-lg font-bold ${allPass ? 'text-green-300' : 'text-red-300'}`}>
+          {allPass ? 'PASS' : 'FAIL'}
+        </p>
+        <p className="text-xs text-gray-400 mt-1">
+          {passCount}/{paths.length} grounding paths ≤ {maxResistance} Ω per IEC 61730-2 MST 13.
+          {allPass ? '' : ' One or more paths exceed the limit.'}
+        </p>
+      </div>
+
+      <div className="bg-gray-900 rounded-lg border border-gray-700 p-3 overflow-auto">
+        <h3 className="text-xs font-bold text-green-400 mb-2">Per-path resistance</h3>
+        <table className="w-full text-[11px]" data-testid="gct-path-table">
+          <thead>
+            <tr className="text-gray-500 text-left">
+              <th className="py-1 pr-3 font-normal">Path ID</th>
+              <th className="py-1 pr-3 font-normal">From</th>
+              <th className="py-1 pr-3 font-normal">To</th>
+              <th className="py-1 pr-3 font-normal text-right">Measured R (Ω)</th>
+              <th className="py-1 pr-3 font-normal text-right">Criterion</th>
+              <th className="py-1 font-normal">Result</th>
+            </tr>
+          </thead>
+          <tbody className="font-mono text-gray-200">
+            {paths.map(p => (
+              <tr key={p.id} className="border-t border-gray-800">
+                <td className="py-1 pr-3">{p.id}</td>
+                <td className="py-1 pr-3">{p.from}</td>
+                <td className="py-1 pr-3">{p.to}</td>
+                <td className="py-1 pr-3 text-right">{p.r.toFixed(3)}</td>
+                <td className="py-1 pr-3 text-right text-gray-400">≤ {maxResistance} Ω</td>
+                <td className={`py-1 font-bold ${p.pass ? 'text-green-400' : 'text-red-400'}`}>
+                  {p.pass ? 'PASS' : 'FAIL'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3" data-testid="gct-stats">
+        {stats.map(([label, v]) => (
+          <div key={label} className="bg-gray-900 rounded-lg p-3 border border-gray-700">
+            <p className="text-xs text-gray-500">{label}</p>
+            <p className="text-xl font-mono font-bold text-gray-100">
+              {v.toFixed(3)} <span className="text-xs text-gray-400">Ω</span>
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <LiveChart
+        readings={series} metric="resistance" color="#34d399" label="R(t) — per-path resistance (Ω)"
+        yDomain={[0, Math.max(maxResistance, rMax) * 1.2]}
+        referenceLines={[{ value: maxResistance, label: `R_max ${maxResistance} Ω` }]}
+      />
+
+      <div className="bg-gray-900 border border-gray-700 rounded-lg p-3">
+        <h3 className="text-xs font-semibold text-gray-300 mb-2">AI / MCP Summary</h3>
+        <p className="text-xs text-gray-300 font-mono leading-relaxed" data-testid="gct-ai-summary">{summary}</p>
+        <p className="text-[10px] text-gray-500 mt-1">
+          Auto-generated draft. Connect ANTHROPIC_API_KEY in .env.local for richer narrative analysis.
+        </p>
       </div>
     </div>
   );

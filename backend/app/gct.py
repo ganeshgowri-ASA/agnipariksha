@@ -37,6 +37,19 @@ DEFAULT_RANGE = "100"
 _DEMO_R_MEAN = 0.030
 _DEMO_R_SIGMA = 0.004
 
+# Canonical per-path grounding breakdown surfaced by the GCT Analysis view
+# in DEMO mode: six single-point 4-wire paths from exposed conductive parts
+# to the main grounding terminal. All sit comfortably under the 0.1 Ω ceiling,
+# so the demo verdict is PASS. Tuples are (path_id, from, to, ohms).
+_DEMO_PER_PATH: tuple[tuple[str, str, str, float], ...] = (
+    ("PATH-01", "Frame-A", "JBox", 0.042),
+    ("PATH-02", "Frame-B", "JBox", 0.067),
+    ("PATH-03", "Frame-C", "JBox", 0.051),
+    ("PATH-04", "Frame-D", "JBox", 0.038),
+    ("PATH-05", "Frame", "MountHole-1", 0.089),
+    ("PATH-06", "Frame", "MountHole-2", 0.094),
+)
+
 
 @dataclass
 class GctReading:
@@ -71,6 +84,29 @@ def evaluate_pass(resistance: float, max_resistance: float = DEFAULT_MAX_RESISTA
     if max_resistance <= 0:
         return False
     return resistance < max_resistance
+
+
+def demo_per_path_resistances(
+    max_resistance: float = DEFAULT_MAX_RESISTANCE_OHM,
+) -> list[dict[str, Any]]:
+    """Per-path 4-wire resistance breakdown for the GCT Analysis view.
+
+    Emitted only in DEMO mode (the live Keysight flow measures a single
+    point at a time). Mirrors the canonical paths rendered by the frontend
+    so the REST contract and the UI agree. ``passed`` is evaluated against
+    ``max_resistance`` so a tighter operator threshold re-grades the table.
+    """
+    return [
+        {
+            "path_id": pid,
+            "from_point": frm,
+            "to_point": to,
+            "resistance": r,
+            "criterion": max_resistance,
+            "passed": evaluate_pass(r, max_resistance),
+        }
+        for pid, frm, to, r in _DEMO_PER_PATH
+    ]
 
 
 class GctSimulator:
