@@ -29,6 +29,19 @@ export interface TestSession {
   postMaxPower?: number;
   iecClause?: string;
   rawDataPath?: string;
+  // ---- Report metadata (PR #122) -------------------------------------------
+  // Populated at session-start via stampOperatorContext() so the IEC report
+  // header carries Operator / Equipment / Company / Customer / Method
+  // automatically. All optional so legacy sessions without these fields
+  // continue to round-trip cleanly through the DB and report builders.
+  operatorName?: string;
+  operatorId?: string;
+  companyName?: string;
+  customerName?: string;
+  equipmentId?: string;
+  methodReference?: string;
+  /** Module Serial Number (mirrors backend Module.serial_no). */
+  moduleSerial?: string;
 }
 
 export type TestKey =

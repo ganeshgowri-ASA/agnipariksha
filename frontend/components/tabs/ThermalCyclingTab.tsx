@@ -5,6 +5,7 @@ import TestTabLayout from '../TestTabLayout';
 import SchematicViewer from '../SchematicViewer';
 import ThermalCyclingBasicCheck from '../ThermalCyclingBasicCheck';
 import TcAnalysisPanel from '@/features/tc/analysis/TcAnalysisPanel';
+import { stampOperatorContext } from '@/lib/operator-store';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
 interface Props {
@@ -30,10 +31,15 @@ export default function ThermalCyclingTab({ readings, session, onSessionUpdate, 
   const progress = cycles > 0 ? Math.min(100, (completedCycles / cycles) * 100) : 0;
 
   const onStart = useCallback(() => {
-    const newSession: TestSession = {
+    // Stamp operator/customer/equipment context onto the session so the
+    // PDF report header carries real values instead of "NA". The picker
+    // lives in the AppHeader and persists in localStorage.
+    const draft: TestSession = {
       id: `TC-${Date.now()}`, testType: 'thermal_cycling',
       startTime: Date.now(), status: 'running', readings: [],
+      iecClause: 'MQT 11',
     };
+    const newSession: TestSession = stampOperatorContext(draft);
     onSessionUpdate(newSession);
     sendCommand(`SOUR:CURR ${isc}`);
     sendCommand('OUTP ON');
