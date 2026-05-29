@@ -1,21 +1,84 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 300" role="img" aria-label="Humidity freeze chamber wiring diagram">
-  <g fill="none" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round">
-    <rect x="250" y="50" width="200" height="200" rx="8" stroke="#22d3ee"/>
-    <rect x="290" y="110" width="120" height="80" rx="6"/>
-    <rect x="30" y="110" width="120" height="80" rx="6"/>
-    <path d="M150 135 H290" stroke="#f87171"/>
-    <path d="M150 165 H290"/>
-    <path d="M150 150 H270 V200 H290" stroke="#60a5fa" stroke-dasharray="6 5"/>
-    <!-- humidity droplet marker -->
-    <path d="M350 110 V72 m0 0 c-7 8 -7 14 0 14 c7 0 7 -6 0 -14" stroke="#22d3ee"/>
-    <path d="M350 190 V222 M332 222 H368 M339 230 H361 M346 238 H354" stroke="#34d399"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 360" role="img" aria-label="Humidity Freeze test wiring — IEC 61215-2 MQT 12 (10-channel PSU + 85/85 chamber + RH controller + thermocouples)">
+  <defs>
+    <marker id="hfArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#94a3b8"/>
+    </marker>
+    <pattern id="humid" patternUnits="userSpaceOnUse" width="14" height="14">
+      <path d="M3 7 c2 -3 4 -3 6 0 c2 3 4 3 6 0" stroke="#22d3ee" fill="none" stroke-width="0.8" opacity="0.6"/>
+    </pattern>
+  </defs>
+
+  <!-- Climatic chamber (85 °C/85% RH ↔ −40 °C) -->
+  <rect x="260" y="40" width="270" height="270" rx="10" fill="url(#humid)" stroke="#22d3ee" stroke-width="2"/>
+  <text x="395" y="32" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#22d3ee">ESPEC SH-242 climatic chamber · 85 °C/85%RH ⇄ −40 °C · transition ≤ 30 min</text>
+
+  <!-- PV module DUT inside -->
+  <rect x="305" y="120" width="180" height="120" rx="8" fill="#0b1220" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="395" y="155" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#e2e8f0">PV Module DUT</text>
+  <text x="395" y="172" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#94a3b8">V_oc 45 V · I_sc 9.5 A</text>
+  <text x="395" y="188" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#94a3b8">backsheet T/C ×3 + RH probe</text>
+
+  <!-- PSU outside chamber -->
+  <rect x="20" y="100" width="180" height="160" rx="8" fill="#0b1220" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="110" y="124" text-anchor="middle" font-family="sans-serif" font-size="13" fill="#e2e8f0">ITECH PV6000 SAS</text>
+  <text x="110" y="142" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#94a3b8">IT6005C-80-150 · 10 ch</text>
+  <text x="110" y="160" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#94a3b8">CV mode · OVP/OCP armed</text>
+
+  <!-- Channel block -->
+  <g font-family="sans-serif" font-size="9" fill="#94a3b8">
+    <rect x="30" y="180" width="160" height="60" fill="none" stroke="#475569" stroke-dasharray="4 3"/>
+    <text x="110" y="194" text-anchor="middle">CH1 … CH10 (4-wire Kelvin)</text>
+    <g stroke="#f87171" stroke-width="1.4">
+      <line x1="40"  y1="205" x2="40"  y2="232"/>
+      <line x1="60"  y1="205" x2="60"  y2="232"/>
+      <line x1="80"  y1="205" x2="80"  y2="232"/>
+      <line x1="100" y1="205" x2="100" y2="232"/>
+      <line x1="120" y1="205" x2="120" y2="232"/>
+      <line x1="140" y1="205" x2="140" y2="232"/>
+      <line x1="160" y1="205" x2="160" y2="232"/>
+      <line x1="180" y1="205" x2="180" y2="232"/>
+    </g>
+    <text x="110" y="252" text-anchor="middle" fill="#cbd5e1">MC4 connectors · feedthrough panel</text>
   </g>
-  <g fill="#e2e8f0" font-family="sans-serif" font-size="13">
-    <text x="90" y="155" text-anchor="middle">PSU PV6000</text>
-    <text x="350" y="44" text-anchor="middle" fill="#22d3ee">chamber 85% RH, +85…−40 °C</text>
-    <text x="350" y="155" text-anchor="middle" font-size="11">DUT</text>
-    <text x="210" y="128" text-anchor="middle" font-size="10" fill="#f87171">force</text>
-    <text x="210" y="146" text-anchor="middle" font-size="10" fill="#60a5fa">sense</text>
+
+  <!-- Force / sense feedthrough (current injection during hot soak only) -->
+  <g fill="none" stroke-width="2" stroke-linecap="round">
+    <path d="M200 180 H260 H305" stroke="#f87171" marker-end="url(#hfArrow)"/>
+    <path d="M200 210 H295 V230 H305" stroke="#f87171" marker-end="url(#hfArrow)"/>
+    <path d="M200 195 H255 V172 H305" stroke="#60a5fa" stroke-dasharray="6 4"/>
+    <path d="M200 225 H275 V250 H305" stroke="#60a5fa" stroke-dasharray="6 4"/>
   </g>
-  <text x="240" y="294" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#64748b">DRAFT — replace with reviewed CAD</text>
+  <text x="240" y="173" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#f87171">FORCE +Isc · ONLY during hot soak</text>
+  <text x="240" y="263" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#60a5fa">SENSE 4-wire</text>
+
+  <!-- RH controller -->
+  <g stroke="#22d3ee" stroke-width="2" fill="none">
+    <rect x="445" y="60" width="80" height="40" rx="4"/>
+    <path d="M485 100 V120"/>
+  </g>
+  <text x="485" y="78" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#22d3ee">RH controller</text>
+  <text x="485" y="92" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#94a3b8">85 ± 5 %</text>
+
+  <!-- Thermocouple chain -->
+  <g stroke="#fbbf24" stroke-width="2" fill="none">
+    <path d="M395 120 V80 H440 V60"/>
+    <circle cx="370" cy="180" r="3" fill="#fbbf24"/>
+    <circle cx="420" cy="220" r="3" fill="#fbbf24"/>
+  </g>
+  <text x="425" y="50" font-family="sans-serif" font-size="10" fill="#fbbf24">Keysight 34465A · T/C ×3</text>
+
+  <!-- Isc-gate annotation -->
+  <g font-family="sans-serif" font-size="10">
+    <rect x="20" y="280" width="510" height="32" rx="6" fill="#0b1220" stroke="#f59e0b" stroke-dasharray="4 4"/>
+    <text x="30" y="298" fill="#f59e0b">MQT 11.6.3 a</text>
+    <text x="120" y="298" fill="#cbd5e1">Isc applied ONLY when T_module &gt; 25 °C — orchestrator gates SOUR:CURR via mqt12_isc_gate_setpoint().</text>
+  </g>
+
+  <!-- Cycle profile thumbnail -->
+  <g stroke="#60a5fa" stroke-width="1.5" fill="none">
+    <polyline points="20,340 80,340 80,322 160,322 160,340 220,340 220,322 240,322"/>
+  </g>
+  <text x="130" y="354" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#94a3b8">10 cycles · ≥20h hot soak · ≥30min cold freeze</text>
+
+  <text x="540" y="354" text-anchor="end" font-family="sans-serif" font-size="9" fill="#475569">Reliance 10-channel HF station</text>
 </svg>
