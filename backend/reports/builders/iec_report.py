@@ -55,6 +55,11 @@ except ImportError:  # pragma: no cover
     _HAS_MATPLOTLIB = False
 
 
+# Module-level constant — referenced from f-strings where Python 3.11 forbids
+# inline ``'\u2014'`` escapes in f-string expressions.
+EM_DASH = "\u2014"
+
+
 @dataclass
 class ReportContext:
     """Normalised session payload the builder works against.
@@ -227,10 +232,12 @@ def build_iec_report(payload: dict[str, Any]) -> bytes:
     # --- Section 4: appendix ---
     story.append(PageBreak())
     story.append(Paragraph("4. Raw data appendix", h2))
+    notes_str = ctx.notes or EM_DASH
+    csv_str = ctx.csv_path or "not persisted"
     story.append(Paragraph(
         f"Total readings: <b>{len(ctx.readings)}</b><br/>"
-        f"Notes: {ctx.notes or '\u2014'}<br/>"
-        f"Raw CSV: {ctx.csv_path or 'not persisted'}", body,
+        f"Notes: {notes_str}<br/>"
+        f"Raw CSV: {csv_str}", body,
     ))
     if ctx.csv_path:
         try:
