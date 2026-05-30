@@ -12,12 +12,18 @@ interface Props {
   demoMode: boolean;
 }
 
+// MQT 12 permits two operator-selectable chamber ramp rates (deg C / hour).
+// Mirrors HumidityFreezeOrchestrator.ALLOWED_RAMP_C_PER_HOUR on the backend.
+const ALLOWED_RAMP_C_PER_HOUR = [100, 200] as const;
+type RampRateCPerHour = (typeof ALLOWED_RAMP_C_PER_HOUR)[number];
+
 export default function HumidityFreezeTab({ readings, session, onSessionUpdate, sendCommand, demoMode }: Props) {
   const [cycles, setCycles] = useState(10);
   const [tHigh, setTHigh] = useState(85);
   const [rhHigh, setRhHigh] = useState(85);
   const [tLow, setTLow] = useState(-40);
   const [dwellHours, setDwellHours] = useState(20);
+  const [rampCPerHour, setRampCPerHour] = useState<RampRateCPerHour>(100);
 
   const onStart = useCallback(() => {
     const newSession: TestSession = {
@@ -28,9 +34,9 @@ export default function HumidityFreezeTab({ readings, session, onSessionUpdate, 
     sendCommand('SOUR:FUNC:MODE CV');
     sendCommand(`SOUR:VOLT 0`);
     sendCommand('OUTP ON');
-    sendCommand(`PROG:HF:CYCL ${cycles},${tHigh},${rhHigh},${tLow},${dwellHours}`);
+    sendCommand(`PROG:HF:CYCL ${cycles},${tHigh},${rhHigh},${tLow},${dwellHours},${rampCPerHour}`);
     sendCommand('PROG:EXEC');
-  }, [cycles, tHigh, rhHigh, tLow, dwellHours, onSessionUpdate, sendCommand]);
+  }, [cycles, tHigh, rhHigh, tLow, dwellHours, rampCPerHour, onSessionUpdate, sendCommand]);
 
   const onStop = useCallback(() => {
     if (!session) return;
@@ -51,6 +57,21 @@ export default function HumidityFreezeTab({ readings, session, onSessionUpdate, 
           10 cycles: high temp+humidity ({tHigh}°C/{rhHigh}%RH, {dwellHours}hr dwell)
           then freeze to {tLow}°C.
         </p>
+        <div className="mb-3">
+          <label htmlFor="hf-ramp" className="text-xs text-gray-400 block mb-1">
+            Ramp rate (°C/h)
+          </label>
+          <select
+            id="hf-ramp"
+            value={rampCPerHour}
+            onChange={e => setRampCPerHour(Number(e.target.value) as RampRateCPerHour)}
+            className="w-full bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-200"
+          >
+            {ALLOWED_RAMP_C_PER_HOUR.map(r => (
+              <option key={r} value={r}>{r} °C/h</option>
+            ))}
+          </select>
+        </div>
         <div className="grid grid-cols-2 gap-3">
           {[
             { label: 'Cycles', value: cycles, set: setCycles, min: 1, max: 50, step: 1, unit: '' },
@@ -85,6 +106,7 @@ export default function HumidityFreezeTab({ readings, session, onSessionUpdate, 
         { label: 'Target RH', value: rhHigh.toString(), unit: '%', color: 'text-cyan-400' },
         { label: 'T Range', value: `${tLow} to ${tHigh}`, unit: '°C', color: 'text-yellow-400' },
         { label: 'Dwell', value: dwellHours.toString(), unit: 'hr', color: 'text-green-400' },
+        { label: 'Ramp', value: rampCPerHour.toString(), unit: '°C/h', color: 'text-purple-400' },
       ]}
       onStartTest={onStart} onStopTest={onStop} onPauseTest={onPause}
     />

@@ -14,6 +14,7 @@ from backend.config import get_settings  # noqa: E402
 from backend.orchestrators.humidity_freeze import (  # noqa: E402
     HumidityFreezeOrchestrator,
     HFState,
+    chamber_uniformity,
 )
 from backend.orchestrators.simulator import TestSimulator  # noqa: E402
 
@@ -199,3 +200,77 @@ def test_meets_spec_profile():
         ramp_rate_c_per_min=1.0,  # 125 C swing in 125 min < 4 h
     )
     assert spec.meets_spec_profile() is True
+
+
+# --- Extended MQT 12 acceptance: dual ramp / ramp metrics / uniformity /
+# --- tolerance bands ----------------------------------------------------
+
+def test_dual_ramp_mode_selector():
+    """MQT 12 ramp selector accepts 100 and 200 deg C/h; rejects anything else."""
+    for rate in HumidityFreezeOrchestrator.ALLOWED_RAMP_C_PER_HOUR:
+        o = HumidityFreezeOrchestrator.with_ramp_mode(
+            ramp_c_per_hour=rate, module_id="MOD-HF", isc_a=9.0, cycles=1,
+            hot_soak_s=1.0, cold_soak_s=0.5,
+        )
+        assert o.ramp_rate_c_per_h == rate
+        assert o.ramp_rate_c_per_min == pytest.approx(rate / 60.0)
+    for bad in (0, 50, 150, 300, -100):
+        with pytest.raises(ValueError):
+            HumidityFreezeOrchestrator.with_ramp_mode(
+                ramp_c_per_hour=bad, module_id="MOD-HF", isc_a=9.0,
+            )
+
+
+def _drive_into_ramp_down(rate_c_per_h: int) -> HumidityFreezeOrchestrator:
+    o = HumidityFreezeOrchestrator.with_ramp_mode(
+        ramp_c_per_hour=rate_c_per_h, module_id="MOD-HF", isc_a=9.0, cycles=1,
+        hot_soak_s=1.0, cold_soak_s=0.5,
+    )
+    o.start(now_s=0.0)
+    o.tick(1.0)  # advance SOAK_HUMID_HOT -> RAMP_DOWN
+    assert o.state is HFState.RAMP_DOWN
+    return o
+
+
+def test_p2p_ramp_calculation():
+    """Point-to-point ramp metric approximates the SET rate within the window."""
+    o = _drive_into_ramp_down(200)
+    for k in range(1, 8):                # fill the 5-sample rolling window
+        o.tick(1.0 + k * 60.0)
+    p2p = o.ramp_actual_p2p_c_per_h()
+    assert p2p is not None
+    assert 190 <= p2p <= 210             # SET = 200 C/h; window is in mid-ramp
+
+
+def test_cumulative_ramp_calculation():
+    """Cumulative ramp metric tracks (T_now - T_phase_start) / elapsed."""
+    o = _drive_into_ramp_down(100)
+    o.tick(601.0)                        # 10 min into the ramp (still RAMP_DOWN)
+    assert o.state is HFState.RAMP_DOWN
+    cum = o.ramp_actual_cumulative_c_per_h()
+    assert cum is not None
+    assert 95 <= cum <= 105              # SET = 100 C/h, observed ~100 C/h
+
+
+def test_chamber_uniformity_metric():
+    """min/max/spread reflect the sensor-array distribution; empty -> None."""
+    assert chamber_uniformity([]) == {"min": None, "max": None, "spread": None}
+    u = chamber_uniformity([84.0, 85.5, 86.2, 83.8])
+    assert u["min"] == 83.8
+    assert u["max"] == 86.2
+    assert u["spread"] == pytest.approx(2.4)
+
+
+def test_tolerance_band_nonconform_trigger():
+    """Any out-of-band channel (T, RH, or I) flips conformant to False."""
+    o = _make(cycles=1)
+    o.start(now_s=0.0)                    # SOAK_HUMID_HOT, setpoints 85 / 85 / I_inj
+    i_ref = o.injected_current_a()        # ~0.001 * 9.0 = 0.009 A
+    ok = o.check_tolerance(measured_t_c=84.5, measured_rh_pct=86.0, measured_i_a=i_ref)
+    assert ok["conformant"] is True
+    out_t = o.check_tolerance(measured_t_c=80.0, measured_rh_pct=85.0, measured_i_a=i_ref)
+    assert (out_t["t_ok"], out_t["conformant"]) == (False, False)
+    out_rh = o.check_tolerance(measured_t_c=85.0, measured_rh_pct=70.0, measured_i_a=i_ref)
+    assert (out_rh["rh_ok"], out_rh["conformant"]) == (False, False)
+    out_i = o.check_tolerance(measured_t_c=85.0, measured_rh_pct=85.0, measured_i_a=0.05)
+    assert (out_i["i_ok"], out_i["conformant"]) == (False, False)
