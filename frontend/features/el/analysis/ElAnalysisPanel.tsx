@@ -1,19 +1,47 @@
 /**
- * EL Analysis pane — IEC TS 60904-13.
+ * EL Analysis pane — IEC TS 60904-13 + IEA PVPS Task 13.
  *
  * Renders KPIs + a low-fidelity grid view of the EL frame with
  * inactive/defect cells highlighted. In DEMO mode it generates a
  * synthetic frame; in LIVE mode the camera capture pipeline (stub)
  * would emit ElFrame payloads on the WS stream — left for the
  * capture-pipeline PR to wire in.
+ *
+ * On top of the raw KPIs this pane computes the IEA PVPS Task 13 DEFECT
+ * INDEX (0–100) and an A/B/C grade, with a selectable DEFAULT vs MBJ
+ * criteria mode (stricter thresholds), and a full metadata block
+ * (camera / injection current / PSU settings) surfaced for the report.
  */
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   computeElKpis, generateDemoFrame, EL_CONSTANTS,
   type Verdict, type ElKpis, type ElFrame,
 } from './elAnalysis';
+import {
+  computeDefectIndex, classifyDefectIndex, describeGrade, DEFECT_THRESHOLDS,
+  type DefectInput, type DefectGrade, type DefectCriteriaMode,
+} from './defectIndex';
+
+/**
+ * Acquisition metadata shown on the EL view and carried into the report.
+ * Defined locally so this pane does not depend on any in-flight metadata
+ * branch — the capture pipeline can populate it from the camera SDK + PSU
+ * telemetry, or ELTab supplies operator setpoints as a fallback.
+ */
+export interface ElMetadata {
+  /** Camera model string (e.g. "ITECH IR-EL 12MP"). */
+  cameraModel: string;
+  /** Camera exposure time (s). */
+  exposureSec: number;
+  /** Forward-bias injection current at capture (A). */
+  injectionCurrentA: number;
+  /** PSU programmed voltage setpoint (V). */
+  psuVoltageV: number;
+  /** PSU programmed current limit (A). */
+  psuCurrentA: number;
+}
 
 interface Props {
   /** Optional live frame from the capture pipeline. */
@@ -22,6 +50,14 @@ interface Props {
   injectionCurrent: number;
   /** Operator chose DEMO mode (used to gate auto-synth). */
   demoMode: boolean;
+  /**
+   * Per-class defect counts (IEA PVPS Task 13). When omitted the pane
+   * derives a demo DefectInput from the computed KPIs so reviewers see a
+   * meaningful index without a classifier wired in.
+   */
+  defects?: DefectInput;
+  /** Acquisition metadata (camera / current / PSU) for the view + report. */
+  metadata?: ElMetadata;
 }
 
 const DEMO_CELLS_X = 6;
@@ -34,6 +70,29 @@ function verdictColors(v: Verdict): { bg: string; ring: string; text: string } {
     case 'fail':    return { bg: 'bg-red-900/30',   ring: 'ring-red-500/40',   text: 'text-red-300'   };
     case 'pending': return { bg: 'bg-gray-800',     ring: 'ring-gray-600/40',  text: 'text-gray-400'  };
   }
+}
+
+function gradeColors(g: DefectGrade): { bg: string; ring: string; text: string } {
+  switch (g) {
+    case 'A': return { bg: 'bg-green-900/30', ring: 'ring-green-500/40', text: 'text-green-300' };
+    case 'B': return { bg: 'bg-amber-900/30', ring: 'ring-amber-500/40', text: 'text-amber-300' };
+    case 'C': return { bg: 'bg-red-900/30',   ring: 'ring-red-500/40',   text: 'text-red-300'   };
+  }
+}
+
+/**
+ * Derive a demo DefectInput from the computed KPIs so the index is
+ * meaningful before a real Task-13 classifier is wired in: inactive cells
+ * are graded as severe (Class C), gradient defects as moderate (Class B),
+ * and the inactive-area fraction feeds the area term.
+ */
+function deriveDemoDefects(kpis: ElKpis): DefectInput {
+  return {
+    classA: 0,
+    classB: kpis.defectCells,
+    classC: kpis.inactiveCells,
+    areaFraction: Math.min(1, kpis.inactivePct / 100),
+  };
 }
 
 function KpiCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
@@ -95,6 +154,71 @@ function OverallPill({ kpis }: { kpis: ElKpis }) {
   );
 }
 
+/** A/B/C grade pill driven by the DEFECT INDEX + active criteria mode. */
+function GradePill({ grade, mode }: { grade: DefectGrade; mode: DefectCriteriaMode }) {
+  const c = gradeColors(grade);
+  return (
+    <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full ${c.bg} ring-1 ${c.ring} ${c.text} text-xs font-medium`}>
+      <span className="font-mono">IEA PVPS T13</span>
+      <span>{describeGrade(grade, mode)}</span>
+    </div>
+  );
+}
+
+/** DEFAULT ⇄ MBJ criteria-mode toggle. */
+function MbjToggle({ mode, onChange }: { mode: DefectCriteriaMode; onChange: (m: DefectCriteriaMode) => void }) {
+  const modes: Array<{ key: DefectCriteriaMode; label: string }> = [
+    { key: 'default', label: 'IEC default' },
+    { key: 'mbj', label: 'MBJ strict' },
+  ];
+  return (
+    <div className="inline-flex items-center gap-1 rounded-lg bg-gray-800 border border-gray-700 p-0.5">
+      {modes.map((m) => (
+        <button
+          key={m.key}
+          type="button"
+          onClick={() => onChange(m.key)}
+          className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+            mode === m.key ? 'bg-sky-600 text-white' : 'text-gray-400 hover:text-gray-200'
+          }`}
+        >
+          {m.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Acquisition metadata block — camera, injection current and PSU settings.
+ * Shown on the EL view and consumable by the report builder.
+ */
+function MetadataBlock({ meta }: { meta: ElMetadata }) {
+  const rows: Array<{ label: string; value: string }> = [
+    { label: 'Camera', value: meta.cameraModel },
+    { label: 'Exposure', value: `${meta.exposureSec.toFixed(0)} s` },
+    { label: 'Injection current', value: `${meta.injectionCurrentA.toFixed(2)} A` },
+    { label: 'PSU voltage', value: `${meta.psuVoltageV.toFixed(1)} V` },
+    { label: 'PSU current limit', value: `${meta.psuCurrentA.toFixed(2)} A` },
+  ];
+  return (
+    <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-gray-200">Acquisition metadata</h3>
+        <span className="text-[10px] text-gray-500 font-mono">IEC TS 60904-13 §6 (camera/PSU)</span>
+      </div>
+      <dl className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2">
+        {rows.map((r) => (
+          <div key={r.label}>
+            <dt className="text-[10px] uppercase tracking-wide text-gray-500">{r.label}</dt>
+            <dd className="text-sm text-gray-200 tabular-nums">{r.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
 function CellGrid({ frame, kpis }: { frame: ElFrame; kpis: ElKpis }) {
   // Mark cells: inactive (red), defect (amber), normal (jet colormap).
   const inactiveSet = new Set(kpis.inactiveIdx);
@@ -124,7 +248,9 @@ function CellGrid({ frame, kpis }: { frame: ElFrame; kpis: ElKpis }) {
   );
 }
 
-export default function ElAnalysisPanel({ frame, injectionCurrent, demoMode }: Props) {
+export default function ElAnalysisPanel({ frame, injectionCurrent, demoMode, defects, metadata }: Props) {
+  const [criteriaMode, setCriteriaMode] = useState<DefectCriteriaMode>('default');
+
   const effectiveFrame = useMemo<ElFrame | null>(() => {
     if (frame) return frame;
     if (demoMode) return generateDemoFrame(DEMO_CELLS_X, DEMO_CELLS_Y, injectionCurrent);
@@ -133,17 +259,40 @@ export default function ElAnalysisPanel({ frame, injectionCurrent, demoMode }: P
 
   const kpis = useMemo(() => computeElKpis(effectiveFrame), [effectiveFrame]);
 
+  // Defect inputs: operator/classifier-supplied, else derived from KPIs.
+  const defectInput = useMemo<DefectInput>(
+    () => defects ?? deriveDemoDefects(kpis),
+    [defects, kpis],
+  );
+  const defectResult = useMemo(() => computeDefectIndex(defectInput), [defectInput]);
+  const grade = useMemo(
+    () => classifyDefectIndex(defectResult.index, criteriaMode),
+    [defectResult.index, criteriaMode],
+  );
+
+  // Metadata: live capture/PSU telemetry if provided, else operator setpoints.
+  const meta: ElMetadata = metadata ?? {
+    cameraModel: 'Demo cooled-CMOS (1 MP)',
+    exposureSec: effectiveFrame?.exposureSec ?? 10,
+    injectionCurrentA: effectiveFrame?.injectionCurrent ?? injectionCurrent,
+    psuVoltageV: 0,
+    psuCurrentA: effectiveFrame?.injectionCurrent ?? injectionCurrent,
+  };
+
   if (effectiveFrame === null) {
     return (
-      <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-        <p className="text-sm text-gray-400">
-          No EL frame captured yet. Start an EL run (or switch to DEMO) — the
-          capture pipeline will emit an ElFrame once the camera exposure
-          completes.
-        </p>
-        <p className="text-xs text-gray-500 mt-3">
-          IEC TS 60904-13 · forward-bias injection {injectionCurrent.toFixed(1)} A
-        </p>
+      <div className="space-y-4">
+        <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
+          <p className="text-sm text-gray-400">
+            No EL frame captured yet. Start an EL run (or switch to DEMO) — the
+            capture pipeline will emit an ElFrame once the camera exposure
+            completes.
+          </p>
+          <p className="text-xs text-gray-500 mt-3">
+            IEC TS 60904-13 · forward-bias injection {injectionCurrent.toFixed(1)} A
+          </p>
+        </div>
+        <MetadataBlock meta={meta} />
       </div>
     );
   }
@@ -159,6 +308,39 @@ export default function ElAnalysisPanel({ frame, injectionCurrent, demoMode }: P
 
       <VerdictTriple kpis={kpis} />
       <OverallPill kpis={kpis} />
+
+      {/* IEA PVPS Task 13 DEFECT INDEX + A/B/C grade + criteria-mode toggle. */}
+      <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-gray-200">Defect index &amp; grade</h3>
+          <MbjToggle mode={criteriaMode} onChange={setCriteriaMode} />
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 items-center">
+          <KpiCard
+            label="Defect index"
+            value={defectResult.index.toFixed(1)}
+            sub="0 pristine · 100 degraded"
+          />
+          <KpiCard
+            label="Severity counts"
+            value={`${defectInput.classB + defectInput.classC}`}
+            sub={`B ${defectInput.classB} · C ${defectInput.classC}`}
+          />
+          <KpiCard
+            label="Affected area"
+            value={`${(defectInput.areaFraction * 100).toFixed(1)} %`}
+            sub={`area term ${defectResult.areaComponent.toFixed(1)}`}
+          />
+          <div className="flex flex-col items-start gap-1">
+            <GradePill grade={grade} mode={criteriaMode} />
+            <span className="text-[10px] text-gray-500 font-mono">
+              A ≤ {DEFECT_THRESHOLDS[criteriaMode].aMax} · B ≤ {DEFECT_THRESHOLDS[criteriaMode].bMax} · then C
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <MetadataBlock meta={meta} />
 
       <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
         <div className="flex items-center justify-between mb-3">
