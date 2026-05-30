@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Settings, Activity, Table2, BarChart3, FileText } from 'lucide-react';
 import IirAnalysisPanel from '@/features/iir/analysis/IirAnalysisPanel';
+import { stampOperatorContext } from '@/lib/operator-store';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
 interface Props {
@@ -73,7 +74,7 @@ function median(values: number[]): number {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-export default function InvertedIRTab({ demoMode }: Props) {
+export default function InvertedIRTab({ session, onSessionUpdate, demoMode }: Props) {
   const [subTab, setSubTab] = useState<SubTab>('setup');
 
   // Setup
@@ -220,6 +221,23 @@ export default function InvertedIRTab({ demoMode }: Props) {
     </div>
   );
 
+  // PR-K (#131 follow-up) — IIR never created a TestSession so its Report
+  // PDF carried "NA" for operator/customer. Adds a "Stamp Session" button
+  // that creates a session via stampOperatorContext() so the report
+  // generator (#129) receives real metadata.
+  const stampNewSession = (): void => {
+    const draft: TestSession = {
+      id: `IIR-${Date.now()}`,
+      testType: 'inverted_ir_thermography',
+      startTime: Date.now(),
+      status: 'running',
+      readings: [],
+      iecClause: 'TS 60904-12',
+      notes: `forwardCurrent=${forwardCurrent}A · threshold=${threshold}°C · camera=${camera}`,
+    };
+    onSessionUpdate(stampOperatorContext(draft));
+  };
+
   const reportPane = (
     <div data-testid="subtab-pane-report">
       <div className="bg-gray-900 rounded-lg border border-gray-700 p-4 space-y-4">
@@ -229,6 +247,22 @@ export default function InvertedIRTab({ demoMode }: Props) {
             verdict === 'PASS' ? 'bg-green-900/40 text-green-400' : 'bg-amber-900/40 text-amber-400'
           }`} data-testid="iir-verdict">{verdict}</span>
         </div>
+        {!session && (
+          <button
+            type="button"
+            onClick={stampNewSession}
+            data-testid="iir-stamp-session"
+            className="text-xs px-3 py-1.5 rounded-md bg-pink-700/40 hover:bg-pink-700/60 text-pink-200 border border-pink-700/50"
+          >
+            Stamp session with operator context — enables PDF report with real metadata
+          </button>
+        )}
+        {session && (
+          <p className="text-[10px] text-gray-500">
+            Session <span className="font-mono text-gray-300">{session.id}</span> stamped
+            for {session.operatorName ?? 'Anonymous'} · {session.customerName ?? 'N/A'}
+          </p>
+        )}
         <h4 className="text-xs uppercase tracking-wider text-gray-400">Top-3 hot-spots</h4>
         <div className="grid grid-cols-3 gap-3" data-testid="iir-topspots">
           {(hotSpots.length ? hotSpots.slice(0, 3) : []).map(h => (

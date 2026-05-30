@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
 import SchematicViewer from '../SchematicViewer';
+import DhAnalysisPanel from '@/features/dh/analysis/DhAnalysisPanel';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
 import { stampOperatorContext } from '@/lib/operator-store';
@@ -94,13 +95,23 @@ export default function DampHeatTab({ readings, session, onSessionUpdate, sendCo
     </div>
   );
 
+  // PR-K — wire DH to its own MQT 13 Analysis pane (#118 follow-up).
+  const analysisPanel = (
+    <DhAnalysisPanel
+      readings={readings}
+      config={{ tempC, rhPct, durationHours, biasVoltage }}
+    />
+  );
+
   return (
     <TestTabLayout
       testKey="dh" testName="Damp Heat" standard="IEC 61215-2 MQT 13"
       color="text-cyan-400" readings={readings} session={session}
       onSessionUpdate={onSessionUpdate} sendCommand={sendCommand} demoMode={demoMode}
       limits={{ maxVoltage: 1500, maxCurrent: 20, maxPower: 6000, maxTemp: 100 }}
-      setupPanel={setupPanel} extraStats={[
+      setupPanel={setupPanel}
+      analysisPanel={analysisPanel}
+      extraStats={[
         { label: 'Temp', value: tempC.toString(), unit: '°C', color: 'text-orange-400' },
         { label: 'RH', value: rhPct.toString(), unit: '%', color: 'text-cyan-400' },
         { label: 'Elapsed', value: elapsedH.toFixed(1), unit: 'hr', color: 'text-blue-400' },
