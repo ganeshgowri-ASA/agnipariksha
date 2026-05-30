@@ -5,6 +5,8 @@ import TestTabLayout from '../TestTabLayout';
 import SchematicViewer from '../SchematicViewer';
 import ThermalCyclingBasicCheck from '../ThermalCyclingBasicCheck';
 import TcAnalysisPanel from '@/features/tc/analysis/TcAnalysisPanel';
+import TcRampSetVsActualPanel from '@/features/tc/analysis/TcRampSetVsActualPanel';
+import { MASS_LOADING_NOTE, POSITION_TOLERANCES, type ModulePosition } from '@/features/tc/analysis/tcExtensions';
 import { stampOperatorContext } from '@/lib/operator-store';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
@@ -26,6 +28,12 @@ export default function ThermalCyclingTab({ readings, session, onSessionUpdate, 
   const [tMax, setTMax] = useState(85);
   const [isc, setIsc] = useState(10.0);
   const [rampRate, setRampRate] = useState(100); // °C/hr max per IEC 61215
+  // Junction-box / mounting mass loading (kg) — MQT 11 mounting method.
+  // Declared so the mechanical load path is reproduced on the report.
+  const [massLoadingKg, setMassLoadingKg] = useState(1.2);
+  // Bifacial module position — selects the per-position tolerance set
+  // (ramp ceiling / plateau band) that drives the ramp verdict (MQT 11.6).
+  const [position, setPosition] = useState<ModulePosition>('BIFACIAL');
 
   const completedCycles = session ? Math.floor(session.readings.length / 10) : 0;
   const progress = cycles > 0 ? Math.min(100, (completedCycles / cycles) * 100) : 0;
@@ -38,6 +46,10 @@ export default function ThermalCyclingTab({ readings, session, onSessionUpdate, 
       id: `TC-${Date.now()}`, testType: 'thermal_cycling',
       startTime: Date.now(), status: 'running', readings: [],
       iecClause: 'MQT 11',
+      // Persist the bifacial position + junction-box mass loading onto the
+      // session so the IEC report header can cite the mounting configuration
+      // (MQT 11 mounting / mass-loading) and the tolerance set in force.
+      notes: `Position ${position} (≤${POSITION_TOLERANCES[position].maxRampCph} °C/h, ±${POSITION_TOLERANCES[position].tempToleranceC} °C) · junction-box mass loading ${massLoadingKg.toFixed(2)} kg`,
     };
     const newSession: TestSession = stampOperatorContext(draft);
     onSessionUpdate(newSession);
@@ -46,7 +58,7 @@ export default function ThermalCyclingTab({ readings, session, onSessionUpdate, 
     sendCommand(`PROG:STEP 1,${tMin},${tMax},${rampRate}`);
     sendCommand(`PROG:REPE ${cycles}`);
     sendCommand('PROG:EXEC');
-  }, [cycles, tMin, tMax, isc, rampRate, onSessionUpdate, sendCommand]);
+  }, [cycles, tMin, tMax, isc, rampRate, position, massLoadingKg, onSessionUpdate, sendCommand]);
 
   const onStop = useCallback(() => {
     if (!session) return;
@@ -88,6 +100,55 @@ export default function ThermalCyclingTab({ readings, session, onSessionUpdate, 
             </div>
           ))}
         </div>
+
+        {/* Bifacial module-position selector — each position carries its
+            own tolerance set (ramp ceiling / plateau band) per MQT 11.6. */}
+        <div className="mt-4">
+          <label className="text-xs text-gray-400 block mb-1">
+            Bifacial Module Position
+            <span className="ml-2 font-mono text-[10px] text-gray-500">MQT 11.6.1 / 11.6.2</span>
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            {(Object.keys(POSITION_TOLERANCES) as ModulePosition[]).map(p => {
+              const tol = POSITION_TOLERANCES[p];
+              const active = position === p;
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPosition(p)}
+                  className={`rounded border px-2 py-1.5 text-left transition-colors ${
+                    active
+                      ? 'border-orange-500 bg-orange-900/20 text-orange-300'
+                      : 'border-gray-600 bg-gray-800 text-gray-300 hover:border-gray-500'
+                  }`}
+                >
+                  <div className="text-xs font-semibold">{p}</div>
+                  <div className="text-[10px] text-gray-500 mt-0.5">
+                    ≤{tol.maxRampCph} °C/h · ±{tol.tempToleranceC} °C
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[10px] text-gray-500 mt-1">{POSITION_TOLERANCES[position].label}</p>
+        </div>
+
+        {/* Junction-box / mounting mass-loading (kg) — MQT 11 mounting. */}
+        <div className="mt-4">
+          <label className="text-xs text-gray-400 block mb-1">
+            Junction-box Mass Loading
+            <span className="ml-2 font-mono text-[10px] text-gray-500">MQT 11 mounting</span>
+          </label>
+          <div className="flex gap-2 items-center">
+            <input
+              type="number" value={massLoadingKg} min={0.01} max={50} step={0.1}
+              onChange={e => setMassLoadingKg(Number(e.target.value))}
+              className="flex-1 bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-200" />
+            <span className="text-xs text-gray-500 w-12">kg</span>
+          </div>
+          <p className="text-[10px] text-gray-500 mt-1">{MASS_LOADING_NOTE}</p>
+        </div>
       </div>
       <div className="bg-blue-900/20 border border-blue-700/40 rounded p-3 text-xs text-blue-300">
         ℹ️ SCPI sequence: SOUR:CURR {isc}A → OUTP ON → PROG:STEP 1,{tMin},{tMax},{rampRate} → PROG:REPE {cycles} → PROG:EXEC
@@ -103,16 +164,28 @@ export default function ThermalCyclingTab({ readings, session, onSessionUpdate, 
     { label: 'T Range', value: `${tMin} to ${tMax}`, unit: '°C', color: 'text-yellow-400' },
   ];
 
-  // The new IEC-aware Analysis pane — ramp rate, cycle counter, Isc gate,
-  // module-temperature-vs-time chart. Pure-frontend, derives KPIs from
-  // the live `readings` stream (same data the Live Monitor displays) so
-  // it works in DEMO and against the real bench identically. See
-  // frontend/features/tc/analysis/tcAnalysis.ts for the verdict math.
+  // The IEC-aware Analysis surface is two stacked panes that derive their
+  // KPIs from the live `readings` stream (so DEMO and the real bench behave
+  // identically):
+  //   1. TcAnalysisPanel — ramp rate, cycle counter, Isc gate, module-T
+  //      chart (see frontend/features/tc/analysis/tcAnalysis.ts).
+  //   2. TcRampSetVsActualPanel — SET-vs-ACTUAL ramp (point-to-point &
+  //      cumulative) driven by the selected bifacial position's tolerance
+  //      set; also surfaces the junction-box mass loading so it reaches the
+  //      report (see frontend/features/tc/analysis/tcExtensions.ts).
   const analysisPanel = (
-    <TcAnalysisPanel
-      readings={readings}
-      config={{ cycles, tMin, tMax, rampRateCph: rampRate, isc }}
-    />
+    <div className="space-y-4">
+      <TcAnalysisPanel
+        readings={readings}
+        config={{ cycles, tMin, tMax, rampRateCph: rampRate, isc }}
+      />
+      <TcRampSetVsActualPanel
+        readings={readings}
+        rampRateCph={rampRate}
+        position={position}
+        massLoadingKg={massLoadingKg}
+      />
+    </div>
   );
 
   return (
