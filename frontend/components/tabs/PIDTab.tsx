@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
+import PidAnalysisPanel from '@/features/pid/analysis/PidAnalysisPanel';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
 import { stampOperatorContext } from '@/lib/operator-store';
@@ -92,13 +93,22 @@ export default function PIDTab({ readings, session, onSessionUpdate, sendCommand
     </div>
   );
 
+  const analysisPanel = (
+    <PidAnalysisPanel
+      readings={readings}
+      config={{ biasVoltage, tempC, rhPct, durationHours }}
+    />
+  );
+
   return (
     <TestTabLayout
       testKey="pid" testName="Potential Induced Degradation" standard="IEC TS 62804-1"
       color="text-fuchsia-400" readings={readings} session={session}
       onSessionUpdate={onSessionUpdate} sendCommand={sendCommand} demoMode={demoMode}
       limits={{ maxVoltage: 1500, maxCurrent: 5, maxPower: 7500, maxTemp: 100 }}
-      setupPanel={setupPanel} extraStats={[
+      setupPanel={setupPanel}
+      analysisPanel={analysisPanel}
+      extraStats={[
         { label: 'Bias', value: biasVoltage.toString(), unit: 'V', color: 'text-fuchsia-400' },
         { label: 'Temp', value: tempC.toString(), unit: '°C', color: 'text-orange-400' },
         { label: 'RH', value: rhPct.toString(), unit: '%', color: 'text-cyan-400' },
