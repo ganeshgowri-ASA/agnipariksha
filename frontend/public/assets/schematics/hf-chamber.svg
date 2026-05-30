@@ -10,7 +10,7 @@
 
   <!-- Climatic chamber (85 °C/85% RH ↔ −40 °C) -->
   <rect x="260" y="40" width="270" height="270" rx="10" fill="url(#humid)" stroke="#22d3ee" stroke-width="2"/>
-  <text x="395" y="32" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#22d3ee">ESPEC SH-242 climatic chamber · 85 °C/85%RH ⇄ −40 °C · transition ≤ 30 min</text>
+  <text x="395" y="32" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#22d3ee">ESPEC SH-242 climatic chamber · 85 °C/85%RH ⇄ −40 °C · ramp ≤ 100 (slow) | ≤ 200 °C/h (fast) · transition ≤ 30 min</text>
 
   <!-- PV module DUT inside -->
   <rect x="305" y="120" width="180" height="120" rx="8" fill="#0b1220" stroke="#cbd5e1" stroke-width="2"/>
@@ -78,7 +78,7 @@
   <g stroke="#60a5fa" stroke-width="1.5" fill="none">
     <polyline points="20,340 80,340 80,322 160,322 160,340 220,340 220,322 240,322"/>
   </g>
-  <text x="130" y="354" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#94a3b8">10 cycles · ≥20h hot soak · ≥30min cold freeze</text>
+  <text x="130" y="354" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#94a3b8">10 cycles · ≥20h hot soak · ≥30min cold freeze · operator picks slow-100 or fast-200 °C/h</text>
 
   <text x="540" y="354" text-anchor="end" font-family="sans-serif" font-size="9" fill="#475569">Reliance 10-channel HF station</text>
 </svg>

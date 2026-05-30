@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
 import SchematicViewer from '../SchematicViewer';
 import HfAnalysisPanel from '@/features/hf/analysis/HfAnalysisPanel';
+import type { RampOption } from '@/features/hf/analysis/hfAnalysis';
 import { stampOperatorContext } from '@/lib/operator-store';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
@@ -25,6 +26,11 @@ export default function HumidityFreezeTab({ readings, session, onSessionUpdate, 
   // the HF Analysis pane's Isc-gate pill reflects the operator's actual
   // chamber setpoint. Operators can tweak in the Setup field.
   const [isc, setIsc] = useState(9.5);
+  // IEC 61215-2 MQT 12 allows two ramp ceilings between extremes:
+  //   slow-100 (≤100 °C/h — same as MQT 11; safer for large modules)
+  //   fast-200 (≤200 °C/h — allowed when chamber + DUT can sustain it)
+  // Defaults to slow-100 since that's the conservative IEC reading.
+  const [rampOption, setRampOption] = useState<RampOption>('slow-100');
 
   const onStart = useCallback(() => {
     // Stamp operator/customer/equipment context (#128) so the IEC PDF
@@ -87,13 +93,62 @@ export default function HumidityFreezeTab({ readings, session, onSessionUpdate, 
     </div>
   );
 
+  // Ramp-option chip row injected just below the numeric setup fields.
+  // Kept in the same setupPanel so operators see all MQT 12 options in
+  // one place. Two MQT 12 ramp ceilings: slow-100 (≤100 °C/h, safer for
+  // large modules) and fast-200 (≤200 °C/h, allowed when chamber + DUT
+  // can sustain). Chip styling matches the rest of the dashboard.
+  const rampOptionRow = (
+    <div className="mt-3">
+      <label className="text-xs text-gray-400 block mb-1">
+        Ramp rate (IEC 61215-2 MQT 12)
+      </label>
+      <div className="flex gap-2 flex-wrap" data-testid="hf-ramp-option">
+        {([
+          { v: 'slow-100' as const, label: '≤100 °C/h (slow)', sub: 'safer for large modules' },
+          { v: 'fast-200' as const, label: '≤200 °C/h (fast)', sub: 'higher chamber duty' },
+        ]).map(opt => {
+          const active = rampOption === opt.v;
+          return (
+            <button
+              key={opt.v}
+              type="button"
+              onClick={() => setRampOption(opt.v)}
+              className={`text-xs px-3 py-1.5 rounded-md border ${
+                active
+                  ? 'bg-blue-700/40 border-blue-500 text-blue-100'
+                  : 'bg-gray-900 border-gray-700 text-gray-300 hover:bg-gray-800'
+              }`}
+            >
+              <span className="font-medium">{opt.label}</span>
+              <span className="ml-2 text-[10px] opacity-70">{opt.sub}</span>
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-[10px] text-gray-500 mt-1">
+        Both options are valid per MQT 12. Pick based on chamber capability and module thermal mass.
+      </p>
+    </div>
+  );
+
+  // Inject the ramp option into the setup panel returned earlier so
+  // existing layout (numeric fields + schematic) stays unchanged.
+  const setupPanelWithRamp = (
+    <div>
+      {setupPanel}
+      {rampOptionRow}
+    </div>
+  );
+
   // IEC-aware Analysis pane — mirrors the TC tab pattern. Reads live
-  // readings + setpoints and derives the four MQT 12 KPIs (cycles,
-  // module T & RH chart, dwell durations, RH compliance, Isc gate).
+  // readings + setpoints and derives the five MQT 12 KPIs: cycles,
+  // module T & RH chart, dwell durations, RH compliance, Isc gate,
+  // and now the ramp-rate verdict against the selected ceiling.
   const analysisPanel = (
     <HfAnalysisPanel
       readings={readings}
-      config={{ cycles, tHigh, rhHigh, tLow, dwellHours, isc }}
+      config={{ cycles, tHigh, rhHigh, tLow, dwellHours, isc, rampOption }}
     />
   );
 
@@ -103,7 +158,7 @@ export default function HumidityFreezeTab({ readings, session, onSessionUpdate, 
       color="text-blue-400" readings={readings} session={session}
       onSessionUpdate={onSessionUpdate} sendCommand={sendCommand} demoMode={demoMode}
       limits={{ maxVoltage: 100, maxCurrent: 20, maxPower: 2000, maxTemp: 100 }}
-      setupPanel={setupPanel}
+      setupPanel={setupPanelWithRamp}
       analysisPanel={analysisPanel}
       extraStats={[
         { label: 'Cycles', value: cycles.toString(), unit: '', color: 'text-blue-400' },

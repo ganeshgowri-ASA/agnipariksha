@@ -46,7 +46,23 @@ export const HF_CONSTANTS = {
   ISC_GATE_C: 25,
   /** Default qualification cycle count. */
   DEFAULT_CYCLES: 10,
+  /**
+   * MQT 12 ramp ceilings between extremes. The standard allows two
+   * options based on chamber capability and module thermal mass:
+   *   - SLOW (≤100 °C/h) — same as MQT 11; safer for large-area
+   *     modules and the most commonly cited limit
+   *   - FAST (≤200 °C/h) — permitted when the chamber and DUT can
+   *     sustain it without thermal-shock cracking
+   * Both are valid per MQT 12; the operator picks at run start.
+   */
+  RAMP_SLOW_C_PER_H: 100,
+  RAMP_FAST_C_PER_H: 200,
+  /** Warn band beyond the chosen ceiling — 1.2× the ceiling. */
+  RAMP_WARN_MULTIPLIER: 1.2,
 } as const;
+
+/** Operator's ramp-rate option for MQT 12. */
+export type RampOption = 'slow-100' | 'fast-200';
 
 export interface HfConfig {
   cycles: number;
@@ -57,6 +73,20 @@ export interface HfConfig {
   dwellHours: number;
   /** Configured Isc (A) for the hot soak phase. */
   isc: number;
+  /**
+   * Ramp-rate option per MQT 12. Defaults to 'slow-100' if the tab
+   * hasn't been wired yet — the analysis still computes a verdict
+   * against the more conservative ceiling so existing sessions stay
+   * consistent.
+   */
+  rampOption?: RampOption;
+}
+
+/** Resolve the ramp ceiling (°C/h) for the chosen option. */
+export function rampCeilingCph(opt: RampOption | undefined): number {
+  return opt === 'fast-200'
+    ? HF_CONSTANTS.RAMP_FAST_C_PER_H
+    : HF_CONSTANTS.RAMP_SLOW_C_PER_H;
 }
 
 export interface HfKpis {
@@ -75,6 +105,14 @@ export interface HfKpis {
   iscGate: IscGateState;
   /** Worst RH excursion observed during hot soak (|RH − 85|). */
   worstRhDevPct: number;
+  /** Last instantaneous ramp rate (°C/h), rolling over a 60 s window. */
+  rampRateCph: number;
+  /** Worst observed ramp magnitude across the entire session (°C/h). */
+  worstRampCph: number;
+  /** Selected ramp ceiling (°C/h) per operator's RampOption. */
+  rampCeilingCph: number;
+  /** Ramp compliance verdict against the operator-selected ceiling. */
+  rampVerdict: DwellVerdict;
   /** Final pass/fail — `pending` until cycles complete. */
   overallVerdict: DwellVerdict;
 }
@@ -116,7 +154,17 @@ function classifyDwell(actualS: number, minS: number): DwellVerdict {
   return 'fail';
 }
 
+function classifyRamp(absCph: number, ceiling: number): DwellVerdict {
+  if (absCph <= ceiling) return 'pass';
+  if (absCph <= ceiling * HF_CONSTANTS.RAMP_WARN_MULTIPLIER) return 'warn';
+  return 'fail';
+}
+
+/** Rolling-window for the instantaneous ramp calculation (ms). */
+const RAMP_WINDOW_MS = 60_000;
+
 export function computeHfKpis(readings: LiveReading[], cfg: HfConfig): HfKpis {
+  const ceiling = rampCeilingCph(cfg.rampOption);
   if (readings.length === 0) {
     return {
       phase: 'idle',
@@ -131,6 +179,10 @@ export function computeHfKpis(readings: LiveReading[], cfg: HfConfig): HfKpis {
       rhVerdict: 'pending',
       iscGate: 'unknown',
       worstRhDevPct: 0,
+      rampRateCph: 0,
+      worstRampCph: 0,
+      rampCeilingCph: ceiling,
+      rampVerdict: 'pending',
       overallVerdict: 'pending',
     };
   }
@@ -155,12 +207,13 @@ export function computeHfKpis(readings: LiveReading[], cfg: HfConfig): HfKpis {
     }
   }
 
-  // Dwell + RH excursion accumulation
+  // Dwell + RH excursion + ramp accumulation in one O(n) sweep.
   let hotDwellS = 0;
   let coldDwellS = 0;
   let worstRhDevPct = 0;
   let rhSamplesInHotSoak = 0;
   let rhOutOfBandInHotSoak = 0;
+  let worstRampCph = 0;
   for (let i = 1; i < readings.length; i++) {
     const a = readings[i - 1];
     const b = readings[i];
@@ -176,6 +229,37 @@ export function computeHfKpis(readings: LiveReading[], cfg: HfConfig): HfKpis {
       const dev = Math.abs(rh - cfg.rhHigh);
       if (dev > worstRhDevPct) worstRhDevPct = dev;
       if (dev > HF_CONSTANTS.RH_TOL_PCT) rhOutOfBandInHotSoak += 1;
+    }
+    // Local ramp magnitude between this sample and the previous.
+    if (a.temperature !== undefined) {
+      const dtH = (b.timestamp - a.timestamp) / 3_600_000;
+      if (dtH > 0) {
+        const localRamp = Math.abs((b.temperature - a.temperature) / dtH);
+        if (localRamp > worstRampCph) worstRampCph = localRamp;
+      }
+    }
+  }
+
+  // Instantaneous rolling ramp over the last 60 s window for the
+  // operator-visible "current ramp" reading. Independent of the local
+  // peak above (which captures one-sample spikes).
+  let rampRateCph = 0;
+  {
+    let windowStart = readings.length - 1;
+    while (
+      windowStart > 0 &&
+      cur.timestamp - readings[windowStart - 1].timestamp < RAMP_WINDOW_MS
+    ) {
+      windowStart -= 1;
+    }
+    const ref = readings[windowStart];
+    const dtH = (cur.timestamp - ref.timestamp) / 3_600_000;
+    if (
+      dtH > 0 &&
+      cur.temperature !== undefined &&
+      ref.temperature !== undefined
+    ) {
+      rampRateCph = (cur.temperature - ref.temperature) / dtH;
     }
   }
 
@@ -193,6 +277,10 @@ export function computeHfKpis(readings: LiveReading[], cfg: HfConfig): HfKpis {
 
   const hotDwellVerdict = classifyDwell(hotDwellS, HF_CONSTANTS.HOT_DWELL_MIN_S);
   const coldDwellVerdict = classifyDwell(coldDwellS, HF_CONSTANTS.COLD_DWELL_MIN_S);
+  // Ramp verdict against operator-selected ceiling. "pending" only if
+  // we somehow never observed two temperature samples.
+  const rampVerdict: DwellVerdict =
+    worstRampCph === 0 ? 'pending' : classifyRamp(worstRampCph, ceiling);
 
   let iscGate: IscGateState = 'unknown';
   if (cur.temperature !== undefined) {
@@ -202,14 +290,15 @@ export function computeHfKpis(readings: LiveReading[], cfg: HfConfig): HfKpis {
         : 'cooling';
   }
 
-  // Overall: pending until cycles complete; then pass iff every component
-  // verdict is at least warn (we don't downgrade to fail on warn-only RH).
-  const componentVerdicts: DwellVerdict[] = [hotDwellVerdict, coldDwellVerdict];
+  // Overall: pending until cycles complete; then worst of all component
+  // verdicts (dwell + RH + ramp). Ramp counts as a hard fail because a
+  // non-compliant ramp invalidates the whole soak.
+  const allComponents: DwellVerdict[] = [hotDwellVerdict, coldDwellVerdict, rampVerdict];
   const componentRh: RhVerdict[] = [rhVerdict];
   let overallVerdict: DwellVerdict = 'pending';
   if (cycleIndex >= cfg.cycles) {
-    const anyFail = componentVerdicts.some((v) => v === 'fail') || componentRh.some((v) => v === 'fail');
-    const anyWarn = componentVerdicts.some((v) => v === 'warn') || componentRh.some((v) => v === 'warn');
+    const anyFail = allComponents.some((v) => v === 'fail') || componentRh.some((v) => v === 'fail');
+    const anyWarn = allComponents.some((v) => v === 'warn') || componentRh.some((v) => v === 'warn');
     overallVerdict = anyFail ? 'fail' : anyWarn ? 'warn' : 'pass';
   }
 
@@ -226,6 +315,10 @@ export function computeHfKpis(readings: LiveReading[], cfg: HfConfig): HfKpis {
     rhVerdict,
     iscGate,
     worstRhDevPct,
+    rampRateCph,
+    worstRampCph,
+    rampCeilingCph: ceiling,
+    rampVerdict,
     overallVerdict,
   };
 }

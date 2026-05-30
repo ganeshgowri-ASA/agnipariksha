@@ -80,7 +80,7 @@ function IscPill({ kpis }: { kpis: HfKpis }) {
   );
 }
 
-function VerdictTriple({ kpis }: { kpis: HfKpis }) {
+function VerdictQuad({ kpis }: { kpis: HfKpis }) {
   const items: Array<{ label: string; v: DwellVerdict | RhVerdict; sub: string }> = [
     {
       label: 'Hot dwell',
@@ -97,9 +97,14 @@ function VerdictTriple({ kpis }: { kpis: HfKpis }) {
       v: kpis.rhVerdict,
       sub: `${HF_CONSTANTS.RH_TARGET_PCT}±${HF_CONSTANTS.RH_TOL_PCT}% · worst Δ ${kpis.worstRhDevPct.toFixed(1)}%`,
     },
+    {
+      label: 'Ramp rate',
+      v: kpis.rampVerdict,
+      sub: `worst ${kpis.worstRampCph.toFixed(1)} °C/h / ≤${kpis.rampCeilingCph} °C/h`,
+    },
   ];
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       {items.map((it) => {
         const c = dwellColors(it.v as DwellVerdict);
         return (
@@ -130,6 +135,29 @@ export default function HfAnalysisPanel({ readings, config }: Props) {
     });
   }, [readings]);
 
+  // Derived per-sample ramp °C/h — same math the analyzer uses for the
+  // worstRamp KPI, but exposed as a time-series so operators can SEE
+  // every excursion against the 100/200 ceilings.
+  const rampChartData = useMemo(() => {
+    if (readings.length < 2) return [];
+    const t0 = readings[0].timestamp;
+    const out: Array<{ tHr: number; rampCph: number | null }> = [];
+    for (let i = 1; i < readings.length; i++) {
+      const a = readings[i - 1];
+      const b = readings[i];
+      const dtH = (b.timestamp - a.timestamp) / 3_600_000;
+      const rampCph =
+        dtH > 0 && a.temperature !== undefined && b.temperature !== undefined
+          ? (b.temperature - a.temperature) / dtH
+          : null;
+      out.push({
+        tHr: (b.timestamp - t0) / 3_600_000,
+        rampCph,
+      });
+    }
+    return out;
+  }, [readings]);
+
   if (readings.length === 0) {
     return (
       <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
@@ -146,14 +174,15 @@ export default function HfAnalysisPanel({ readings, config }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <KpiCard label="Cycles" value={`${kpis.cycleIndex} / ${kpis.cyclesTarget}`} sub={`phase: ${kpis.phase}`} />
         <KpiCard label="Module T (°C)" value={kpis.tModuleC === null ? '—' : kpis.tModuleC.toFixed(1)} sub={`target ${config.tHigh} / ${config.tLow}`} />
         <KpiCard label="RH (%)" value={kpis.rhPct === null ? 'n/a' : kpis.rhPct.toFixed(1)} sub={`target ${config.rhHigh} ± ${HF_CONSTANTS.RH_TOL_PCT}`} />
+        <KpiCard label="Ramp (°C/h)" value={kpis.rampRateCph.toFixed(1)} sub={`worst ${kpis.worstRampCph.toFixed(1)} · ≤${kpis.rampCeilingCph}`} />
         <KpiCard label="Hot · Cold (cum.)" value={`${(kpis.hotDwellS / 3600).toFixed(1)}h · ${(kpis.coldDwellS / 60).toFixed(0)}m`} sub="≥20h · ≥30m" />
       </div>
 
-      <VerdictTriple kpis={kpis} />
+      <VerdictQuad kpis={kpis} />
 
       <div className="flex flex-wrap gap-2">
         <DwellPill kpis={kpis} />
@@ -191,6 +220,37 @@ export default function HfAnalysisPanel({ readings, config }: Props) {
               <ReferenceLine yAxisId="t" y={HF_CONSTANTS.ISC_GATE_C} stroke="#f59e0b" strokeDasharray="4 4" label={{ value: 'Isc gate 25 °C', fill: '#f59e0b', fontSize: 10, position: 'insideTopLeft' }} />
               <Line yAxisId="t" type="monotone" dataKey="tempC" name="Module T" stroke="#60a5fa" strokeWidth={2} dot={false} isAnimationActive={false} />
               <Line yAxisId="rh" type="monotone" dataKey="rhPct" name="RH" stroke="#22d3ee" strokeWidth={1.5} dot={false} isAnimationActive={false} strokeDasharray="3 2" />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-gray-200">Ramp rate (°C/h) vs Time</h3>
+          <span className="text-[10px] text-gray-500 font-mono">MQT 12 ceiling {kpis.rampCeilingCph} °C/h</span>
+        </div>
+        <div style={{ width: '100%', height: 200 }}>
+          <ResponsiveContainer>
+            <LineChart data={rampChartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis dataKey="tHr" stroke="#9ca3af" tick={{ fontSize: 11 }}
+                tickFormatter={(v: number) => v.toFixed(1)}
+                label={{ value: 'Time (h)', position: 'insideBottom', offset: -2, fill: '#9ca3af', fontSize: 11 }} />
+              <YAxis stroke="#9ca3af" tick={{ fontSize: 11 }}
+                label={{ value: '°C/h', angle: -90, position: 'insideLeft', fill: '#9ca3af', fontSize: 11 }} />
+              <Tooltip
+                contentStyle={{ background: '#111827', border: '1px solid #374151', fontSize: 12 }}
+                formatter={(v) => (typeof v === 'number' ? v.toFixed(1) : String(v ?? '—'))} />
+              {/* Both MQT 12 ramp options drawn so operators can see how the
+                  observed ramp compares against the slow vs fast ceilings. */}
+              <ReferenceLine y={HF_CONSTANTS.RAMP_SLOW_C_PER_H} stroke="#22c55e" strokeDasharray="3 3"
+                label={{ value: 'slow 100', fill: '#22c55e', fontSize: 10, position: 'insideTopLeft' }} />
+              <ReferenceLine y={HF_CONSTANTS.RAMP_FAST_C_PER_H} stroke="#f59e0b" strokeDasharray="3 3"
+                label={{ value: 'fast 200', fill: '#f59e0b', fontSize: 10, position: 'insideTopRight' }} />
+              <ReferenceLine y={-HF_CONSTANTS.RAMP_SLOW_C_PER_H} stroke="#22c55e" strokeDasharray="3 3" />
+              <ReferenceLine y={-HF_CONSTANTS.RAMP_FAST_C_PER_H} stroke="#f59e0b" strokeDasharray="3 3" />
+              <Line type="monotone" dataKey="rampCph" name="Ramp °C/h" stroke="#a78bfa" strokeWidth={1.5} dot={false} isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
