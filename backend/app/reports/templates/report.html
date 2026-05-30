@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>IEC Report {{ run.run_id }} — {{ meta.brand }}</title>
+<style>
+  /* (6) Traceability footer on every printed page — module · run · git · n/N */
+  @page {
+    size: A4;
+    margin: 15mm 13mm 18mm;
+    @bottom-left {
+      content: "{{ run.module_id }} · {{ run.run_id }} · git {{ meta.git_sha }}";
+      font-size: 8pt; color: #475569;
+    }
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font-size: 8pt; color: #475569;
+    }
+  }
+  :root { --ink:#0f172a; --muted:#475569; --line:#cbd5e1; --head:#111827; --accent:#fbbf24; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+         color: var(--ink); margin: 0; padding: 0; background: #fff; font-size: 13px; line-height: 1.45; }
+  .page { max-width: 900px; margin: 0 auto; padding: 24px 28px; }
+  h1 { font-size: 22px; margin: 0; }
+  h2 { font-size: 15px; margin: 26px 0 8px; padding-bottom: 4px; border-bottom: 2px solid var(--line); }
+  .sub { color: var(--muted); margin: 2px 0 12px; }
+  .banner { text-align: center; color: #fff; font-weight: 700; letter-spacing: .12em;
+            padding: 6px; border-radius: 4px; margin: 12px 0; }
+  .banner.DEMO { background: #b45309; } .banner.LIVE { background: #15803d; }
+  table { border-collapse: collapse; width: 100%; }
+  .cover td { border: 1px solid var(--line); padding: 6px 8px; }
+  .cover .k { background: #f1f5f9; font-weight: 600; width: 18%; }
+  table.summary th { background: var(--head); color: var(--accent); }
+  table.summary th, table.summary td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; font-size: 12px; }
+  table.summary tr:nth-child(even) td { background: #f1f5f9; }
+  .pill { display: inline-block; color: #fff; font-weight: 700; font-size: 11px;
+          padding: 2px 8px; border-radius: 999px; }
+  .test { break-inside: avoid; page-break-inside: avoid; margin-top: 8px; }
+  .test img { width: 100%; max-width: 760px; border: 1px solid var(--line); border-radius: 4px; }
+  .detail { color: var(--muted); font-size: 12px; margin: 6px 0; }
+  .clause { background: #f8fafc; border-left: 3px solid var(--accent); padding: 6px 10px; margin: 6px 0; }
+  .signoff td { padding: 18px 8px 6px; }
+  .signoff .line { border-bottom: 1px solid #94a3b8; min-width: 220px; display: inline-block; }
+  .footer { background: #f8fafc; border-top: 1px solid var(--line); color: var(--muted);
+            font-size: 11px; padding: 6px 28px; display: flex; justify-content: space-between; }
+  @media screen { .footer { position: fixed; bottom: 0; left: 0; right: 0; } body { padding-bottom: 60px; } }
+  @media print  { .footer { display: none; } }
+</style>
+</head>
+<body>
+  <div class="page">
+    <!-- (1) Cover -->
+    <h1>{{ meta.brand }}</h1>
+    <p class="sub">PV Module Reliability Test Report &middot; IEC-formatted &middot; {{ run.standard }}</p>
+    <div class="banner {{ meta.banner }}">{{ meta.banner }} REPORT</div>
+    <table class="cover">
+      <tr><td class="k">Module ID</td><td>{{ run.module_id }}</td><td class="k">Run ID</td><td>{{ run.run_id }}</td></tr>
+      <tr><td class="k">Test ID</td><td>{{ run.test_id }}</td><td class="k">IEC standard</td><td>{{ run.standard }}</td></tr>
+      <tr><td class="k">Operator</td><td>{{ run.operator }}</td><td class="k">Timestamp (IST)</td><td>{{ run.timestamp_ist }}</td></tr>
+      <tr><td class="k">Git SHA</td><td>{{ meta.git_sha }}</td><td class="k">Overall verdict</td>
+          <td><span class="pill" style="background: {{ run.overall | vcolor }}">{{ run.overall }}</span></td></tr>
+    </table>
+
+    <!-- (2) Test summary -->
+    <h2>Test Summary</h2>
+    <table class="summary">
+      <thead><tr><th>Test</th><th>IEC clause</th><th>Verdict</th><th>Measured</th><th>Threshold</th><th>Margin</th></tr></thead>
+      <tbody>
+        {% for t in run.tests %}
+        {% set m = t.result.metric %}{% set thr = t.result.threshold %}
+        <tr>
+          <td>{{ t.name }}</td>
+          <td>{{ t.clause }}</td>
+          <td><span class="pill" style="background: {{ t.verdict | vcolor }}">{{ t.verdict }}</span></td>
+          <td>{{ "%.3f %s"|format(m, t.unit) if m is not none else "—" }}</td>
+          <td>{{ "%.3f %s"|format(thr, t.unit) }}</td>
+          <td>{{ "%.3f %s"|format(m - thr, t.unit) if m is not none else "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <!-- (3) Overlay graphs + (4) per-test detail -->
+    {% for t in run.tests %}
+    <div class="test">
+      <h2>{{ t.name }} &mdash; {{ t.clause }}</h2>
+      <img alt="{{ t.name }} telemetry overlay" src="data:image/png;base64,{{ charts[t.key] }}" />
+      <div class="clause">{{ t.clause_text }}</div>
+      <p class="detail">
+        <b>Verdict:</b> {{ t.verdict }} &nbsp;&middot;&nbsp;
+        <b>Telemetry window:</b> {{ t.window | length }} samples over {{ t.window[-1].t_min }} min &nbsp;&middot;&nbsp;
+        <b>Raw CSV:</b> <a href="{{ t.raw_csv }}">{{ t.raw_csv }}</a>
+      </p>
+      <p class="detail"><b>Evidence:</b>
+        {% if t.evidence %}{% for e in t.evidence %}{{ e }}{% if not loop.last %}, {% endif %}{% endfor %}{% else %}&mdash;{% endif %}
+      </p>
+    </div>
+    {% endfor %}
+
+    <!-- (5) Sign-off -->
+    <h2>Sign-off</h2>
+    <table class="signoff">
+      <tr><td>Operator: <span class="line">{{ run.operator }}</span></td><td>Date: <span class="line"></span></td></tr>
+      <tr><td>Reviewer: <span class="line">{{ run.reviewer }}</span></td><td>Date: <span class="line"></span></td></tr>
+    </table>
+  </div>
+
+  <!-- (6) On-screen traceability footer (PDF uses the @page boxes above) -->
+  <div class="footer">
+    <span>{{ run.module_id }} &middot; {{ run.run_id }} &middot; git {{ meta.git_sha }}</span>
+    <span>{{ meta.brand }} &middot; generated {{ meta.generated_at }}</span>
+  </div>
+</body>
+</html>
