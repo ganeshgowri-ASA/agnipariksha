@@ -1,4 +1,5 @@
 import type { LetidPoint } from './regeneration';
+import type { LiveReading } from '@/types/test-session';
 
 /**
  * Parametric LeTID demo curve (IEC TS 63342). Dark V_oc follows the canonical
@@ -62,3 +63,34 @@ export function generateLetidDemoCurve(opts: LetidDemoOpts = {}): LetidPoint[] {
 
 /** Default demo fixture consumed by the LeTID Analysis sub-tab. */
 export const DEMO_LETID_POINTS: LetidPoint[] = generateLetidDemoCurve();
+
+/**
+ * Demo LiveReading[] for the dark-voltage / temperature / injected-current
+ * monitor (IEC TS 63342). The soak alternates injection and dark sub-phases:
+ * on dark sub-phases the current drops to ≈0 and the terminal voltage equals
+ * the canonical dark-V_oc curve above; on injection sub-phases the PSU drives
+ * `idark` at the regenerated Vmpp. Module temperature dithers around the 75 °C
+ * setpoint. Sampled relative to `t0` (default now) so the panel can map
+ * timestamps onto elapsed hours exactly as the live stream does.
+ */
+export function generateLetidDemoReadings(
+  opts: LetidDemoOpts & { t0?: number; idark?: number; vmpp?: number; tSetC?: number } = {},
+): LiveReading[] {
+  const { t0 = Date.now(), idark = 0.6, vmpp = 37.5, tSetC = 75 } = opts;
+  const curve = generateLetidDemoCurve(opts);
+  return curve.map((p, i) => {
+    // Alternate ~dark/injection sub-phases so the monitor shows both states.
+    const isDark = i % 4 < 2;
+    const tempC = +(tSetC + 1.2 * Math.sin(i / 3)).toFixed(2);
+    return {
+      timestamp: t0 + p.hours * 3_600_000,
+      voltage: isDark ? p.darkVoc : +vmpp.toFixed(3),
+      current: isDark ? 0 : +idark.toFixed(3),
+      power: isDark ? 0 : +(vmpp * idark).toFixed(3),
+      temperature: tempC,
+    };
+  });
+}
+
+/** Default demo readings consumed by the LeTID dark-voltage monitor. */
+export const DEMO_LETID_READINGS: LiveReading[] = generateLetidDemoReadings();
