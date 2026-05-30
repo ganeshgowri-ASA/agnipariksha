@@ -7,7 +7,7 @@ import LiveChart from '../LiveChart';
 import type { TestSession, LiveReading } from '@/types/test-session';
 import { stampOperatorContext } from '@/lib/operator-store';
 import LetidAnalysisPanel from '@/features/letid/analysis/LetidAnalysisPanel';
-import { DEMO_LETID_POINTS } from '@/features/letid/analysis/demoData';
+import { DEMO_LETID_POINTS, DEMO_LETID_READINGS } from '@/features/letid/analysis/demoData';
 import type { LetidPoint } from '@/features/letid/analysis/regeneration';
 
 interface Props {
@@ -116,6 +116,12 @@ export default function LeTIDTab({ readings, session, onSessionUpdate, sendComma
       }))
     : DEMO_LETID_POINTS;
 
+  // Raw readings feed the dark-voltage / temperature / injected-current monitor
+  // and the TS 63342 stop criterion (#94/#127). Live telemetry when a session
+  // is running; otherwise the canonical demo readings so the monitor is never
+  // blank on first landing.
+  const analysisReadings = session && readings.length > 0 ? readings : DEMO_LETID_READINGS;
+
   return (
     <TestTabLayout
       testKey="letid" testName="LeTID" standard="IEC TS 63342:2022"
@@ -123,7 +129,7 @@ export default function LeTIDTab({ readings, session, onSessionUpdate, sendComma
       onSessionUpdate={onSessionUpdate} sendCommand={sendCommand} demoMode={demoMode}
       limits={{ maxVoltage: 100, maxCurrent: 20, maxPower: 2000, maxTemp: 85 }}
       setupPanel={setupPanel}
-      analysisPanel={<LetidAnalysisPanel points={analysisPoints} tjmaxc={temp} />}
+      analysisPanel={<LetidAnalysisPanel points={analysisPoints} tjmaxc={temp} readings={analysisReadings} />}
       extraStats={[
         { label: 'Iₚₐ⭣₉ Dark', value: idark.toString(), unit: 'A', color: 'text-purple-400' },
         { label: 'Temperature', value: temp.toString(), unit: '°C', color: 'text-red-400' },
