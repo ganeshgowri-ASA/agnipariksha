@@ -7,17 +7,24 @@
 
 import { useMemo } from 'react';
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine,
+  LineChart, Line, XAxis, YAxis, Tooltip, ReferenceLine, ReferenceArea,
   ResponsiveContainer, CartesianGrid, Legend,
 } from 'recharts';
 import type { LiveReading } from '@/types/test-session';
 import {
   computePidKpis, PID_CONSTANTS, type Verdict, type PidConfig, type PidKpis,
 } from './pidAnalysis';
+import {
+  STABILIZATION_CONSTANTS, clampStabilizationHours,
+  tempConformity, rhConformity, stabilizationVerdict,
+  type StabilizationVerdict,
+} from './pidStabilization';
 
 interface Props {
   readings: LiveReading[];
   config: PidConfig;
+  /** MQT 21 stabilization soak (h) — clamped to [12, 24]. Defaults to the floor. */
+  stabilizationHours?: number;
 }
 
 function verdictColors(v: Verdict): { bg: string; ring: string; text: string } {
@@ -95,8 +102,60 @@ function OverallPill({ kpis }: { kpis: PidKpis }) {
   );
 }
 
-export default function PidAnalysisPanel({ readings, config }: Props) {
+function stabColors(v: StabilizationVerdict): { bg: string; ring: string; text: string } {
+  switch (v) {
+    case 'conform':     return { bg: 'bg-green-900/30', ring: 'ring-green-500/40', text: 'text-green-300' };
+    case 'non-conform': return { bg: 'bg-red-900/30',   ring: 'ring-red-500/40',   text: 'text-red-300'   };
+    case 'pending':     return { bg: 'bg-gray-800',     ring: 'ring-gray-600/40',  text: 'text-gray-400'  };
+  }
+}
+
+/** Post-stabilization T/RH conformity pills + NON-CONFORM banner (MQT 21). */
+function StabilizationConformity({ kpis, config, stabH }: { kpis: PidKpis; config: PidConfig; stabH: number }) {
+  const tV = tempConformity(kpis.tModuleC, config.tempC);
+  const rhV = rhConformity(kpis.rhPct, config.rhPct);
+  const overall = stabilizationVerdict(kpis.tModuleC, config.tempC, kpis.rhPct, config.rhPct);
+  const pills: Array<{ label: string; v: StabilizationVerdict; sub: string }> = [
+    {
+      label: 'Post-stab T',
+      v: tV,
+      sub: `${kpis.tModuleC === null ? '—' : kpis.tModuleC.toFixed(1)} °C vs ${config.tempC} ±${STABILIZATION_CONSTANTS.T_TOL_TIGHT_C}`,
+    },
+    {
+      label: 'Post-stab RH',
+      v: rhV,
+      sub: `${kpis.rhPct === null ? '—' : kpis.rhPct.toFixed(1)} % vs ${config.rhPct} ±${STABILIZATION_CONSTANTS.RH_TOL_TIGHT_PCT}`,
+    },
+  ];
+  return (
+    <div className="space-y-2">
+      {overall === 'non-conform' && (
+        <div className="rounded-lg bg-red-900/30 ring-1 ring-red-500/40 text-red-300 px-3 py-2 text-xs font-bold">
+          NON-CONFORM — T/RH outside tight post-stabilization band (MQT 21 · TS 62804-1 §6.2)
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-3">
+        {pills.map((p) => {
+          const c = stabColors(p.v);
+          return (
+            <div key={p.label} className={`rounded-lg ${c.bg} ring-1 ${c.ring} px-3 py-2`}>
+              <div className={`text-xs font-medium ${c.text}`}>{p.label}</div>
+              <div className={`text-[11px] mt-0.5 ${c.text} opacity-80 tabular-nums`}>{p.sub}</div>
+              <div className={`text-[10px] mt-1 uppercase font-bold ${c.text}`}>{p.v}</div>
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-[10px] text-gray-500">
+        Stabilization {stabH} h (MQT 21) · tighter post-stab bands ±{STABILIZATION_CONSTANTS.T_TOL_TIGHT_C} °C / ±{STABILIZATION_CONSTANTS.RH_TOL_TIGHT_PCT} % vs wider in-run ±{STABILIZATION_CONSTANTS.T_TOL_WIDE_C} °C / ±{STABILIZATION_CONSTANTS.RH_TOL_WIDE_PCT} %
+      </p>
+    </div>
+  );
+}
+
+export default function PidAnalysisPanel({ readings, config, stabilizationHours }: Props) {
   const kpis = useMemo(() => computePidKpis(readings, config), [readings, config]);
+  const stabH = clampStabilizationHours(stabilizationHours ?? STABILIZATION_CONSTANTS.MIN_STABILIZATION_H);
 
   const chartData = useMemo(() => {
     if (readings.length === 0) return [];
@@ -105,6 +164,7 @@ export default function PidAnalysisPanel({ readings, config }: Props) {
       tHr: (r.timestamp - t0) / 3_600_000,
       iLeakUA: r.current === undefined ? null : Math.abs(r.current) * 1e6,
       tempC: r.temperature ?? null,
+      rhPct: (r as LiveReading & { humidity?: number }).humidity ?? null,
     }));
   }, [readings]);
 
@@ -133,11 +193,12 @@ export default function PidAnalysisPanel({ readings, config }: Props) {
 
       <VerdictQuad kpis={kpis} />
       <OverallPill kpis={kpis} />
+      <StabilizationConformity kpis={kpis} config={config} stabH={stabH} />
 
       <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-gray-200">Leakage current &amp; module temperature</h3>
-          <span className="text-[10px] text-gray-500 font-mono">IEC TS 62804-1</span>
+          <h3 className="text-sm font-semibold text-gray-200">Leakage current, T &amp; RH (post-stab conformity bands)</h3>
+          <span className="text-[10px] text-gray-500 font-mono">IEC TS 62804-1 · MQT 21</span>
         </div>
         <div style={{ width: '100%', height: 280 }}>
           <ResponsiveContainer>
@@ -151,15 +212,24 @@ export default function PidAnalysisPanel({ readings, config }: Props) {
               <YAxis yAxisId="t" orientation="right" stroke="#f59e0b" tick={{ fontSize: 11 }}
                 domain={[config.tempC - 10, config.tempC + 10]}
                 label={{ value: 'T (°C)', angle: 90, position: 'insideRight', fill: '#f59e0b', fontSize: 11 }} />
+              {/* Hidden RH axis (0–100 %) so the RH line + RH conformity bands share a correct scale. */}
+              <YAxis yAxisId="rh" orientation="right" domain={[0, 100]} hide />
               <Tooltip contentStyle={{ background: '#111827', border: '1px solid #374151', fontSize: 12 }}
                 formatter={(v) => (typeof v === 'number' ? v.toFixed(3) : String(v ?? '—'))} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
+              {/* Tight post-stab T band (inner) over the wider in-run band (outer) — MQT 21 / TS 62804-1 §6.2. */}
+              <ReferenceArea yAxisId="t" y1={config.tempC - STABILIZATION_CONSTANTS.T_TOL_WIDE_C} y2={config.tempC + STABILIZATION_CONSTANTS.T_TOL_WIDE_C} fill="#f59e0b" fillOpacity={0.06} />
+              <ReferenceArea yAxisId="t" y1={config.tempC - STABILIZATION_CONSTANTS.T_TOL_TIGHT_C} y2={config.tempC + STABILIZATION_CONSTANTS.T_TOL_TIGHT_C} fill="#22c55e" fillOpacity={0.1} />
+              {/* Tight post-stab RH band (inner) over the wider in-run band (outer). */}
+              <ReferenceArea yAxisId="rh" y1={config.rhPct - STABILIZATION_CONSTANTS.RH_TOL_WIDE_PCT} y2={config.rhPct + STABILIZATION_CONSTANTS.RH_TOL_WIDE_PCT} fill="#22d3ee" fillOpacity={0.05} />
+              <ReferenceArea yAxisId="rh" y1={config.rhPct - STABILIZATION_CONSTANTS.RH_TOL_TIGHT_PCT} y2={config.rhPct + STABILIZATION_CONSTANTS.RH_TOL_TIGHT_PCT} fill="#22c55e" fillOpacity={0.08} />
               <ReferenceLine yAxisId="i" y={PID_CONSTANTS.I_LEAK_MAX_A * 1e6} stroke="#ef4444" strokeDasharray="4 4"
                 label={{ value: 'I_leak max', fill: '#ef4444', fontSize: 10, position: 'insideTopLeft' }} />
               <ReferenceLine yAxisId="t" y={config.tempC} stroke="#f59e0b" strokeDasharray="4 4"
                 label={{ value: 'T setpoint', fill: '#f59e0b', fontSize: 10, position: 'insideTopRight' }} />
               <Line yAxisId="i" type="monotone" dataKey="iLeakUA" name="I_leak (µA)" stroke="#a855f7" strokeWidth={2} dot={false} isAnimationActive={false} />
               <Line yAxisId="t" type="monotone" dataKey="tempC" name="T (°C)" stroke="#f59e0b" strokeWidth={1.5} dot={false} isAnimationActive={false} strokeDasharray="3 2" />
+              <Line yAxisId="rh" type="monotone" dataKey="rhPct" name="RH (%)" stroke="#22d3ee" strokeWidth={1.5} dot={false} isAnimationActive={false} strokeDasharray="3 2" />
             </LineChart>
           </ResponsiveContainer>
         </div>
