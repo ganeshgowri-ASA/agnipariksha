@@ -17,6 +17,8 @@ try:
 except ImportError:  # pragma: no cover - script-mode fallback
     from app.analysis import iec_pass_fail as ipf  # type: ignore[no-redef]
 
+from . import sections as sec
+
 
 @dataclass(frozen=True)
 class TelemetryPoint:
@@ -59,6 +61,18 @@ class ReportRun:
     reviewer: str
     timestamp_ist: str
     tests: List[TestBlock]
+    # Per-test extended sections — each ``None`` when the test was not part
+    # of the run. A populated DB would fill these via a loader; DEMO uses
+    # the deterministic generators in ``sections``.
+    tc: Optional["sec.TCSection"] = None
+    hf: Optional["sec.HFSection"] = None
+    pid: Optional["sec.PIDSection"] = None
+    letid: Optional["sec.LeTIDSection"] = None
+    rco: Optional["sec.RCOSection"] = None
+    gct: Optional["sec.GCTSection"] = None
+    el: Optional["sec.ELSection"] = None
+    iir: Optional["sec.IIRSection"] = None
+    powergen: Optional["sec.PowerGenSection"] = None
 
     @property
     def overall(self) -> str:
@@ -114,6 +128,15 @@ def _demo_run() -> ReportRun:
         standard="IEC 61215 / IEC 61730 / IEC TS 63342",
         operator="A. Nahata", reviewer="", timestamp_ist="2026-05-28 14:32:10 IST",
         tests=blocks,
+        tc=sec.gen_tc(),
+        hf=sec.gen_hf(),
+        pid=sec.gen_pid(),
+        letid=sec.gen_letid(),
+        rco=sec.gen_rco(),
+        gct=sec.gen_gct(),
+        el=sec.gen_el(),
+        iir=sec.gen_iir(),
+        powergen=sec.gen_powergen(),
     )
 
 

@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <title>IEC Report {{ run.run_id }} — {{ meta.brand }}</title>
 <style>
-  /* (6) Traceability footer on every printed page — module · run · git · n/N */
+  /* Traceability footer on every printed page — module · run · git · n/N */
   @page {
     size: A4;
     margin: 15mm 13mm 18mm;
@@ -17,13 +17,14 @@
       font-size: 8pt; color: #475569;
     }
   }
-  :root { --ink:#0f172a; --muted:#475569; --line:#cbd5e1; --head:#111827; --accent:#fbbf24; }
+  :root { --ink:#0f172a; --muted:#475569; --line:#cbd5e1; --head:#111827; --accent:#fbbf24; --warn:#b45309; }
   * { box-sizing: border-box; }
   body { font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
          color: var(--ink); margin: 0; padding: 0; background: #fff; font-size: 13px; line-height: 1.45; }
   .page { max-width: 900px; margin: 0 auto; padding: 24px 28px; }
   h1 { font-size: 22px; margin: 0; }
   h2 { font-size: 15px; margin: 26px 0 8px; padding-bottom: 4px; border-bottom: 2px solid var(--line); }
+  h3 { font-size: 13px; margin: 14px 0 6px; color: var(--ink); }
   .sub { color: var(--muted); margin: 2px 0 12px; }
   .banner { text-align: center; color: #fff; font-weight: 700; letter-spacing: .12em;
             padding: 6px; border-radius: 4px; margin: 12px 0; }
@@ -31,15 +32,24 @@
   table { border-collapse: collapse; width: 100%; }
   .cover td { border: 1px solid var(--line); padding: 6px 8px; }
   .cover .k { background: #f1f5f9; font-weight: 600; width: 18%; }
-  table.summary th { background: var(--head); color: var(--accent); }
-  table.summary th, table.summary td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; font-size: 12px; }
-  table.summary tr:nth-child(even) td { background: #f1f5f9; }
+  table.summary th, table.kv th, table.meta th { background: var(--head); color: var(--accent); }
+  table.summary th, table.summary td,
+  table.kv th, table.kv td,
+  table.meta th, table.meta td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; font-size: 12px; }
+  table.summary tr:nth-child(even) td,
+  table.kv tr:nth-child(even) td,
+  table.meta tr:nth-child(even) td { background: #f1f5f9; }
   .pill { display: inline-block; color: #fff; font-weight: 700; font-size: 11px;
           padding: 2px 8px; border-radius: 999px; }
-  .test { break-inside: avoid; page-break-inside: avoid; margin-top: 8px; }
+  .pill.conform { background: #15803d; }
+  .pill.nonconform { background: #b91c1c; }
+  .test, .section { break-inside: avoid; page-break-inside: avoid; margin-top: 8px; }
+  .section img { width: 100%; max-width: 760px; border: 1px solid var(--line); border-radius: 4px; }
   .test img { width: 100%; max-width: 760px; border: 1px solid var(--line); border-radius: 4px; }
   .detail { color: var(--muted); font-size: 12px; margin: 6px 0; }
   .clause { background: #f8fafc; border-left: 3px solid var(--accent); padding: 6px 10px; margin: 6px 0; }
+  .clause-anchor { font-size: 11px; color: var(--warn); font-weight: 700; letter-spacing: .04em; }
+  .nonconform-box { background: #fef2f2; border-left: 3px solid #b91c1c; padding: 6px 10px; margin: 6px 0; font-size: 12px; color: #7f1d1d; }
   .signoff td { padding: 18px 8px 6px; }
   .signoff .line { border-bottom: 1px solid #94a3b8; min-width: 220px; display: inline-block; }
   .footer { background: #f8fafc; border-top: 1px solid var(--line); color: var(--muted);
@@ -81,10 +91,10 @@
       </tbody>
     </table>
 
-    <!-- (3) Overlay graphs + (4) per-test detail -->
+    <!-- (3+4) Per-test detail blocks (basic chamber-vs-module overlay) -->
     {% for t in run.tests %}
     <div class="test">
-      <h2>{{ t.name }} &mdash; {{ t.clause }}</h2>
+      <h2>{{ t.name }} &mdash; <span class="clause-anchor">{{ t.clause }}</span></h2>
       <img alt="{{ t.name }} telemetry overlay" src="data:image/png;base64,{{ charts[t.key] }}" />
       <div class="clause">{{ t.clause_text }}</div>
       <p class="detail">
@@ -97,6 +107,249 @@
       </p>
     </div>
     {% endfor %}
+
+    <!-- =================================================================
+         Extended per-test analysis. Each section is anchored to its IEC
+         clause and renders real data from the run.
+         ================================================================= -->
+
+    {% if run.tc %}
+    {% set s = run.tc %}
+    <div class="section">
+      <h2>Thermal Cycling — extended analysis &mdash; <span class="clause-anchor">{{ s.clause }}</span></h2>
+      <p class="detail">
+        Position: <b>{{ s.position }}</b> &middot;
+        J-box mass loading: <b>{{ "%.2f"|format(s.jbox_mass_kg) }} kg</b> &middot;
+        Schematic: <a href="{{ s.schematic_ref }}">{{ s.schematic_ref }}</a> &middot;
+        SET ramp <b>{{ "%.2f"|format(s.set_ramp_c_per_min) }} °C/min</b>
+        (tolerance ±{{ "%.2f"|format(s.tolerance_ramp_c_per_min) }})
+        &middot; Temp range <b>[{{ s.temp_range_c[0] }} … {{ s.temp_range_c[1] }}] °C ±{{ s.tolerance_temp_c }} °C</b>
+        &middot; Dwell ≥ <b>{{ s.dwell_min_min }} min</b>
+      </p>
+      <h3>Module temperature + injected current</h3>
+      <img alt="TC time series" src="data:image/png;base64,{{ ext_charts.tc_ts }}" />
+      <h3>Ramp rate · SET vs ACTUAL (point-to-point and cumulative)</h3>
+      <img alt="TC ramp panel" src="data:image/png;base64,{{ ext_charts.tc_ramp }}" />
+      {% if s.nonconform %}
+      <div class="nonconform-box">
+        <b>NON-CONFORM:</b>
+        <ul>{% for n in s.nonconform %}<li>{{ n }}</li>{% endfor %}</ul>
+      </div>
+      {% else %}
+      <p class="detail"><span class="pill conform">CONFORM</span> all samples within tolerance.</p>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if run.hf %}
+    {% set s = run.hf %}
+    <div class="section">
+      <h2>Humidity Freeze — extended analysis &mdash; <span class="clause-anchor">{{ s.clause }}</span></h2>
+      <p class="detail">
+        Ramp mode: <b>{{ s.ramp_mode_c_per_h }} °C/h</b>
+        (SET <b>{{ "%.2f"|format(s.set_ramp_c_per_min) }} °C/min</b>)
+        &middot; Tolerances — T ±<b>{{ s.tolerance_temp_c }} °C</b>,
+        RH ±<b>{{ s.tolerance_rh_pct }} %</b>,
+        I ±<b>{{ s.tolerance_current_pct }} %</b>
+        &middot; Chamber uniformity — T ±<b>{{ s.uniformity_t_c }} °C</b>, RH ±<b>{{ s.uniformity_rh_pct }} %</b>
+      </p>
+      <h3>Module T, chamber RH, injected current (single chart)</h3>
+      <img alt="HF combined" src="data:image/png;base64,{{ ext_charts.hf_combined }}" />
+      <h3>Ramp rate · SET vs ACTUAL (point-to-point and cumulative)</h3>
+      <img alt="HF ramp panel" src="data:image/png;base64,{{ ext_charts.hf_ramp }}" />
+    </div>
+    {% endif %}
+
+    {% if run.pid %}
+    {% set s = run.pid %}
+    <div class="section">
+      <h2>PID — extended analysis &mdash; <span class="clause-anchor">{{ s.clause }}</span></h2>
+      <p class="detail">
+        Setpoints <b>{{ s.setpoint_t_c }} °C / {{ s.setpoint_rh_pct }} % RH</b>
+        &middot; Pre-stab tolerance T ±{{ s.t_tolerance_c }} °C, RH ±{{ s.rh_tolerance_pct }} %
+        &middot; Stabilization at <b>{{ s.stabilization_h }} h</b>
+        &middot; Post-stab tighter tolerance T ±<b>{{ s.post_stab_t_tolerance_c }} °C</b>,
+        RH ±<b>{{ s.post_stab_rh_tolerance_pct }} %</b>
+        &middot; Leakage threshold <b>{{ "%.2f"|format(s.leakage_threshold_a * 1e6) }} µA</b>
+      </p>
+      <img alt="PID T+RH+leakage" src="data:image/png;base64,{{ ext_charts.pid }}" />
+      {% if s.nonconform %}
+      <div class="nonconform-box">
+        <b>NON-CONFORM (post-stabilization):</b>
+        <ul>{% for n in s.nonconform %}<li>{{ n }}</li>{% endfor %}</ul>
+      </div>
+      {% else %}
+      <p class="detail"><span class="pill conform">CONFORM</span> post-stabilization deviations within tightened tolerances.</p>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if run.letid %}
+    {% set s = run.letid %}
+    <div class="section">
+      <h2>LeTID — extended analysis &mdash; <span class="clause-anchor">{{ s.clause }}</span></h2>
+      <p class="detail">
+        <b>Stop criteria:</b> {{ s.stop_criteria }}
+      </p>
+      <img alt="LeTID T + dark V + I" src="data:image/png;base64,{{ ext_charts.letid_ext }}" />
+      <table class="kv" style="max-width:560px">
+        <thead><tr><th>Measurement</th><th>Uncertainty</th></tr></thead>
+        <tbody>
+          <tr><td>Module temperature</td><td>±{{ s.uncertainty_t_c }} °C</td></tr>
+          <tr><td>Dark V_oc</td><td>±{{ "%.4f"|format(s.uncertainty_voltage_v) }} V</td></tr>
+          <tr><td>Injected current</td><td>±{{ s.uncertainty_current_a }} A</td></tr>
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    {% if run.rco %}
+    {% set s = run.rco %}
+    <div class="section">
+      <h2>RCO — extended analysis &mdash; <span class="clause-anchor">{{ s.clause }}</span></h2>
+      <p class="detail">
+        Isc = <b>{{ s.isc_a }} A</b> &middot;
+        Test current = <b>{{ s.test_current_a }} A</b> (1.35×Isc) &middot;
+        Duration <b>{{ s.duration_h }} h</b> &middot;
+        Max allowed module T <b>{{ s.max_allowed_t_c }} °C</b>
+      </p>
+      <h3>Module temperature trace</h3>
+      <img alt="RCO module T trace" src="data:image/png;base64,{{ ext_charts.rco_temp }}" />
+      <h3>Thermal image &amp; thermocouple peaks</h3>
+      <p class="detail">IR snapshot at peak: <a href="{{ s.thermal_image_ref }}">{{ s.thermal_image_ref }}</a></p>
+      <table class="kv" style="max-width:560px">
+        <thead><tr><th>Thermocouple</th><th>Peak T (°C)</th></tr></thead>
+        <tbody>
+          {% for label, t_c in s.thermocouple_points %}
+          <tr><td>{{ label }}</td><td>{{ "%.1f"|format(t_c) }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    {% if run.gct %}
+    {% set s = run.gct %}
+    <div class="section">
+      <h2>Ground Continuity — extended analysis &mdash; <span class="clause-anchor">{{ s.clause }}</span></h2>
+      <p class="detail">
+        Frame injection target <b>{{ s.frame_current_target_a }} A ±{{ s.frame_current_tolerance_a }} A</b>
+        &middot; Max resistance per path <b>{{ s.max_resistance_ohm }} Ω</b>
+        &middot; Cross-cutting: applies to COP, DPTT, LeTID, IDD
+      </p>
+      <img alt="GCT current per path" src="data:image/png;base64,{{ ext_charts.gct_ext }}" />
+      <table class="kv" style="max-width:680px">
+        <thead><tr><th>Path</th><th>Resistance (Ω)</th><th>Verdict</th></tr></thead>
+        <tbody>
+          {% for p in [s.shortest, s.longest] %}
+          <tr>
+            <td>{{ p.label }}</td>
+            <td>{{ "%.4f"|format(p.resistance_ohm) }}</td>
+            <td>
+              {% if p.resistance_ohm <= s.max_resistance_ohm %}
+              <span class="pill conform">PASS</span>
+              {% else %}
+              <span class="pill nonconform">FAIL</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    {% if run.el %}
+    {% set s = run.el %}
+    <div class="section">
+      <h2>Electroluminescence — extended analysis &mdash; <span class="clause-anchor">{{ s.clause }}</span></h2>
+      <table class="meta" style="max-width:760px">
+        <thead><tr><th>Field</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Camera</td><td>{{ s.camera }}</td></tr>
+          <tr><td>Lens (mm)</td><td>{{ s.lens_mm }}</td></tr>
+          <tr><td>Exposure (s)</td><td>{{ s.exposure_s }}</td></tr>
+          <tr><td>Injected current (A)</td><td>{{ s.current_a }}</td></tr>
+          <tr><td>PSU voltage (V)</td><td>{{ s.psu_voltage_v }}</td></tr>
+          <tr><td>PSU setting</td><td>{{ s.psu_setting }}</td></tr>
+        </tbody>
+      </table>
+      <h3>Defect index (IEC 60904-13 / IEA PVPS)</h3>
+      <p class="detail">
+        Defect index = <b>{{ "%.3f"|format(s.defect_index) }}</b> vs threshold
+        <b>{{ "%.3f"|format(s.defect_index_threshold) }}</b> →
+        {% if s.defect_index <= s.defect_index_threshold %}
+        <span class="pill conform">CONFORM</span>
+        {% else %}
+        <span class="pill nonconform">NON-CONFORM</span>
+        {% endif %}
+      </p>
+      <p class="detail"><b>Defect criteria applied:</b></p>
+      <ul>{% for c in s.defect_criteria %}<li>{{ c }}</li>{% endfor %}</ul>
+      <p class="detail"><b>Detected defects:</b>
+        {% if s.detected_defects %}
+        <ul>{% for d in s.detected_defects %}<li>{{ d }}</li>{% endfor %}</ul>
+        {% else %}none{% endif %}
+      </p>
+      <p class="detail"><b>MBJ (Multi-Busbar):</b>
+        {% if s.mbj_passed %}<span class="pill conform">PASS</span>{% else %}<span class="pill nonconform">FAIL</span>{% endif %}
+        &middot; {{ s.mbj_criteria }}
+      </p>
+    </div>
+    {% endif %}
+
+    {% if run.iir %}
+    {% set s = run.iir %}
+    <div class="section">
+      <h2>Inverted IR Thermography — extended analysis &mdash; <span class="clause-anchor">{{ s.clause }}</span></h2>
+      <h3>Temperature distribution / heatmap</h3>
+      <img alt="IIR heatmap" src="data:image/png;base64,{{ ext_charts.iir_heatmap }}" />
+      <table class="meta" style="max-width:760px">
+        <thead><tr><th>Field</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Camera</td><td>{{ s.camera }}</td></tr>
+          <tr><td>Lens (mm)</td><td>{{ s.lens_mm }}</td></tr>
+          <tr><td>Injected current (A)</td><td>{{ s.current_a }}</td></tr>
+          <tr><td>PSU voltage (V)</td><td>{{ s.psu_voltage_v }}</td></tr>
+          <tr><td>PSU setting</td><td>{{ s.psu_setting }}</td></tr>
+          <tr><td>Emissivity</td><td>{{ s.emissivity }}</td></tr>
+          <tr><td>Ambient T (°C)</td><td>{{ s.ambient_t_c }}</td></tr>
+          <tr><td>Soak (min)</td><td>{{ s.soak_min }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    {% if run.powergen %}
+    {% set s = run.powergen %}
+    <div class="section">
+      <h2>Power Generation — extended analysis &mdash; <span class="clause-anchor">{{ s.standard }}</span></h2>
+      <h3>Time-series: Pmax · Voc · Isc · FF · Vmp · Imp</h3>
+      <img alt="Power generation traces" src="data:image/png;base64,{{ ext_charts.powergen_iv }}" />
+      <h3>Environmental conditions</h3>
+      <img alt="Power generation environment" src="data:image/png;base64,{{ ext_charts.powergen_env }}" />
+      <h3>Tabulated samples (head)</h3>
+      <table class="kv" style="max-width:760px">
+        <thead><tr>
+          <th>t (min)</th><th>Pmax (W)</th><th>Voc (V)</th><th>Isc (A)</th>
+          <th>FF</th><th>Vmp (V)</th><th>Imp (A)</th>
+        </tr></thead>
+        <tbody>
+          {% for p in s.samples[:8] %}
+          <tr>
+            <td>{{ "%.1f"|format(p.t_min) }}</td>
+            <td>{{ "%.2f"|format(p.pmax_w) }}</td>
+            <td>{{ "%.3f"|format(p.voc_v) }}</td>
+            <td>{{ "%.3f"|format(p.isc_a) }}</td>
+            <td>{{ "%.4f"|format(p.ff) }}</td>
+            <td>{{ "%.3f"|format(p.vmp_v) }}</td>
+            <td>{{ "%.3f"|format(p.imp_a) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
 
     <!-- (5) Sign-off -->
     <h2>Sign-off</h2>

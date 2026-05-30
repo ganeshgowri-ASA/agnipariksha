@@ -94,13 +94,18 @@ def _overlay_png(block: TestBlock) -> bytes:
 def render_html(run: ReportRun) -> str:
     from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+    from . import charts as ch
+
     env = Environment(
         loader=FileSystemLoader(str(TEMPLATES_DIR)),
         autoescape=select_autoescape(["html"]),
     )
     env.filters["vcolor"] = verdict_color
     charts = {b.key: base64.b64encode(_overlay_png(b)).decode("ascii") for b in run.tests}
-    return env.get_template("report.html").render(run=run, charts=charts, meta=_meta())
+    ext_charts = {k: base64.b64encode(v).decode("ascii") for k, v in ch.render_all(run).items()}
+    return env.get_template("report.html").render(
+        run=run, charts=charts, ext_charts=ext_charts, meta=_meta(),
+    )
 
 
 def render_pdf(run: ReportRun) -> bytes:
