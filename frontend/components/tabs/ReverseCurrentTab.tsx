@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
 import SchematicViewer from '../SchematicViewer';
+import RcoAnalysisPanel from '@/features/rco/analysis/RcoAnalysisPanel';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
 import { stampOperatorContext } from '@/lib/operator-store';
@@ -93,13 +94,24 @@ export default function ReverseCurrentTab({ readings, session, onSessionUpdate, 
     </div>
   );
 
+  // IEC-aware Analysis pane — derives envelope/V-drop/T/soak verdicts
+  // from live readings, same template as TC (#114) and HF (#125).
+  const analysisPanel = (
+    <RcoAnalysisPanel
+      readings={readings}
+      config={{ fuseRating, voltageLimit, durationHours: duration }}
+    />
+  );
+
   return (
     <TestTabLayout
       testKey="rco" testName="Reverse Current Overload" standard="IEC 61730-2 MST 26"
       color="text-red-400" readings={readings} session={session}
       onSessionUpdate={onSessionUpdate} sendCommand={sendCommand} demoMode={demoMode}
       limits={{ maxVoltage: 10, maxCurrent: testCurrent * 1.1, maxPower: 100, maxTemp: 60 }}
-      setupPanel={setupPanel} extraStats={[
+      setupPanel={setupPanel}
+      analysisPanel={analysisPanel}
+      extraStats={[
         { label: 'Fuse Rating', value: fuseRating.toString(), unit: 'A', color: 'text-gray-400' },
         { label: 'Test Current (135%)', value: testCurrent.toString(), unit: 'A', color: 'text-red-400' },
         { label: 'Duration', value: duration.toString(), unit: 'hr', color: 'text-yellow-400' },
