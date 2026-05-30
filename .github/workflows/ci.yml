@@ -21,9 +21,14 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements.txt
       - name: Install WeasyPrint system libraries
-        run: sudo apt-get update && sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b libfontconfig1
       - name: Install backend deps
         run: pip install --upgrade pip && pip install -r requirements.txt
+      - name: Verify WeasyPrint can render
+        run: python -c "from weasyprint import HTML; HTML(string='<p>x</p>').write_pdf(); print('weasyprint OK')"
       - name: pytest
         run: pytest -q
 
