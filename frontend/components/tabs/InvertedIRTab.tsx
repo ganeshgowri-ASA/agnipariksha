@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Settings, Activity, Table2, BarChart3, FileText } from 'lucide-react';
+import IirAnalysisPanel from '@/features/iir/analysis/IirAnalysisPanel';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
 interface Props {
@@ -203,21 +204,19 @@ export default function InvertedIRTab({ demoMode }: Props) {
     </div>
   );
 
+  // PR-J #120 — use the shared, vitest-covered IIR analysis module.
+  // The inline pane above is replaced by IirAnalysisPanel which derives
+  // KPIs + verdict per IEC TS 60904-12 — same visual language as the
+  // other IEC tabs (TC/HF/PID/RCO/EL).
   const analysisPane = (
     <div data-testid="subtab-pane-analysis">
-      <div className="bg-gray-900 rounded-lg border border-gray-700 p-4 space-y-3">
-        <h3 className="text-xs uppercase tracking-wider text-gray-400">Hot-spot detection</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Stat label="Module median" value={`${tMed.toFixed(1)}°C`} />
-          <Stat label="Max temp" value={`${tMax.toFixed(1)}°C`} />
-          <Stat label="Max ΔT" value={`+${maxDeltaT.toFixed(1)}°C`} color="text-pink-400" />
-          <Stat label="Threshold" value={`${threshold}°C`} />
-        </div>
-        <p className="text-xs text-gray-400">
-          {hotSpots.length} cell(s) exceed the median by more than {threshold}°C.
-          Verdict: <span className={verdict === 'PASS' ? 'text-green-400' : 'text-amber-400'}>{verdict}</span>.
-        </p>
-      </div>
+      <IirAnalysisPanel
+        temps={temps}
+        cols={COLS}
+        rows={ROWS}
+        threshold={threshold}
+        forwardCurrent={forwardCurrent}
+      />
     </div>
   );
 
