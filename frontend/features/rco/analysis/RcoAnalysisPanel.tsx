@@ -130,7 +130,7 @@ export default function RcoAnalysisPanel({ readings, config }: Props) {
 
       <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-gray-200">Reverse current envelope &amp; bus voltage</h3>
+          <h3 className="text-sm font-semibold text-gray-200">Reverse current envelope &amp; module V-drop</h3>
           <span className="text-[10px] text-gray-500 font-mono">IEC 61730-2 MST 26</span>
         </div>
         <div style={{ width: '100%', height: 280 }}>
