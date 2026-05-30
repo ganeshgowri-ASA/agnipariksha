@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Settings, Activity, Table2, BarChart3, FileText } from 'lucide-react';
-import IirAnalysisPanel from '@/features/iir/analysis/IirAnalysisPanel';
+import IirAnalysisPanel, { type IirMetadata } from '@/features/iir/analysis/IirAnalysisPanel';
 import { stampOperatorContext } from '@/lib/operator-store';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
@@ -84,6 +84,7 @@ export default function InvertedIRTab({ session, onSessionUpdate, demoMode }: Pr
   const [emissivity, setEmissivity] = useState(0.85);
   const [ambientC, setAmbientC] = useState(25);
   const [threshold, setThreshold] = useState(10);            // delta-T °C
+  const [psuVoltage, setPsuVoltage] = useState(5);           // V (displayed metadata only)
 
   const seed = Math.round(forwardCurrent * 100 + soakTime + ambientC * 10 + CAMERAS.indexOf(camera) * 7);
   const temps = useMemo(
@@ -109,6 +110,18 @@ export default function InvertedIRTab({ session, onSessionUpdate, demoMode }: Pr
 
   const maxDeltaT = temps.length ? tMax - tMed : 0;
   const verdict = maxDeltaT < threshold ? 'PASS' : 'REVIEW';
+
+  // Camera / current / PSU metadata for the analysis view + report.
+  // PSU current limit tracks the OCP guard used by the bench (≈115% Isc).
+  const metadata: IirMetadata = useMemo(() => ({
+    camera,
+    emissivity,
+    ambientC,
+    forwardCurrent,
+    soakTimeS: soakTime,
+    psuVoltage,
+    psuCurrentLimit: Number((forwardCurrent * 1.15).toFixed(2)),
+  }), [camera, emissivity, ambientC, forwardCurrent, soakTime, psuVoltage]);
 
   const setupPane = (
     <div className="max-w-2xl space-y-4" data-testid="subtab-pane-setup">
@@ -144,6 +157,10 @@ export default function InvertedIRTab({ session, onSessionUpdate, demoMode }: Pr
           <Field label="Hot-spot ΔT threshold (°C)" testid="iir-setup-threshold">
             <input type="number" value={threshold} min={1} max={60} step={1}
               onChange={e => setThreshold(Number(e.target.value))} className={inputCls} />
+          </Field>
+          <Field label="PSU voltage (V)" testid="iir-setup-psu-voltage">
+            <input type="number" value={psuVoltage} min={0} max={60} step={0.1}
+              onChange={e => setPsuVoltage(Number(e.target.value))} className={inputCls} />
           </Field>
         </div>
       </div>
@@ -217,6 +234,7 @@ export default function InvertedIRTab({ session, onSessionUpdate, demoMode }: Pr
         rows={ROWS}
         threshold={threshold}
         forwardCurrent={forwardCurrent}
+        metadata={metadata}
       />
     </div>
   );
@@ -263,6 +281,19 @@ export default function InvertedIRTab({ session, onSessionUpdate, demoMode }: Pr
             for {session.operatorName ?? 'Anonymous'} · {session.customerName ?? 'N/A'}
           </p>
         )}
+        <div data-testid="iir-report-metadata">
+          <h4 className="text-xs uppercase tracking-wider text-gray-400 mb-2">Capture metadata — IEC TS 60904-12 §6</h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px] font-mono">
+            <Stat label="Camera" value={metadata.camera} />
+            <Stat label="Emissivity" value={metadata.emissivity.toFixed(2)} />
+            <Stat label="Fwd current" value={`${metadata.forwardCurrent.toFixed(2)} A`} />
+            <Stat label="Soak" value={`${metadata.soakTimeS} s`} />
+            <Stat label="Ambient" value={`${metadata.ambientC} °C`} />
+            <Stat label="PSU V" value={`${metadata.psuVoltage} V`} />
+            <Stat label="PSU I-limit" value={`${metadata.psuCurrentLimit} A`} />
+            <Stat label="ΔT threshold" value={`${threshold} °C`} />
+          </div>
+        </div>
         <h4 className="text-xs uppercase tracking-wider text-gray-400">Top-3 hot-spots</h4>
         <div className="grid grid-cols-3 gap-3" data-testid="iir-topspots">
           {(hotSpots.length ? hotSpots.slice(0, 3) : []).map(h => (
