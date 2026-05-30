@@ -155,8 +155,8 @@ export function computeRcoKpis(readings: LiveReading[], cfg: RcoConfig): RcoKpis
   const worstDevPct = (worstCurrentDevA / testCurrent) * 100;
   const currentEnvelopeVerdict = classifyCurrentDev(worstDevPct);
 
-  // Voltage drop while sourcing reverse current is the forward bus voltage —
-  // we use the absolute value to be tolerant of sign conventions.
+  // Voltage drop while sourcing reverse current is the forward V-drop across
+  // the module — we use the absolute value to be tolerant of sign conventions.
   const voltageDropV = cur.voltage !== undefined ? Math.abs(cur.voltage) : null;
   const voltageDropVerdict = voltageDropV === null
     ? 'pending'

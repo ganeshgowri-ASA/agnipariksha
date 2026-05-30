@@ -4,6 +4,8 @@ import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
 import SchematicViewer from '../SchematicViewer';
 import RcoAnalysisPanel from '@/features/rco/analysis/RcoAnalysisPanel';
+import RcoThermalPanel from '@/features/rco/analysis/RcoThermalPanel';
+import { forwardBiasSetpoint, clampHoldHours } from '@/features/rco/analysis/rcoThermal';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
 import { stampOperatorContext } from '@/lib/operator-store';
@@ -20,9 +22,13 @@ export default function ReverseCurrentTab({ readings, session, onSessionUpdate, 
   const [fuseRating, setFuseRating] = useState(10.0);
   const [duration, setDuration] = useState(2); // hours
   const [voltageLimit, setVoltageLimit] = useState(1.0); // V drop limit
+  const [forwardHold, setForwardHold] = useState(1.5); // h — MST 26 §6 forward-bias hold (1–2 h)
 
   // IEC 61730-2 MST 26: test at 135% of max series fuse rating
   const testCurrent = +(fuseRating * 1.35).toFixed(3);
+  // MST 26 §6 forward-bias leg: 1.35×Isc held for a clamped 1–2 h.
+  const forwardSetpoint = +forwardBiasSetpoint(isc).toFixed(3);
+  const forwardHoldH = clampHoldHours(forwardHold);
   const latest = readings[readings.length - 1];
   const currentOk = latest ? latest.current <= testCurrent * 1.05 : true;
 
@@ -69,6 +75,8 @@ export default function ReverseCurrentTab({ readings, session, onSessionUpdate, 
             { label: 'Max Fuse Rating (A)', value: fuseRating, set: setFuseRating, min: 1, max: 50, step: 0.5, unit: 'A' },
             { label: 'Duration (hr)', value: duration, set: setDuration, min: 0.5, max: 10, step: 0.5, unit: 'hr' },
             { label: 'Voltage Limit (V)', value: voltageLimit, set: setVoltageLimit, min: 0.1, max: 5, step: 0.1, unit: 'V' },
+            // MST 26 §6 forward-bias hold — clamped to [1, 2] h before use.
+            { label: 'Fwd-bias Hold (hr)', value: forwardHold, set: setForwardHold, min: 1, max: 2, step: 0.25, unit: 'hr' },
           ].map(f => (
             <div key={f.label}>
               <label className="text-xs text-gray-400 block mb-1">{f.label}</label>
@@ -86,6 +94,9 @@ export default function ReverseCurrentTab({ readings, session, onSessionUpdate, 
             ● Test current = {fuseRating} × 1.35 = <strong>{testCurrent} A</strong> (reverse)
           </p>
           <p className="text-xs text-red-300 mt-1">
+            ● Fwd-bias = {isc} × 1.35 = <strong>{forwardSetpoint} A</strong> held <strong>{forwardHoldH} h</strong> (MST 26 §6)
+          </p>
+          <p className="text-xs text-red-300 mt-1">
             ⚠️ FAIL if fire, melting, or delamination observed
           </p>
         </div>
@@ -95,12 +106,17 @@ export default function ReverseCurrentTab({ readings, session, onSessionUpdate, 
   );
 
   // IEC-aware Analysis pane — derives envelope/V-drop/T/soak verdicts
-  // from live readings, same template as TC (#114) and HF (#125).
+  // from live readings, same template as TC (#114) and HF (#125). The
+  // thermal panel adds the MST 26 §6 forward-bias readout, the IR
+  // thermal-image area, and the thermocouple module-temperature trace.
   const analysisPanel = (
-    <RcoAnalysisPanel
-      readings={readings}
-      config={{ fuseRating, voltageLimit, durationHours: duration }}
-    />
+    <div className="space-y-6">
+      <RcoAnalysisPanel
+        readings={readings}
+        config={{ fuseRating, voltageLimit, durationHours: duration }}
+      />
+      <RcoThermalPanel readings={readings} isc={isc} holdHours={forwardHold} />
+    </div>
   );
 
   return (
@@ -114,6 +130,8 @@ export default function ReverseCurrentTab({ readings, session, onSessionUpdate, 
       extraStats={[
         { label: 'Fuse Rating', value: fuseRating.toString(), unit: 'A', color: 'text-gray-400' },
         { label: 'Test Current (135%)', value: testCurrent.toString(), unit: 'A', color: 'text-red-400' },
+        { label: 'Fwd-bias (135% Isc)', value: forwardSetpoint.toString(), unit: 'A', color: 'text-orange-400' },
+        { label: 'Fwd Hold', value: forwardHoldH.toString(), unit: 'hr', color: 'text-orange-300' },
         { label: 'Duration', value: duration.toString(), unit: 'hr', color: 'text-yellow-400' },
         { label: 'V Limit', value: voltageLimit.toString(), unit: 'V', color: 'text-blue-400' },
       ]}
