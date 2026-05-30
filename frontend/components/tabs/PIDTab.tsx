@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
 import PidAnalysisPanel from '@/features/pid/analysis/PidAnalysisPanel';
+import { clampStabilizationHours, STABILIZATION_CONSTANTS } from '@/features/pid/analysis/pidStabilization';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
 import { stampOperatorContext } from '@/lib/operator-store';
@@ -19,6 +20,8 @@ export default function PIDTab({ readings, session, onSessionUpdate, sendCommand
   const [tempC, setTempC] = useState(60);
   const [rhPct, setRhPct] = useState(85);
   const [durationHours, setDurationHours] = useState(96);
+  // MQT 21 stabilization soak — operator-configurable within [12, 24] h.
+  const [stabilizationHours, setStabilizationHours] = useState<number>(STABILIZATION_CONSTANTS.MIN_STABILIZATION_H);
 
   const elapsedH = session
     ? Math.max(0, (Date.now() - session.startTime) / 3_600_000)
@@ -85,6 +88,28 @@ export default function PIDTab({ readings, session, onSessionUpdate, sendCommand
             </div>
           ))}
         </div>
+        <div className="mt-3 border-t border-gray-800 pt-3">
+          <label className="text-xs text-gray-400 block mb-1">
+            Stabilization (hr) <span className="text-fuchsia-400/70 font-mono">MQT 21</span>
+          </label>
+          <div className="flex gap-2 items-center">
+            <input
+              type="number"
+              value={stabilizationHours}
+              min={STABILIZATION_CONSTANTS.MIN_STABILIZATION_H}
+              max={STABILIZATION_CONSTANTS.MAX_STABILIZATION_H}
+              step={1}
+              // Clamp to the IEC 61215-2 MQT 21 [12, 24] h window on edit.
+              onChange={e => setStabilizationHours(clampStabilizationHours(Number(e.target.value)))}
+              className="flex-1 bg-gray-800 border border-gray-600 rounded px-2 py-1.5 text-xs text-gray-200"
+            />
+            <span className="text-xs text-gray-500 w-12">hr</span>
+          </div>
+          <p className="text-[10px] text-gray-500 mt-1">
+            Soak before Pmax (clamped {STABILIZATION_CONSTANTS.MIN_STABILIZATION_H}–{STABILIZATION_CONSTANTS.MAX_STABILIZATION_H} h).
+            Tighter T/RH conformity bands apply once this window closes.
+          </p>
+        </div>
         <div className="mt-4 text-xs text-gray-500">
           Elapsed: <span className="font-mono text-gray-300">{elapsedH.toFixed(1)} hr</span>
           {' · '}Progress: <span className="font-mono text-fuchsia-400">{progress.toFixed(1)}%</span>
@@ -97,6 +122,7 @@ export default function PIDTab({ readings, session, onSessionUpdate, sendCommand
     <PidAnalysisPanel
       readings={readings}
       config={{ biasVoltage, tempC, rhPct, durationHours }}
+      stabilizationHours={stabilizationHours}
     />
   );
 
