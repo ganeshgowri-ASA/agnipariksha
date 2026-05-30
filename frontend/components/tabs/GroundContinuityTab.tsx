@@ -7,6 +7,7 @@ import LiveChart from '../LiveChart';
 import type { TestSession, LiveReading } from '@/types/test-session';
 import { stampOperatorContext } from '@/lib/operator-store';
 import { useGctLive } from '@/hooks/useGctLive';
+import DualPathPanel from '@/features/gct/analysis/DualPathPanel';
 
 interface Props {
   readings: LiveReading[];
@@ -267,6 +268,12 @@ function GctAnalysisPanel({ maxResistance }: { maxResistance: number }) {
           {allPass ? '' : ' One or more paths exceed the limit.'}
         </p>
       </div>
+
+      {/* Dual-path log (IEC 61730-2 MST 13): shortest + longest path graded
+          against R < 0.1 Ω plus a frame-current tolerance band, attributed
+          to the calling context (COP / DPTT / LeTID / IDD). Seeded from the
+          demo path min/max so it shows real data before live capture. */}
+      <DualPathPanel initialShortestR={rMin} initialLongestR={rMax} />
 
       <div className="bg-gray-900 rounded-lg border border-gray-700 p-3 overflow-auto">
         <h3 className="text-xs font-bold text-green-400 mb-2">Per-path resistance</h3>
