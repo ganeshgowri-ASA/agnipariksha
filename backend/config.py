@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     # take ~1 s while the OS picks the right route — 500 ms was too tight
     # and caused spurious scpi_reachable=false on the user's lab box.
     ITECH_TIMEOUT_MS: int = 1500
+    # Connect-retry budget. Env-tunable so a lab box on a flaky cable can
+    # raise it without code change; the per-attempt timeout is ITECH_TIMEOUT_MS.
+    ITECH_RETRY_ATTEMPTS: int = 4
 
     DEMO_MODE: bool = True
 
