@@ -99,3 +99,15 @@ def test_plot_diode_writes_png(tmp_path) -> None:
     assert path == tmp_path / "tests" / "bdt" / "sess-xyz" / "plots" / "diode_D3.png"
     assert path.is_file() and path.stat().st_size > 0
     assert path.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"  # PNG magic
+
+
+def test_demo_synth_output_matches_live_schema() -> None:
+    """DEMO (T_j, V_D) output is shape-/dtype-compatible with what a LIVE
+    acquisition would feed into analyse_diode (the regression input contract
+    is mode-agnostic)."""
+    tj, vd = synthesize_demo_diode(seed=11)
+    assert isinstance(tj, np.ndarray) and isinstance(vd, np.ndarray)
+    assert tj.ndim == 1 and tj.shape == vd.shape
+    assert tj.dtype.kind == "f" and vd.dtype.kind == "f"
+    reg = analyse_diode("schema-check", tj, vd)
+    assert reg.diode_id == "schema-check"
