@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
+import ElAnalysisPanel from '@/features/el/analysis/ElAnalysisPanel';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
 import { stampOperatorContext } from '@/lib/operator-store';
@@ -81,13 +82,26 @@ export default function ELTab({ readings, session, onSessionUpdate, sendCommand,
     </div>
   );
 
+  // IEC TS 60904-13 image analysis — generates a synthetic DEMO frame
+  // keyed on `injectionCurrent` so operators see KPIs without a camera.
+  // The capture pipeline (LIVE) will pass a real ElFrame via the WS
+  // stream in a follow-up PR.
+  const analysisPanel = (
+    <ElAnalysisPanel
+      injectionCurrent={injectionCurrent}
+      demoMode={demoMode}
+    />
+  );
+
   return (
     <TestTabLayout
       testKey="el" testName="Electroluminescence" standard="IEC TS 60904-13"
       color="text-sky-400" readings={readings} session={session}
       onSessionUpdate={onSessionUpdate} sendCommand={sendCommand} demoMode={demoMode}
       limits={{ maxVoltage: 60, maxCurrent: 30, maxPower: 1800 }}
-      setupPanel={setupPanel} extraStats={[
+      setupPanel={setupPanel}
+      analysisPanel={analysisPanel}
+      extraStats={[
         { label: 'Inject', value: injectionCurrent.toFixed(1), unit: 'A', color: 'text-sky-400' },
         { label: 'Exposure', value: exposureSec.toString(), unit: 's', color: 'text-blue-400' },
         { label: 'Frames', value: frames.toString(), unit: '', color: 'text-green-400' },
