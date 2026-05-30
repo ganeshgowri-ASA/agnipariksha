@@ -2,7 +2,7 @@
  * Vitest coverage for Humidity Freeze analysis math (IEC 61215-2 MQT 12).
  */
 import { describe, it, expect } from 'vitest';
-import { computeHfKpis, hfIscGateSetpoint, HF_CONSTANTS, type HfConfig } from './hfAnalysis';
+import { computeHfKpis, hfIscGateSetpoint, rampCeilingCph, HF_CONSTANTS, type HfConfig } from './hfAnalysis';
 import type { LiveReading } from '@/types/test-session';
 
 const baseConfig: HfConfig = {
@@ -164,6 +164,45 @@ describe('computeHfKpis — RH compliance', () => {
       sampleS: 60,
     });
     expect(computeHfKpis(readings, baseConfig).rhVerdict).toBe('warn');
+  });
+});
+
+describe('computeHfKpis — MQT 12 ramp rate (PR-L #139)', () => {
+  /** Two-point series with a known ramp rate (°C/h). */
+  function rampSeries(rampCph: number): LiveReading[] {
+    return [
+      { timestamp: 0,             voltage: 0, current: 0, power: 0, temperature: 25 } as LiveReading,
+      { timestamp: 3_600_000,     voltage: 0, current: 0, power: 0, temperature: 25 + rampCph } as LiveReading,
+    ];
+  }
+
+  it('rampCeilingCph resolves slow vs fast option', () => {
+    expect(rampCeilingCph('slow-100')).toBe(100);
+    expect(rampCeilingCph('fast-200')).toBe(200);
+    expect(rampCeilingCph(undefined)).toBe(100); // conservative default
+  });
+
+  it('PASS at 90 °C/h under slow-100 ceiling', () => {
+    const k = computeHfKpis(rampSeries(90), { ...baseConfig, rampOption: 'slow-100' });
+    expect(k.rampCeilingCph).toBe(100);
+    expect(k.rampVerdict).toBe('pass');
+    expect(k.worstRampCph).toBeCloseTo(90, 1);
+  });
+
+  it('FAIL at 180 °C/h under slow-100 ceiling', () => {
+    const k = computeHfKpis(rampSeries(180), { ...baseConfig, rampOption: 'slow-100' });
+    expect(k.rampVerdict).toBe('fail');
+  });
+
+  it('SAME 180 °C/h ramp PASSes under fast-200 ceiling', () => {
+    const k = computeHfKpis(rampSeries(180), { ...baseConfig, rampOption: 'fast-200' });
+    expect(k.rampCeilingCph).toBe(200);
+    expect(k.rampVerdict).toBe('pass');
+  });
+
+  it('WARN at 220 °C/h under fast-200 ceiling (1.2× warn band)', () => {
+    const k = computeHfKpis(rampSeries(220), { ...baseConfig, rampOption: 'fast-200' });
+    expect(k.rampVerdict).toBe('warn');
   });
 });
 
