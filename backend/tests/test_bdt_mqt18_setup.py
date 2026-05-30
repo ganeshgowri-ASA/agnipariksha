@@ -98,3 +98,16 @@ def test_demo_start_persists_setup_json(tmp_path) -> None:
     assert data["isc_a"] == 8.0
     assert data["test_current_a"] == 10.0
     assert data["diode_locations"] == ["center"]
+
+
+def test_demo_and_live_setup_schemas_match() -> None:
+    """DEMO persisted setup schema is identical to what a LIVE setup would
+    persist; only the ``mode`` value differs (LIVE never reaches the writer
+    because it raises NotImplementedError, but the contract is the same)."""
+    demo = make_valid(mode=BdtMode.DEMO).to_dict()
+    live = make_valid(mode=BdtMode.LIVE).to_dict()
+    assert demo.keys() == live.keys()
+    assert demo["mode"] == "DEMO" and live["mode"] == "LIVE"
+    for k in demo:
+        if k != "mode":
+            assert demo[k] == live[k]
