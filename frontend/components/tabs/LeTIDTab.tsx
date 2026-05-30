@@ -5,6 +5,7 @@ import TestTabLayout from '../TestTabLayout';
 import SchematicViewer from '../SchematicViewer';
 import LiveChart from '../LiveChart';
 import type { TestSession, LiveReading } from '@/types/test-session';
+import { stampOperatorContext } from '@/lib/operator-store';
 import LetidAnalysisPanel from '@/features/letid/analysis/LetidAnalysisPanel';
 import { DEMO_LETID_POINTS } from '@/features/letid/analysis/demoData';
 import type { LetidPoint } from '@/features/letid/analysis/regeneration';
@@ -30,10 +31,14 @@ export default function LeTIDTab({ readings, session, onSessionUpdate, sendComma
   const progressPct = duration > 0 ? Math.min(100, (parseFloat(elapsedHr) / duration) * 100) : 0;
 
   const onStart = useCallback(() => {
-    const newSession: TestSession = {
+    const draft: TestSession = {
       id: `LETID-${Date.now()}`, testType: 'letid',
       startTime: Date.now(), status: 'running', readings: [],
     };
+
+    // Stamp operator/customer/equipment context (#128) so reports stop saying "NA".
+
+    const newSession: TestSession = stampOperatorContext(draft);
     onSessionUpdate(newSession);
     // Phase 1: Light soak at Isc, 75°C
     sendCommand(`SOUR:CURR ${isc}`);

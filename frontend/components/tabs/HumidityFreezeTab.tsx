@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
 import SchematicViewer from '../SchematicViewer';
 import HfAnalysisPanel from '@/features/hf/analysis/HfAnalysisPanel';
+import { stampOperatorContext } from '@/lib/operator-store';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
 interface Props {
@@ -26,10 +27,14 @@ export default function HumidityFreezeTab({ readings, session, onSessionUpdate, 
   const [isc, setIsc] = useState(9.5);
 
   const onStart = useCallback(() => {
-    const newSession: TestSession = {
+    // Stamp operator/customer/equipment context (#128) so the IEC PDF
+    // report header carries real values instead of "NA".
+    const draft: TestSession = {
       id: `HF-${Date.now()}`, testType: 'humidity_freeze',
       startTime: Date.now(), status: 'running', readings: [],
+      iecClause: 'MQT 12',
     };
+    const newSession: TestSession = stampOperatorContext(draft);
     onSessionUpdate(newSession);
     sendCommand('SOUR:FUNC:MODE CV');
     sendCommand(`SOUR:VOLT 0`);

@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
+import { stampOperatorContext } from '@/lib/operator-store';
 interface Props {
   readings: LiveReading[];
   session: TestSession | null;
@@ -24,7 +25,7 @@ export default function PIDTab({ readings, session, onSessionUpdate, sendCommand
   const progress = durationHours > 0 ? Math.min(100, (elapsedH / durationHours) * 100) : 0;
 
   const onStart = useCallback(() => {
-    const newSession: TestSession = {
+    const draft: TestSession = {
       id: `PID-${Date.now()}`,
       testType: 'potential_induced_degradation',
       startTime: Date.now(),
@@ -32,6 +33,10 @@ export default function PIDTab({ readings, session, onSessionUpdate, sendCommand
       readings: [],
       iecClause: 'IEC TS 62804-1',
     };
+
+    // Stamp operator/customer/equipment context (#128) so reports stop saying "NA".
+
+    const newSession: TestSession = stampOperatorContext(draft);
     onSessionUpdate(newSession);
     sendCommand('SOUR:FUNC:MODE CV');
     sendCommand(`SOUR:VOLT ${biasVoltage}`);
