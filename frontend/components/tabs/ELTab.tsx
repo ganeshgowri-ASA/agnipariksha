@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import TestTabLayout from '../TestTabLayout';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
+import { stampOperatorContext } from '@/lib/operator-store';
 interface Props {
   readings: LiveReading[];
   session: TestSession | null;
@@ -18,7 +19,7 @@ export default function ELTab({ readings, session, onSessionUpdate, sendCommand,
   const [frames, setFrames] = useState(2);
 
   const onStart = useCallback(() => {
-    const newSession: TestSession = {
+    const draft: TestSession = {
       id: `EL-${Date.now()}`,
       testType: 'electroluminescence',
       startTime: Date.now(),
@@ -26,6 +27,10 @@ export default function ELTab({ readings, session, onSessionUpdate, sendCommand,
       readings: [],
       iecClause: 'IEC TS 60904-13',
     };
+
+    // Stamp operator/customer/equipment context (#128) so reports stop saying "NA".
+
+    const newSession: TestSession = stampOperatorContext(draft);
     onSessionUpdate(newSession);
     sendCommand('SOUR:FUNC:MODE CC');
     sendCommand(`SOUR:CURR ${injectionCurrent}`);

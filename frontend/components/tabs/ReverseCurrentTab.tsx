@@ -5,6 +5,7 @@ import TestTabLayout from '../TestTabLayout';
 import SchematicViewer from '../SchematicViewer';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
+import { stampOperatorContext } from '@/lib/operator-store';
 interface Props {
   readings: LiveReading[];
   session: TestSession | null;
@@ -25,10 +26,14 @@ export default function ReverseCurrentTab({ readings, session, onSessionUpdate, 
   const currentOk = latest ? latest.current <= testCurrent * 1.05 : true;
 
   const onStart = useCallback(() => {
-    const newSession: TestSession = {
+    const draft: TestSession = {
       id: `RCO-${Date.now()}`, testType: 'reverse_current',
       startTime: Date.now(), status: 'running', readings: [],
     };
+
+    // Stamp operator/customer/equipment context (#128) so reports stop saying "NA".
+
+    const newSession: TestSession = stampOperatorContext(draft);
     onSessionUpdate(newSession);
     sendCommand('SOUR:FUNC:MODE CC');
     sendCommand(`SOUR:CURR ${testCurrent}`);

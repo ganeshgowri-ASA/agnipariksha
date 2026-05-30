@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Plus, X } from 'lucide-react';
 import TestTabLayout from '../TestTabLayout';
 import type { TestSession, LiveReading } from '@/types/test-session';
+import { stampOperatorContext } from '@/lib/operator-store';
 import { useEbLive } from '@/hooks/useEbLive';
 
 interface Props {
@@ -84,11 +85,15 @@ export default function EquipotentialBondingTab({
   }, [liveReadings.length]);
 
   const onStart = useCallback(() => {
-    const newSession: TestSession = {
+    const draft: TestSession = {
       id: `EB-${Date.now()}`, testType: 'equipotential_bonding',
       startTime: Date.now(), status: 'running', readings: [],
       iecClause: 'MST 13',
     };
+
+    // Stamp operator/customer/equipment context (#128) so reports stop saying "NA".
+
+    const newSession: TestSession = stampOperatorContext(draft);
     onSessionUpdate(newSession);
     // PSU output stays OFF for the entire EB test — test current is sourced
     // by the DMM, not the PV6000. We never send OUTP ON from this tab.

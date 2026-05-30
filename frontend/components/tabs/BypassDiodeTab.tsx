@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import TestTabLayout from '../TestTabLayout';
 import SchematicViewer from '../SchematicViewer';
 import type { TestSession, LiveReading } from '@/types/test-session';
+import { stampOperatorContext } from '@/lib/operator-store';
 import { useNameplate } from '@/lib/nameplate-store';
 import BdtAnalysisPanel from '@/features/bdt/analysis/BdtAnalysisPanel';
 import { DEMO_DIODES } from '@/features/bdt/analysis/demoData';
@@ -33,10 +34,14 @@ export default function BypassDiodeTab({ readings, session, onSessionUpdate, sen
   }, [nameplate?.isc, nameplate?.bypassDiodes]);
 
   const onStart = useCallback(() => {
-    const newSession: TestSession = {
+    const draft: TestSession = {
       id: `BDT-${Date.now()}`, testType: 'bypass_diode',
       startTime: Date.now(), status: 'running', readings: [],
     };
+
+    // Stamp operator/customer/equipment context (#128) so reports stop saying "NA".
+
+    const newSession: TestSession = stampOperatorContext(draft);
     onSessionUpdate(newSession);
     sendCommand(`SOUR:CURR ${isc}`);
     sendCommand('OUTP ON');

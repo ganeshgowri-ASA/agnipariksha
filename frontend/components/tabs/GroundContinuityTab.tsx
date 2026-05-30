@@ -5,6 +5,7 @@ import TestTabLayout from '../TestTabLayout';
 import SchematicViewer from '../SchematicViewer';
 import LiveChart from '../LiveChart';
 import type { TestSession, LiveReading } from '@/types/test-session';
+import { stampOperatorContext } from '@/lib/operator-store';
 import { useGctLive } from '@/hooks/useGctLive';
 
 interface Props {
@@ -64,12 +65,16 @@ export default function GroundContinuityTab({
   }, [liveReadings.length]);
 
   const onStart = useCallback(() => {
-    const newSession: TestSession = {
+    const draft: TestSession = {
       id: `GCT-${Date.now()}`, testType: 'ground_continuity',
       startTime: Date.now(), status: 'running', readings: [],
       iecClause: 'MST 13',
       notes: bonding ? `Bonding point: ${bonding}` : undefined,
     };
+
+    // Stamp operator/customer/equipment context (#128) so reports stop saying "NA".
+
+    const newSession: TestSession = stampOperatorContext(draft);
     onSessionUpdate(newSession);
     // Belt-and-braces: PSU output stays OFF for the entire GCT. Per
     // IEC 61730-2 MST 13 the test current is sourced by the DMM, not

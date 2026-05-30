@@ -5,6 +5,7 @@ import TestTabLayout from '../TestTabLayout';
 import SchematicViewer from '../SchematicViewer';
 import type { TestSession, LiveReading } from '@/types/test-session';
 
+import { stampOperatorContext } from '@/lib/operator-store';
 interface Props {
   readings: LiveReading[];
   session: TestSession | null;
@@ -25,7 +26,7 @@ export default function DampHeatTab({ readings, session, onSessionUpdate, sendCo
   const progress = durationHours > 0 ? Math.min(100, (elapsedH / durationHours) * 100) : 0;
 
   const onStart = useCallback(() => {
-    const newSession: TestSession = {
+    const draft: TestSession = {
       id: `DH-${Date.now()}`,
       testType: 'damp_heat',
       startTime: Date.now(),
@@ -33,6 +34,10 @@ export default function DampHeatTab({ readings, session, onSessionUpdate, sendCo
       readings: [],
       iecClause: 'IEC 61215-2 MQT 13',
     };
+
+    // Stamp operator/customer/equipment context (#128) so reports stop saying "NA".
+
+    const newSession: TestSession = stampOperatorContext(draft);
     onSessionUpdate(newSession);
     sendCommand('SOUR:FUNC:MODE CV');
     sendCommand(`SOUR:VOLT ${biasVoltage}`);
