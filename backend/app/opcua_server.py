@@ -14,7 +14,7 @@ via ``get_setpoints``.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from asyncua import Server, ua
 from asyncua.common.node import Node
@@ -112,6 +112,11 @@ class PsuOpcUaServer:
     async def __aexit__(self, *_exc) -> None:
         await self.stop()
 
+    async def nodes_value(self, name: str) -> Any:
+        """Read a single node's current value by its browse name (telemetry
+        mirror for local panels / tests, without a networked UA client)."""
+        return await self._nodes[name].read_value()
+
     async def update_readings(self, r: PsuReadings) -> None:
         """Push a fresh set of readings to the read-only nodes."""
         await self._nodes["Voltage_V"].write_value(r.voltage_v)
@@ -126,3 +131,10 @@ class PsuOpcUaServer:
             current_a=await self._nodes["Current_Setpoint_A"].read_value(),
             output_enabled=await self._nodes["Output_Enabled"].read_value(),
         )
+
+    async def set_setpoints(self, sp: PsuSetpoints) -> None:
+        """Programmatic/local setpoint control (e.g. an operator panel or the
+        DEMO loop) writing the same nodes an OPC UA client would write."""
+        await self._nodes["Voltage_Setpoint_V"].write_value(sp.voltage_v)
+        await self._nodes["Current_Setpoint_A"].write_value(sp.current_a)
+        await self._nodes["Output_Enabled"].write_value(sp.output_enabled)
