@@ -31,8 +31,16 @@ function [state, reading] = psu_plant_step(state, setpoint, p)
     state.temp_c = state.temp_c + p.thermal_gain * power ...
                    - p.cooling * (state.temp_c - p.ambient_c);
 
-    reading.voltage_v     = round(state.v, 4);
-    reading.current_a     = round(state.i, 4);
-    reading.power_w       = round(power, 4);
-    reading.temperature_c = round(state.temp_c, 3);
+    reading.voltage_v     = roundTo(state.v, 4);
+    reading.current_a     = roundTo(state.i, 4);
+    reading.power_w       = roundTo(power, 4);
+    reading.temperature_c = roundTo(state.temp_c, 3);
+end
+
+function y = roundTo(x, n)
+%ROUNDTO Round to N decimals. Portable across MATLAB and GNU Octave
+%   (Octave's round() takes no second argument), so the cross-language
+%   parity check can execute the model in either interpreter.
+    f = 10 ^ n;
+    y = round(x * f) / f;
 end

@@ -50,6 +50,25 @@ round-half differences at the last decimal). If you change a plant constant,
 change it in **both** `psu_plant_defaults.m` and `DemoPsuSource`, then
 regenerate the CSV.
 
+## Verified execution (no MATLAB license needed)
+
+The numerical plant model is **executed in CI-style headlessly under GNU
+Octave** (a free MATLAB-compatible interpreter) and checked against the
+Python reference — so the MATLAB code is actually run, not just eyeballed:
+
+```bash
+octave-cli -q --eval "cd matlab/tests; ok = plant_parity_check(); exit(double(~ok))"
+# ticks=60  maxAbsDiff=0.000e+00
+# PASS: MATLAB/Octave plant matches Python reference_trace.csv
+```
+
+`matlab/tests/plant_parity_check.m` runs the real `psu_plant_step.m` /
+`psu_plant_defaults.m` for 60 ticks and asserts the trace matches
+`reference_trace.csv` to within `1e-3` (observed: exact, `0.0`). It runs in
+both MATLAB and Octave. The App Designer console (`app/AgniparikshaConsole.m`)
+and Simulink builder still require genuine MATLAB — Octave has no `uifigure`
+or Simulink — so those remain "open in your MATLAB".
+
 ## Quick start
 
 ```matlab
