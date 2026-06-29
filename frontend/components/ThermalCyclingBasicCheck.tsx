@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useHealth } from '@/hooks/useHealth';
+import { useHealth, useSmoke, type SmokeDevice } from '@/hooks/useHealth';
 import StatusTower from './StatusTower';
 import type { LampState } from './StatusLamp';
 
@@ -80,6 +80,7 @@ async function fetchJson<T>(url: string, timeoutMs = 3000): Promise<{ data?: T; 
 
 export default function ThermalCyclingBasicCheck({ wsStatus, demoMode }: BasicCheckProps) {
   const health = useHealth(5_000);
+  const smoke = useSmoke(10_000);
 
   const [transport, setTransport] = useState<TransportInfo | null>(null);
   const [transportErr, setTransportErr] = useState<string | null>(null);
@@ -146,28 +147,63 @@ export default function ThermalCyclingBasicCheck({ wsStatus, demoMode }: BasicCh
     return parts.join(' · ');
   }, [health, registry, registryErr]);
 
-  // Power Supply: green only when SCPI transport reachable AND *IDN? does
-  // not error AND (live mode and idn does not look like a SIM string).
-  const powerSupplyState: LampState = useMemo(() => {
-    if (!transport && !transportErr) return 'gray';
+  // Per-device lamps from /api/scpi/smoke. SCPI lamp also folds in the
+  // legacy transport+idn probe so the older "Power Supply" wiring still
+  // contributes (it's a strictly tighter check on the ITECH only).
+  const deviceLampState = useCallback(
+    (d: SmokeDevice | undefined): LampState => {
+      if (!smoke.loaded) return 'gray';
+      if (!d) return 'gray';
+      if (!d.ok) return 'red';
+      // In demo mode the smoke endpoint returns DEMO IDN strings — surface
+      // that as yellow (resolve) just like the legacy Power Supply lamp did,
+      // so the operator isn't fooled into thinking hardware is wired up.
+      if (d.demo || /DEMO|SIM/i.test(d.idn)) return 'yellow';
+      return 'green';
+    },
+    [smoke.loaded],
+  );
+  const deviceLampDetail = useCallback(
+    (d: SmokeDevice | undefined): string => {
+      if (!smoke.loaded) return 'polling /api/scpi/smoke…';
+      if (!d) return 'no device';
+      if (d.error) return `error: ${d.error}`;
+      const tag = d.demo ? 'DEMO' : 'LIVE';
+      const idnStr = d.idn ? ` · ${d.idn.slice(0, 36)}` : '';
+      return `${d.kind} · ${tag} · ${d.elapsed_ms} ms${idnStr}`;
+    },
+    [smoke.loaded],
+  );
+
+  const scpiDevice = useMemo(() => smoke.byRole('dc_source'), [smoke]);
+  const chamberDevice = useMemo(() => smoke.byRole('chamber'), [smoke]);
+  const dmmDevice = useMemo(() => smoke.byRole('dmm'), [smoke]);
+
+  // SCPI lamp keeps the legacy fail-fast checks layered on top of smoke —
+  // belt-and-suspenders for the most safety-critical device.
+  const scpiState: LampState = useMemo(() => {
+    const base = deviceLampState(scpiDevice);
+    if (base === 'red') return 'red';
     if (transportErr) return 'red';
     if (transport && !transport.reachable && !transport.demo) return 'red';
-    if (idnErr) return 'red';
-    if (idn?.error) return 'red';
-    // In live mode, the idn string MUST NOT contain "DEMO" or "SIM" — this
-    // is the same fail-fast contract enforced server-side by scpi_router.
+    if (idnErr || idn?.error) return 'red';
     if (idn && !idn.demo && /DEMO|SIM/i.test(idn.idn)) return 'red';
-    if (transport?.demo || idn?.demo) return 'yellow'; // demo-mode is "resolve" not "go"
-    if (transport?.reachable && idn && idn.idn) return 'green';
-    return 'gray';
-  }, [transport, transportErr, idn, idnErr]);
-  const powerSupplyDetail = useMemo(() => {
-    if (transportErr) return `transport check failed: ${transportErr}`;
-    if (!transport) return 'probing transport…';
-    const tag = transport.demo ? 'DEMO' : 'LIVE';
-    const idnStr = idn?.idn ? ` · IDN: ${idn.idn.slice(0, 36)}` : (idnErr ? ` · IDN ERR: ${idnErr}` : '');
-    return `${transport.kind} ${transport.host}:${transport.port} · ${tag} · ${transport.reachable ? 'reachable' : 'unreachable'} (${transport.probe_ms} ms)${idnStr}`;
-  }, [transport, transportErr, idn, idnErr]);
+    return base;
+  }, [deviceLampState, scpiDevice, transport, transportErr, idn, idnErr]);
+  const scpiDetail = useMemo(() => {
+    const fromSmoke = deviceLampDetail(scpiDevice);
+    if (transportErr) return `${fromSmoke} · transport: ${transportErr}`;
+    if (transport) {
+      const tag = transport.demo ? 'DEMO' : 'LIVE';
+      return `${transport.kind} ${transport.host}:${transport.port} · ${tag} · ${transport.reachable ? 'reachable' : 'unreachable'} (${transport.probe_ms} ms)`;
+    }
+    return fromSmoke;
+  }, [deviceLampDetail, scpiDevice, transport, transportErr]);
+
+  const chamberState = useMemo(() => deviceLampState(chamberDevice), [deviceLampState, chamberDevice]);
+  const chamberDetail = useMemo(() => deviceLampDetail(chamberDevice), [deviceLampDetail, chamberDevice]);
+  const dmmState = useMemo(() => deviceLampState(dmmDevice), [deviceLampState, dmmDevice]);
+  const dmmDetail = useMemo(() => deviceLampDetail(dmmDevice), [deviceLampDetail, dmmDevice]);
 
   // Frontend: yellow if the WebSocket is "demo" or "connecting"; red if
   // "disconnected"; green if "connected". (Hydration mismatch surfaces
@@ -204,21 +240,25 @@ export default function ThermalCyclingBasicCheck({ wsStatus, demoMode }: BasicCh
   const cloudAiState: LampState = aiOk === null ? 'gray' : aiOk ? 'green' : 'yellow';
   const cloudAiDetail = aiOk === null ? 'pinging /api/ai/ask…' : aiOk ? 'AI endpoint reachable' : 'AI unavailable — non-blocking';
 
-  // Gate readiness: power-supply green, backend green, frontend not red,
-  // cloud/ai not red. Operator can override individual non-green lamps
-  // with a checkbox in the Gate card (yellow → green-equivalent).
+  // Gate readiness: scpi green, chamber/dmm not red, backend green,
+  // frontend not red, cloud/ai not red. Operator can override individual
+  // non-green lamps with a checkbox in the Gate card (yellow → green-equivalent).
   const lampStateForGate = useCallback((key: string, current: LampState): LampState => {
     if (gateOverrides[key] && current === 'yellow') return 'green';
     return current;
   }, [gateOverrides]);
 
-  const psFinal = lampStateForGate('power-supply', powerSupplyState);
+  const scpiFinal = lampStateForGate('scpi', scpiState);
+  const chamberFinal = lampStateForGate('chamber', chamberState);
+  const dmmFinal = lampStateForGate('dmm', dmmState);
   const beFinal = lampStateForGate('backend', backendState);
   const feFinal = lampStateForGate('frontend', frontendState);
   const aiFinal = lampStateForGate('cloud-ai', cloudAiState);
 
   const goodToOperate =
-    psFinal === 'green' &&
+    scpiFinal === 'green' &&
+    chamberFinal !== 'red' &&
+    dmmFinal !== 'red' &&
     beFinal === 'green' &&
     feFinal !== 'red' &&
     aiFinal !== 'red';
@@ -301,13 +341,16 @@ export default function ThermalCyclingBasicCheck({ wsStatus, demoMode }: BasicCh
 
   return (
     <div className="space-y-4">
-      {/* Status Tower */}
+      {/* Status Tower — 3 devices (SCPI / Chamber / DMM) from /api/scpi/smoke
+          plus the 3 stack lamps (Backend / Frontend / Cloud-AI). */}
       <StatusTower
         lamps={[
-          { key: 'power-supply', label: 'Power Supply', state: powerSupplyState, detail: powerSupplyDetail },
-          { key: 'backend',      label: 'Backend',      state: backendState,     detail: backendDetail },
-          { key: 'frontend',     label: 'Frontend',     state: frontendState,    detail: frontendDetail },
-          { key: 'cloud-ai',     label: 'Cloud / AI',   state: cloudAiState,     detail: cloudAiDetail },
+          { key: 'scpi',     label: 'SCPI (PV6000)', state: scpiState,    detail: scpiDetail },
+          { key: 'chamber',  label: 'Chamber',       state: chamberState, detail: chamberDetail },
+          { key: 'dmm',      label: 'DMM',           state: dmmState,     detail: dmmDetail },
+          { key: 'backend',  label: 'Backend',       state: backendState, detail: backendDetail },
+          { key: 'frontend', label: 'Frontend',      state: frontendState, detail: frontendDetail },
+          { key: 'cloud-ai', label: 'Cloud / AI',    state: cloudAiState,  detail: cloudAiDetail },
         ]}
       />
 
@@ -374,8 +417,18 @@ export default function ThermalCyclingBasicCheck({ wsStatus, demoMode }: BasicCh
       {/* Gate card */}
       <Card title={goodToOperate ? 'Basic Check Passed' : 'Basic Check'} accent={goodToOperate ? 'emerald' : 'rose'}>
         <ul className="space-y-1.5 text-xs">
-          <GateRow label="Power Supply ready (transport reachable + IDN valid)" state={psFinal}
-            override={gateOverrides['power-supply']} canOverride={false} />
+          <GateRow label="SCPI / PV6000 ready (transport reachable + IDN valid)" state={scpiFinal}
+            override={gateOverrides['scpi']} canOverride={false} />
+          <GateRow label="Chamber not red (smoke IDN ok or demo)" state={chamberFinal}
+            override={gateOverrides['chamber']}
+            canOverride={chamberState === 'yellow'}
+            onOverride={v => setGateOverrides(o => ({ ...o, chamber: v }))}
+          />
+          <GateRow label="DMM not red (smoke IDN ok or demo)" state={dmmFinal}
+            override={gateOverrides['dmm']}
+            canOverride={dmmState === 'yellow'}
+            onOverride={v => setGateOverrides(o => ({ ...o, dmm: v }))}
+          />
           <GateRow label="Backend ready (/api/health ok + device registry)" state={beFinal}
             override={gateOverrides['backend']} canOverride={false} />
           <GateRow label="Frontend not red (WebSocket reachable or demo)" state={feFinal}
