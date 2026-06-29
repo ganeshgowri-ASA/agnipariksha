@@ -83,13 +83,22 @@ export default function ELTab({ readings, session, onSessionUpdate, sendCommand,
   );
 
   // IEC TS 60904-13 image analysis — generates a synthetic DEMO frame
-  // keyed on `injectionCurrent` so operators see KPIs without a camera.
-  // The capture pipeline (LIVE) will pass a real ElFrame via the WS
-  // stream in a follow-up PR.
+  // keyed on `injectionCurrent` so operators see KPIs without a camera,
+  // computes the IEA PVPS Task 13 DEFECT INDEX + A/B/C grade, and shows
+  // the camera/current/PSU metadata block. The capture pipeline (LIVE)
+  // will pass a real ElFrame + populated ElMetadata via the WS stream in
+  // a follow-up PR.
   const analysisPanel = (
     <ElAnalysisPanel
       injectionCurrent={injectionCurrent}
       demoMode={demoMode}
+      metadata={{
+        cameraModel: 'Si-CMOS EL camera (operator setup)',
+        exposureSec,
+        injectionCurrentA: injectionCurrent,
+        psuVoltageV: 0.1,
+        psuCurrentA: injectionCurrent,
+      }}
     />
   );
 
