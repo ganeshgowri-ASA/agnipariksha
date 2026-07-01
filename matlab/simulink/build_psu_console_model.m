@@ -3,7 +3,12 @@ function build_psu_console_model(modelName)
 %   Assembles a Simulink model that IS the operator console:
 %     setpoint sources (Constants) -> PSU Live Interface (MATLAB Function
 %     block calling psu_live_interface, which bridges to the backend REST
-%     proxy) -> Scope + Displays for V / I / P / Tj.
+%     proxy) -> Scope + Displays for V / I / P / Tj / backend-OK.
+%
+%   backend-OK mirrors the App Designer console's HealthLamp: it drops to 0
+%   (and V/I/P/Tj hold their last known-good values) if the backend REST
+%   proxy is unreachable — the simulation keeps running instead of erroring
+%   out (see psu_live_interface.m).
 %
 %   For a polished HMI, swap the Constants for Dashboard **Knob** / **Rocker
 %   Switch** blocks and drop Dashboard **Gauge** blocks on the four outputs
@@ -31,15 +36,16 @@ function build_psu_console_model(modelName)
     add('simulink/Sources/Constant', 'OutEn', [20 160  60 190],  'Value', '1');
 
     % --- Live interface (MATLAB Function block -> backend REST) -----------
-    add('simulink/User-Defined Functions/MATLAB Function', 'PSU Live Interface', [160 60 340 180]);
+    add('simulink/User-Defined Functions/MATLAB Function', 'PSU Live Interface', [160 40 340 200]);
     setMatlabFunctionBody(modelName, 'PSU Live Interface', consoleFcnBody());
 
     % --- Telemetry sinks (drop Dashboard Gauges here for an HMI) ----------
-    add('simulink/Sinks/Scope',   'Telemetry', [430 90 470 140]);
-    add('simulink/Sinks/Display', 'V',  [430 20 470 40]);
-    add('simulink/Sinks/Display', 'I',  [430 150 470 170]);
-    add('simulink/Sinks/Display', 'P',  [430 180 470 200]);
-    add('simulink/Sinks/Display', 'Tj', [430 210 470 230]);
+    add('simulink/Sinks/Scope',   'Telemetry', [430 100 470 150]);
+    add('simulink/Sinks/Display', 'V',  [430 20  470 40]);
+    add('simulink/Sinks/Display', 'I',  [430 160 470 180]);
+    add('simulink/Sinks/Display', 'P',  [430 190 470 210]);
+    add('simulink/Sinks/Display', 'Tj', [430 220 470 240]);
+    add('simulink/Sinks/Display', 'BackendOK', [430 250 470 270]);
 
     add_line(modelName, 'Vsp/1',   'PSU Live Interface/1', 'autorouting', 'on');
     add_line(modelName, 'Isp/1',   'PSU Live Interface/2', 'autorouting', 'on');
@@ -48,6 +54,7 @@ function build_psu_console_model(modelName)
     add_line(modelName, 'PSU Live Interface/2', 'I/1',  'autorouting', 'on');
     add_line(modelName, 'PSU Live Interface/3', 'P/1',  'autorouting', 'on');
     add_line(modelName, 'PSU Live Interface/4', 'Tj/1', 'autorouting', 'on');
+    add_line(modelName, 'PSU Live Interface/5', 'BackendOK/1', 'autorouting', 'on');
     add_line(modelName, 'PSU Live Interface/1', 'Telemetry/1', 'autorouting', 'on');
 
     set_param(modelName, 'Solver', 'FixedStepDiscrete', 'FixedStep', '1', 'StopTime', '60');
@@ -64,8 +71,8 @@ end
 
 function s = consoleFcnBody()
     s = sprintf([ ...
-        'function [voltage_v, current_a, power_w, temperature_c] = fcn(Vsp, Isp, OutEn)\n' ...
+        'function [voltage_v, current_a, power_w, temperature_c, backend_ok] = fcn(Vsp, Isp, OutEn)\n' ...
         '%%#codegen\n' ...
-        '    [voltage_v, current_a, power_w, temperature_c] = psu_live_interface(Vsp, Isp, OutEn);\n' ...
+        '    [voltage_v, current_a, power_w, temperature_c, backend_ok] = psu_live_interface(Vsp, Isp, OutEn);\n' ...
         'end\n']);
 end

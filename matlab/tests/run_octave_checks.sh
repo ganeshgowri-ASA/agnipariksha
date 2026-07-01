@@ -13,4 +13,5 @@ run() {
 
 run plant_parity_check
 run simulink_plant_parity
+run console_logic_check
 echo "All MATLAB model parity checks passed."

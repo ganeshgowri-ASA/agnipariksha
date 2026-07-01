@@ -12,6 +12,12 @@ classdef AgniparikshaConsole < matlab.apps.AppBase
 %   it is source-controllable and reviewable. Open it in App Designer with
 %   `appdesigner AgniparikshaConsole.m` or run it directly.
 %
+%   All non-UI logic (gauge clamping, mode color, setpoint bounds) lives in
+%   console_logic.m so it can be exercised headlessly in tests/ (this class
+%   itself needs uifigure, i.e. genuine MATLAB). The Write button mirrors
+%   the web dashboard's OpcuaPsuPanel: disabled while the setpoint is out of
+%   bounds ([0,1000] V, [0,100] A), enabled live as the operator edits.
+%
 %   SAFETY: the Output switch only writes a setpoint to the backend, which
 %   in DEMO mode drives a simulator. LIVE energization stays gated server-
 %   side (owner-at-bench + E-stop) — this console never bypasses that.
@@ -58,12 +64,12 @@ classdef AgniparikshaConsole < matlab.apps.AppBase
         function pollOnce(app)
             try
                 s = psu_rest('get', app.baseUrl());
-                app.VGauge.Value = clampGauge(s.voltage_v, app.VGauge);
-                app.IGauge.Value = clampGauge(s.current_a, app.IGauge);
-                app.PGauge.Value = clampGauge(s.power_w,   app.PGauge);
-                app.TGauge.Value = clampGauge(s.temperature_c, app.TGauge);
-                app.ModeLabel.Text = sprintf('%s · %s', string(s.model), string(s.mode));
-                app.ModeLamp.Color = pickModeColor(s.mode);
+                app.VGauge.Value = console_logic('clamp', s.voltage_v, app.VGauge.Limits(1), app.VGauge.Limits(2));
+                app.IGauge.Value = console_logic('clamp', s.current_a, app.IGauge.Limits(1), app.IGauge.Limits(2));
+                app.PGauge.Value = console_logic('clamp', s.power_w,   app.PGauge.Limits(1), app.PGauge.Limits(2));
+                app.TGauge.Value = console_logic('clamp', s.temperature_c, app.TGauge.Limits(1), app.TGauge.Limits(2));
+                app.ModeLabel.Text = sprintf('%s · %s', char(s.model), char(s.mode));
+                app.ModeLamp.Color = console_logic('mode_color', s.mode);
                 app.HealthLamp.Color = [0.18 0.80 0.44];
                 app.HealthLabel.Text = 'backend: connected';
             catch
@@ -72,9 +78,28 @@ classdef AgniparikshaConsole < matlab.apps.AppBase
             end
         end
 
+        % Live-validates the spinners on every edit — mirrors the web
+        % dashboard's OpcuaPsuPanel, which disables Write until valid.
+        function onSetpointChanged(app)
+            valid = console_logic('is_setpoint_valid', app.VSpinner.Value, app.ISpinner.Value);
+            app.WriteButton.Enable = valid;
+            if ~valid
+                errs = console_logic('validate_setpoint', app.VSpinner.Value, app.ISpinner.Value);
+                app.StatusLabel.Text = strjoin(errs, ' ');
+                app.StatusLabel.FontColor = [0.85 0.20 0.25];
+            else
+                app.StatusLabel.Text = 'Ready to write.';
+                app.StatusLabel.FontColor = [0.7 0.7 0.75];
+            end
+        end
+
         function onWrite(app)
-            sp = struct('voltage_v', app.VSpinner.Value, ...
-                        'current_a', app.ISpinner.Value, ...
+            v = app.VSpinner.Value; i = app.ISpinner.Value;
+            if ~console_logic('is_setpoint_valid', v, i)
+                app.onSetpointChanged();  % re-assert the guard; button should already be disabled
+                return;
+            end
+            sp = struct('voltage_v', v, 'current_a', i, ...
                         'output_enabled', strcmp(app.OutputSwitch.Value, 'ON'));
             ok = psu_rest('set', app.baseUrl(), sp);
             if ok
@@ -82,7 +107,7 @@ classdef AgniparikshaConsole < matlab.apps.AppBase
                     sp.voltage_v, sp.current_a, app.OutputSwitch.Value);
                 app.StatusLabel.FontColor = [0.18 0.80 0.44];
             else
-                app.StatusLabel.Text = 'Write failed — check backend / setpoint bounds.';
+                app.StatusLabel.Text = 'Write failed — backend unreachable.';
                 app.StatusLabel.FontColor = [0.85 0.20 0.25];
             end
         end
@@ -156,9 +181,11 @@ classdef AgniparikshaConsole < matlab.apps.AppBase
             sp = uigridlayout(g, [1 4]); sp.Layout.Row = 2; sp.Layout.Column = [1 4];
             sp.ColumnWidth = {'1x','1x','1x','1x'}; sp.BackgroundColor = [0.09 0.09 0.11];
 
-            app.VSpinner = uispinner(sp, 'Limits', [0 1000], 'Value', 0, 'Step', 0.5);
+            app.VSpinner = uispinner(sp, 'Limits', [0 1000], 'Value', 0, 'Step', 0.5, ...
+                'ValueChangedFcn', @(~,~) app.onSetpointChanged());
             app.VSpinner.Layout.Column = 1; labelFor(app.VSpinner, 'V setpoint');
-            app.ISpinner = uispinner(sp, 'Limits', [0 100], 'Value', 0, 'Step', 0.1);
+            app.ISpinner = uispinner(sp, 'Limits', [0 100], 'Value', 0, 'Step', 0.1, ...
+                'ValueChangedFcn', @(~,~) app.onSetpointChanged());
             app.ISpinner.Layout.Column = 2; labelFor(app.ISpinner, 'I setpoint');
             app.OutputSwitch = uiswitch(sp, 'slider', 'Items', {'OFF','ON'}, 'Value', 'OFF');
             app.OutputSwitch.Layout.Column = 3;
@@ -234,16 +261,6 @@ function gauge = makeGauge(parent, ttl, lo, hi, row, col)
     gauge = uigauge(sub, 'circular', 'Limits', [lo hi]); gauge.Layout.Row = 1;
     lbl = uilabel(sub, 'Text', ttl, 'HorizontalAlignment', 'center');
     lbl.Layout.Row = 2; lbl.FontColor = [0.75 0.75 0.8];
-end
-
-function v = clampGauge(x, gauge)
-    lims = gauge.Limits;
-    if isnan(x), v = lims(1); return; end
-    v = min(max(x, lims(1)), lims(2));
-end
-
-function c = pickModeColor(mode)
-    if strcmpi(string(mode), 'LIVE'), c = [0.85 0.20 0.25]; else, c = [0.18 0.80 0.44]; end
 end
 
 function labelFor(comp, txt)

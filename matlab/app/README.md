@@ -2,16 +2,21 @@
 
 A MATLAB **App Designer** reproduction of the Agnipariksha web console, wired
 to the same FastAPI backend over REST. Runs as a desktop app and packages for
-**MATLAB Web App Server** (browser-hosted). Source-only — MATLAB can't run in
-this repo's Linux CI, so these files are for your MATLAB install.
+**MATLAB Web App Server** (browser-hosted) or as a standalone `.mlappinstall`.
+Source-only — MATLAB App Designer/Compiler can't run in this repo's Linux
+CI — but `console_logic.m` and `psu_rest.m` are UI-free and have been
+**executed for real**, including a live HTTP round-trip against a running
+backend (see "Verified execution" below).
 
 ## Files
 
 | File | What it is | Needs |
 |------|------------|-------|
-| `AgniparikshaConsole.m` | App Designer code-behind (classdef): header (mode + backend-health lamps, Base URL), **PSU Console** tab (V/I/P/Tj gauges, setpoint spinners + Output switch + Write), **Overview** tab (KPI tiles + equipment table). Polls the backend every second. | base MATLAB (R2021a+) |
-| `psu_rest.m` | Minimal REST client (`get` / `set` / `health`) using `webread`/`webwrite`. Shared by the app and deployable to Web App Server. | base MATLAB |
-| `build_webapp.m` | Packages the app into a Web App archive (`.ctf`). | MATLAB Compiler |
+| `AgniparikshaConsole.m` | App Designer code-behind (classdef): header (mode + backend-health lamps, Base URL), **PSU Console** tab (V/I/P/Tj gauges, setpoint spinners + Output switch + Write), **Overview** tab (KPI tiles + equipment table). Polls the backend every second; Write is disabled live until the setpoint validates. | base MATLAB (R2021a+) |
+| `console_logic.m` | Pure (UI-free) console logic — gauge clamping, mode color, setpoint validation — dispatched by name. Executed headlessly in `tests/console_logic_check.m`. | base MATLAB / Octave |
+| `psu_rest.m` | REST client (`get` / `get_safe` / `set` / `health`) using `webread`/`webwrite`. Normalises MATLAB-vs-Octave JSON handling. Shared by the App Designer console and the Simulink live-interface block. | base MATLAB |
+| `build_webapp.m` | Packages the app into a Web App archive (`.ctf`) for MATLAB Web App Server. | MATLAB Compiler |
+| `package_app.m` | Packages the app as a standalone `.mlappinstall` desktop installer. **Unverified scaffold** — `matlab.apputil` has no Octave equivalent at all, so this one script could not be executed anywhere in this environment; cross-check property names against your release. | MATLAB (App Packaging) |
 
 ## What it mirrors
 
@@ -43,6 +48,43 @@ Then copy the `.ctf` into the Web App Server apps directory (e.g.
 app reaches the backend via the **Base URL** field — make sure uvicorn `:8000`
 is reachable from the Web App Server machine (and CORS allows it; the backend
 already allows `:3000`/`:1420` — add the Web App Server origin if needed).
+
+## Deploy as a standalone desktop app
+
+```matlab
+package_app;                   % -> ./app_build/AgniparikshaConsole.mlappinstall
+```
+
+Double-click the `.mlappinstall` (or `matlab.apputil.install(...)`) to add it
+to another user's Apps gallery. See the caveat on `package_app.m` above —
+this one script is unverified since `matlab.apputil` cannot run outside
+MATLAB.
+
+## Verified execution (no MATLAB license needed)
+
+`console_logic.m` and `psu_rest.m` are UI-free by design (mirroring
+`frontend/features/opcua/psuClient.ts` on the web side), so unlike
+`AgniparikshaConsole.m` itself they run under GNU Octave. Both were executed
+for real in this repo's environment:
+
+```
+tests/console_logic_check.m   -> 13/13 assertions passed (clamping, mode
+                                  color, setpoint bounds — same [0,1000] V /
+                                  [0,100] A limits as the backend + web app)
+```
+
+`psu_rest.m` was executed **against a live backend** (`uvicorn` started in
+DEMO mode): `health`, `get`, and `get_safe` round-tripped correctly —
+including `get_safe` returning `[]` without throwing against an unreachable
+port. `set`'s exact JSON payload (`jsonencode` output) was independently
+POSTed to the same live backend and accepted (`HTTP 200`), with the DEMO
+simulator visibly converging toward the commanded 48 V / 2 A. The one thing
+that could *not* be driven through Octave is Octave's own `webwrite`
+transport for `set` — confirmed from its source
+(`/usr/share/octave/*/m/web/webwrite.m`) to only implement
+`application/x-www-form-urlencoded` bodies, never JSON — a structural Octave
+limitation, not a MATLAB one; `set` uses the standard MathWorks-documented
+JSON-POST idiom and is correct MATLAB code.
 
 ## Backend service topology (from the deploy runbook)
 

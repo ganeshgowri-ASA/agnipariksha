@@ -24,14 +24,18 @@ cd matlab; RUN_ME      % menu: App Designer console / Simulink console / plant
 | `psu_plant_step.m` | One-tick first-order plant: `[state, reading] = psu_plant_step(...)`. | base MATLAB / Octave |
 | `run_psu_step_response.m` | Canonical 48 V / 2 A on→off step; plots V/I/Tj; asserts vs `reference_trace.csv`. | base MATLAB |
 | `build_psu_plant_model.m` | Builds `psu_plant_model.slx` (plant) from primitive blocks. **Scaffold.** | Simulink |
-| `simulink/psu_live_interface.m` | **MATLAB Function block** bridging a running Simulink model to the live PSU via REST. | Simulink |
-| `simulink/build_psu_console_model.m` | Builds `psu_console.slx` — the **Simulink live console** (setpoints → live interface → gauges/scope). **Scaffold.** | Simulink |
-| `app/AgniparikshaConsole.m` | App Designer live console (GUI). | MATLAB R2021a+ |
-| `app/psu_rest.m` | REST client (get/set/health) for the backend proxy. | base MATLAB |
+| `simulink/psu_live_interface.m` | **MATLAB Function block** bridging a running Simulink model to the live PSU via REST. Holds last-known-good readings and reports `backend_ok` if the backend drops. | Simulink |
+| `simulink/build_psu_console_model.m` | Builds `psu_console.slx` — the **Simulink live console** (setpoints → live interface → gauges/scope + backend-OK). **Scaffold.** | Simulink |
+| `app/AgniparikshaConsole.m` | App Designer live console (GUI). Write is disabled until the setpoint validates. | MATLAB R2021a+ |
+| `app/console_logic.m` | Pure (UI-free) console logic — clamping, mode color, setpoint validation. | base MATLAB / Octave |
+| `app/psu_rest.m` | REST client (`get`/`get_safe`/`set`/`health`) for the backend proxy; MATLAB/Octave JSON-handling differences normalised. | base MATLAB |
 | `app/build_webapp.m` | Packages the console for MATLAB Web App Server. | MATLAB Compiler |
+| `app/package_app.m` | Packages the console as a standalone `.mlappinstall`. Unverified scaffold (see `app/README.md`). | MATLAB (App Packaging) |
 | `psu_opcua_bridge.m` | OPC UA **client** to `opcua_server.py`. | Industrial Communication Toolbox |
 | `tests/plant_parity_check.m` | Executes the plant model vs the reference (Octave/MATLAB). | base MATLAB / Octave |
 | `tests/simulink_plant_parity.m` | Executes the **Simulink design math** (block recurrences + ICs) vs the reference. | base MATLAB / Octave |
+| `tests/console_logic_check.m` | Executes `console_logic.m`'s 13 assertions (Octave/MATLAB). | base MATLAB / Octave |
+| `tests/run_octave_checks.sh` | Runs all three Octave-executable checks above; used by CI. | GNU Octave |
 | `reference_trace.csv` | 60-tick ground-truth trace from the Python `DemoPsuSource`. | — |
 
 ## Simulink interface
