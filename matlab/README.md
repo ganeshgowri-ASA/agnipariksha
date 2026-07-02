@@ -35,7 +35,8 @@ cd matlab; RUN_ME      % menu: App Designer console / Simulink console / plant
 | `tests/plant_parity_check.m` | Executes the plant model vs the reference (Octave/MATLAB). | base MATLAB / Octave |
 | `tests/simulink_plant_parity.m` | Executes the **Simulink design math** (block recurrences + ICs) vs the reference. | base MATLAB / Octave |
 | `tests/console_logic_check.m` | Executes `console_logic.m`'s 13 assertions (Octave/MATLAB). | base MATLAB / Octave |
-| `tests/run_octave_checks.sh` | Runs all three Octave-executable checks above; used by CI. | GNU Octave |
+| `tests/scilab_plant_parity.sce` | **Scilab** port of the plant recurrence — third engine, same reference CSV, exact match. | Scilab (`scilab-cli -nb -f …`) |
+| `tests/run_octave_checks.sh` | Runs all Octave-executable checks; also runs the Scilab check when `scilab-cli` is installed. Used by CI. | GNU Octave (+ optional Scilab) |
 | `reference_trace.csv` | 60-tick ground-truth trace from the Python `DemoPsuSource`. | — |
 
 ## Simulink interface

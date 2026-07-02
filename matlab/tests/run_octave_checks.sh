@@ -14,4 +14,11 @@ run() {
 run plant_parity_check
 run simulink_plant_parity
 run console_logic_check
+
+# Third engine (optional): if Scilab is installed, cross-check the plant
+# there too. Skipped silently when absent so CI stays Octave-only.
+if command -v scilab-cli >/dev/null 2>&1; then
+  echo "== scilab_plant_parity =="
+  scilab-cli -nb -f "$here/scilab_plant_parity.sce"
+fi
 echo "All MATLAB model parity checks passed."
