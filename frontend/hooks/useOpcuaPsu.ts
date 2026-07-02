@@ -6,7 +6,7 @@ import {
   validateSetpoint,
 } from '@/features/opcua/psuClient';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { API_BASE } from '@/lib/apiBase';
 
 export type OpcuaStatus = 'idle' | 'connected' | 'error';
 

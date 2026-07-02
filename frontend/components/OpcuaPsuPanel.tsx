@@ -10,16 +10,16 @@ import {
 const STATUS_STYLE: Record<string, string> = {
   connected: 'bg-green-500/20 text-green-400',
   error: 'bg-red-500/20 text-red-400',
-  idle: 'bg-zinc-500/20 text-zinc-400',
+  idle: 'bg-surface-2 text-muted',
 };
 
 function Tile({ label, value, unit }: { label: string; value: number | undefined; unit: string }) {
   return (
-    <div className="rounded-lg bg-zinc-800/60 p-3">
-      <div className="text-[11px] uppercase tracking-wide text-zinc-400">{label}</div>
-      <div className="mt-1 font-mono text-lg text-zinc-100">
+    <div className="rounded-lg bg-surface-2 border border-app p-3">
+      <div className="text-[11px] uppercase tracking-wide text-muted">{label}</div>
+      <div className="mt-1 font-mono text-lg text-app">
         {value === undefined || Number.isNaN(value) ? '—' : value.toFixed(3)}
-        <span className="ml-1 text-xs text-zinc-500">{unit}</span>
+        <span className="ml-1 text-xs text-muted">{unit}</span>
       </div>
     </div>
   );
@@ -46,13 +46,13 @@ export default function OpcuaPsuPanel() {
   const canEdit = isNodeWritable('Voltage_Setpoint_V', writable) || status !== 'connected';
 
   return (
-    <div className="space-y-4 rounded-xl border border-zinc-700 bg-zinc-900 p-4">
+    <div className="space-y-4 rounded-xl border border-app bg-surface p-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-bold text-yellow-400">
+          <h3 className="text-sm font-bold text-amber-500">
             DC Power Supply — OPC UA mirror
           </h3>
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-muted">
             {state?.model ?? 'PSU'} · mode {state?.mode ?? '—'}
           </p>
         </div>
@@ -76,23 +76,23 @@ export default function OpcuaPsuPanel() {
         }}
       >
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <label className="text-xs text-zinc-400">
+          <label className="text-xs text-muted">
             Voltage setpoint (V)
             <input
               type="number" step="0.1" value={voltage}
               onChange={(e) => setVoltage(e.target.value)}
-              className="mt-1 w-full rounded bg-zinc-800 px-2 py-1 font-mono text-zinc-100"
+              className="mt-1 w-full rounded bg-surface-2 border border-app px-2 py-1 font-mono text-app"
             />
           </label>
-          <label className="text-xs text-zinc-400">
+          <label className="text-xs text-muted">
             Current setpoint (A)
             <input
               type="number" step="0.1" value={current}
               onChange={(e) => setCurrent(e.target.value)}
-              className="mt-1 w-full rounded bg-zinc-800 px-2 py-1 font-mono text-zinc-100"
+              className="mt-1 w-full rounded bg-surface-2 border border-app px-2 py-1 font-mono text-app"
             />
           </label>
-          <label className="flex items-end gap-2 text-xs text-zinc-400">
+          <label className="flex items-end gap-2 text-xs text-muted">
             <input type="checkbox" checked={output} onChange={(e) => setOutput(e.target.checked)} />
             Output enabled
           </label>
@@ -107,7 +107,7 @@ export default function OpcuaPsuPanel() {
         <button
           type="submit"
           disabled={errors.length > 0 || !canEdit}
-          className="rounded bg-yellow-500 px-3 py-1 text-sm font-semibold text-zinc-900 disabled:opacity-40"
+          className="rounded bg-yellow-500 px-3 py-1 text-sm font-semibold text-black disabled:opacity-40"
         >
           Write setpoints
         </button>

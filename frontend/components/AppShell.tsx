@@ -14,7 +14,7 @@
  */
 import React from 'react';
 import Link from 'next/link';
-import { Flame, LayoutDashboard, Activity, Boxes, Ticket as TicketIcon, LifeBuoy, CalendarClock, ScrollText, Gauge } from 'lucide-react';
+import { Flame, LayoutDashboard, Activity, Boxes, Ticket as TicketIcon, LifeBuoy, CalendarClock, Gauge, Stethoscope, GraduationCap, ClipboardCheck } from 'lucide-react';
 import Breadcrumbs from './Breadcrumbs';
 import ThemeToggle from './theme/ThemeToggle';
 
@@ -22,12 +22,17 @@ const NAV = [
   { href: '/overview',  label: '360° Overview', icon: Activity },
   { href: '/dashboard', label: 'Tests',          icon: LayoutDashboard },
   { href: '/psu',       label: 'Power Supply',   icon: Gauge },
+  { href: '/diagnosis', label: 'Diagnosis',      icon: Stethoscope },
   { href: '/equipment', label: 'Equipment',      icon: Boxes },
   { href: '/inventory', label: 'Inventory',      icon: Boxes },
-  { href: '/procurement/rfq', label: 'RFQs',     icon: ScrollText },
   { href: '/tickets',   label: 'Tickets',        icon: TicketIcon },
   { href: '/schedule',  label: 'Schedule',       icon: CalendarClock },
+  { href: '/protocols', label: 'Protocols',      icon: ClipboardCheck },
+  { href: '/trainings', label: 'Trainings',      icon: GraduationCap },
 ];
+// RFQs removed from primary nav per operator feedback (2026-07): procurement
+// RFQ flow is not an end-user surface. The /procurement/rfq route still
+// exists for direct links; it is simply no longer promoted here.
 
 interface AppShellProps {
   children: React.ReactNode;

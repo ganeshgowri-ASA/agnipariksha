@@ -4,6 +4,85 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import GanttChart, { type ScheduleSlot } from '@/components/GanttChart';
 
 type ViewMode = 'weekly' | 'monthly';
+type Layout = 'gantt' | 'calendar' | 'kanban';
+
+const KANBAN_COLS: { key: ScheduleSlot['status']; label: string; cls: string }[] = [
+  { key: 'planned',   label: 'Planned',   cls: 'border-sky-700' },
+  { key: 'running',   label: 'Running',   cls: 'border-blue-600' },
+  { key: 'completed', label: 'Completed', cls: 'border-emerald-700' },
+  { key: 'cancelled', label: 'Cancelled', cls: 'border-gray-700' },
+];
+
+function KanbanView({ slots }: { slots: ScheduleSlot[] }) {
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3" data-testid="kanban-view">
+      {KANBAN_COLS.map(col => {
+        const cards = slots.filter(s => s.status === col.key);
+        return (
+          <div key={col.key} className={`rounded border-t-4 ${col.cls} bg-gray-900 p-2 min-h-[120px]`}>
+            <h3 className="text-xs font-semibold text-gray-300 mb-2">
+              {col.label} <span className="text-gray-500">({cards.length})</span>
+            </h3>
+            <div className="space-y-2">
+              {cards.map(s => (
+                <div key={s.id} className="rounded bg-gray-800 p-2 text-xs">
+                  <div className="font-medium text-gray-100">{s.run_id}</div>
+                  <div className="text-gray-400">{s.equipment_id}</div>
+                  <div className="text-gray-500">
+                    {new Date(s.start).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+              ))}
+              {cards.length === 0 && <div className="text-[11px] text-gray-600">empty</div>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function CalendarView({ slots, anchor }: { slots: ScheduleSlot[]; anchor: Date }) {
+  const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  const daysInMonth = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0).getDate();
+  const lead = first.getDay(); // 0=Sun
+  const cells: (number | null)[] = [
+    ...Array.from({ length: lead }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+  const byDay = (day: number) =>
+    slots.filter(s => {
+      const d = new Date(s.start);
+      return d.getFullYear() === anchor.getFullYear() && d.getMonth() === anchor.getMonth() && d.getDate() === day;
+    });
+  return (
+    <div data-testid="calendar-view">
+      <div className="grid grid-cols-7 text-[10px] text-gray-500 mb-1">
+        {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => <div key={d} className="px-1">{d}</div>)}
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {cells.map((day, i) => (
+          <div key={i} className={`min-h-[72px] rounded p-1 ${day ? 'bg-gray-900 border border-gray-800' : ''}`}>
+            {day && (
+              <>
+                <div className="text-[10px] text-gray-500">{day}</div>
+                {byDay(day).slice(0, 3).map(s => (
+                  <div key={s.id} title={`${s.run_id} · ${s.equipment_id}`}
+                    className="mt-0.5 truncate rounded bg-blue-900/50 border border-blue-800 px-1 text-[10px] text-blue-100">
+                    {s.run_id}
+                  </div>
+                ))}
+                {byDay(day).length > 3 && (
+                  <div className="text-[9px] text-gray-500">+{byDay(day).length - 3} more</div>
+                )}
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 type ConflictDetail = {
   error: 'conflict';
@@ -33,6 +112,7 @@ function shiftAnchor(anchor: Date, mode: ViewMode, dir: -1 | 1): Date {
 export default function SchedulePage() {
   const [slots, setSlots] = useState<ScheduleSlot[]>([]);
   const [mode, setMode] = useState<ViewMode>('weekly');
+  const [layout, setLayout] = useState<Layout>('gantt');
   const [anchor, setAnchor] = useState<Date>(() => new Date());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -282,13 +362,30 @@ export default function SchedulePage() {
           </div>
         )}
 
-        <GanttChart
-          slots={slots}
-          mode={mode}
-          anchor={anchor}
-          onReschedule={reschedule}
-          chartWidth={mode === 'monthly' ? 1100 : 920}
-        />
+        <div className="mb-3 inline-flex rounded border border-gray-800 overflow-hidden text-sm" data-testid="layout-switch">
+          {(['gantt', 'calendar', 'kanban'] as Layout[]).map(l => (
+            <button
+              key={l}
+              onClick={() => setLayout(l)}
+              className={`px-3 py-1 capitalize ${layout === l ? 'bg-blue-600 text-white' : 'bg-gray-900 text-gray-400 hover:text-gray-200'}`}
+              data-testid={`layout-${l}`}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+
+        {layout === 'gantt' && (
+          <GanttChart
+            slots={slots}
+            mode={mode}
+            anchor={anchor}
+            onReschedule={reschedule}
+            chartWidth={mode === 'monthly' ? 1100 : 920}
+          />
+        )}
+        {layout === 'calendar' && <CalendarView slots={slots} anchor={anchor} />}
+        {layout === 'kanban' && <KanbanView slots={slots} />}
 
         <section className="mt-6">
           <h2 className="text-lg font-medium mb-2">Schedules</h2>

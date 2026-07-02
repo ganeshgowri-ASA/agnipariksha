@@ -268,6 +268,44 @@ function AIChangeCard({ context }: { context: string }) {
   );
 }
 
+function HandoverCard({ runs, tickets }: { runs: ScheduledRun[]; tickets: Ticket[] }) {
+  const [notes, setNotes] = useState('');
+  useEffect(() => {
+    try { setNotes(localStorage.getItem('agni-handover-notes') ?? ''); } catch { /* fresh */ }
+  }, []);
+  const save = (v: string) => {
+    setNotes(v);
+    try { localStorage.setItem('agni-handover-notes', v); } catch { /* private mode */ }
+  };
+  const now = new Date().getHours();
+  const pending = runs.filter(r => r.startHour + r.durationHours > now);
+  const roadblocks = tickets.filter(t => t.priority !== 'P3');
+  return (
+    <Card title="Shift handover" testid="overview-card-handover">
+      <div className="space-y-2 text-sm">
+        <div className="flex gap-3">
+          <div className="bg-gray-950 rounded p-3 border border-gray-800 flex-1">
+            <div className="text-[10px] uppercase text-gray-500">Tests pending today</div>
+            <div className="text-2xl font-semibold text-white tabular-nums">{pending.length}</div>
+            <div className="text-[10px] text-gray-500">{pending.map(r => r.test).join(' · ') || 'none'}</div>
+          </div>
+          <div className="bg-gray-950 rounded p-3 border border-gray-800 flex-1">
+            <div className="text-[10px] uppercase text-gray-500">Roadblocks (P1/P2)</div>
+            <div className="text-2xl font-semibold text-white tabular-nums">{roadblocks.length}</div>
+            <div className="text-[10px] text-gray-500 truncate">{roadblocks[0]?.title ?? 'none'}</div>
+          </div>
+        </div>
+        <textarea
+          value={notes}
+          onChange={(e) => save(e.target.value)}
+          placeholder="Notes for the next shift — open runs, watch-outs, chamber state…"
+          className="w-full h-16 bg-gray-950 border border-gray-800 rounded p-2 text-xs text-gray-200"
+        />
+      </div>
+    </Card>
+  );
+}
+
 // ----------------------------- page -----------------------------------
 
 export default function OverviewPage() {
@@ -298,6 +336,7 @@ export default function OverviewPage() {
           <ScheduleCard runs={MOCK_SCHEDULE} />
           <TicketsCard tickets={MOCK_TICKETS} />
           <SparesCard parts={MOCK_PARTS} />
+          <HandoverCard runs={MOCK_SCHEDULE} tickets={MOCK_TICKETS} />
           <AIChangeCard context={aiContext} />
         </div>
 
