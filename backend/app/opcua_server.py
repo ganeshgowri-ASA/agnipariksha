@@ -1,0 +1,178 @@
+"""OPC UA server exposing Agnipariksha DC power-supply state + setpoints.
+
+Address space:
+  Objects/Agnipariksha/PSU/
+    Readings/   (clients: read-only)   Voltage_V, Current_A, Power_W, Temperature_C
+    Setpoints/  (clients: read-write)  Voltage_Setpoint_V, Current_Setpoint_A,
+                                       Output_Enabled
+    Info/       (clients: read-only)   Model, Mode
+
+The server is backend-agnostic: a DEMO simulator or a LIVE ITECH PV6000
+driver pushes readings via ``update_readings`` and polls operator commands
+via ``get_setpoints``.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Dict, Mapping, Optional
+
+from asyncua import Server, ua
+from asyncua.common.node import Node
+from asyncua.crypto.permission_rules import User, UserRole
+from asyncua.server.user_managers import UserManager
+
+DEFAULT_ENDPOINT = "opc.tcp://0.0.0.0:4840/agnipariksha/server"
+NAMESPACE_URI = "urn:agnipariksha:psu"
+
+# Explicit allow-list: the ONLY browse names an OPC UA client may write.
+# Everything else (Readings, Info) is server-published and client-read-only.
+WRITABLE_NODES = ("Voltage_Setpoint_V", "Current_Setpoint_A", "Output_Enabled")
+
+
+class CredentialUserManager(UserManager):
+    """Validates UserName identity tokens against a username→password map.
+
+    A username present with a matching password authenticates as a normal
+    user; everything else (wrong password, unknown user, anonymous) is
+    rejected with BadUserAccessDenied. Plain username/password is only safe
+    over an encrypted channel — pair with a security policy in production.
+    """
+
+    def __init__(self, credentials: Mapping[str, str]) -> None:
+        self._credentials = dict(credentials)
+
+    def get_user(
+        self, iserver: Any, username: Optional[str] = None,
+        password: Optional[str] = None, certificate: Any = None,
+    ) -> Optional[User]:
+        if username is not None and self._credentials.get(username) == password:
+            return User(role=UserRole.User)
+        return None
+
+
+@dataclass
+class PsuReadings:
+    voltage_v: float = 0.0
+    current_a: float = 0.0
+    power_w: float = 0.0
+    temperature_c: float = 25.0
+
+
+@dataclass
+class PsuSetpoints:
+    voltage_v: float = 0.0
+    current_a: float = 0.0
+    output_enabled: bool = False
+
+
+class PsuOpcUaServer:
+    """asyncua.Server wrapper with the Agnipariksha PSU address space."""
+
+    def __init__(
+        self,
+        endpoint: str = DEFAULT_ENDPOINT,
+        namespace_uri: str = NAMESPACE_URI,
+        *,
+        model: str = "ITECH PV6000",
+        mode: str = "DEMO",
+        users: Optional[Mapping[str, str]] = None,
+    ) -> None:
+        self.endpoint = endpoint
+        self.namespace_uri = namespace_uri
+        self.model = model
+        self.mode = mode
+        # When set, anonymous access is rejected and only these credentials
+        # authenticate. When None the server is open (DEMO / trusted LAN).
+        self.users = dict(users) if users else None
+        self._server: Optional[Server] = None
+        self._nodes: Dict[str, Node] = {}
+        self._idx: int = -1
+
+    @property
+    def writable_nodes(self) -> tuple[str, ...]:
+        return WRITABLE_NODES
+
+    async def init(self) -> None:
+        user_manager = CredentialUserManager(self.users) if self.users else None
+        s = Server(user_manager=user_manager)
+        await s.init()
+        s.set_endpoint(self.endpoint)
+        s.set_server_name("Agnipariksha PSU OPC UA Server")
+        self._idx = await s.register_namespace(self.namespace_uri)
+
+        root = await s.nodes.objects.add_folder(self._idx, "Agnipariksha")
+        psu = await root.add_folder(self._idx, "PSU")
+        readings = await psu.add_folder(self._idx, "Readings")
+        setpoints = await psu.add_folder(self._idx, "Setpoints")
+        info = await psu.add_folder(self._idx, "Info")
+
+        async def add_var(parent: Node, name: str, default, vtype) -> Node:
+            n = await parent.add_variable(self._idx, name, default, vtype)
+            # Client-writability is driven solely by the WRITABLE_NODES
+            # allow-list, so the security posture lives in one place.
+            if name in WRITABLE_NODES:
+                await n.set_writable()
+            self._nodes[name] = n
+            return n
+
+        d = ua.VariantType.Double
+        b = ua.VariantType.Boolean
+        st = ua.VariantType.String
+
+        await add_var(readings, "Voltage_V", 0.0, d)
+        await add_var(readings, "Current_A", 0.0, d)
+        await add_var(readings, "Power_W", 0.0, d)
+        await add_var(readings, "Temperature_C", 25.0, d)
+
+        await add_var(setpoints, "Voltage_Setpoint_V", 0.0, d)
+        await add_var(setpoints, "Current_Setpoint_A", 0.0, d)
+        await add_var(setpoints, "Output_Enabled", False, b)
+
+        await add_var(info, "Model", self.model, st)
+        await add_var(info, "Mode", self.mode, st)
+
+        self._server = s
+
+    async def start(self) -> None:
+        if self._server is None:
+            await self.init()
+        assert self._server is not None
+        await self._server.start()
+
+    async def stop(self) -> None:
+        if self._server is not None:
+            await self._server.stop()
+
+    async def __aenter__(self) -> "PsuOpcUaServer":
+        await self.start()
+        return self
+
+    async def __aexit__(self, *_exc) -> None:
+        await self.stop()
+
+    async def nodes_value(self, name: str) -> Any:
+        """Read a single node's current value by its browse name (telemetry
+        mirror for local panels / tests, without a networked UA client)."""
+        return await self._nodes[name].read_value()
+
+    async def update_readings(self, r: PsuReadings) -> None:
+        """Push a fresh set of readings to the read-only nodes."""
+        await self._nodes["Voltage_V"].write_value(r.voltage_v)
+        await self._nodes["Current_A"].write_value(r.current_a)
+        await self._nodes["Power_W"].write_value(r.power_w)
+        await self._nodes["Temperature_C"].write_value(r.temperature_c)
+
+    async def get_setpoints(self) -> PsuSetpoints:
+        """Read the latest setpoints set by an OPC UA client (or LIVE op)."""
+        return PsuSetpoints(
+            voltage_v=await self._nodes["Voltage_Setpoint_V"].read_value(),
+            current_a=await self._nodes["Current_Setpoint_A"].read_value(),
+            output_enabled=await self._nodes["Output_Enabled"].read_value(),
+        )
+
+    async def set_setpoints(self, sp: PsuSetpoints) -> None:
+        """Programmatic/local setpoint control (e.g. an operator panel or the
+        DEMO loop) writing the same nodes an OPC UA client would write."""
+        await self._nodes["Voltage_Setpoint_V"].write_value(sp.voltage_v)
+        await self._nodes["Current_Setpoint_A"].write_value(sp.current_a)
+        await self._nodes["Output_Enabled"].write_value(sp.output_enabled)

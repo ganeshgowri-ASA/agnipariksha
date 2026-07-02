@@ -1,5 +1,5 @@
 /**
- * Vitest coverage for Reverse Current Overload analysis (IEC 61730-2 MST 26).
+ * Vitest coverage for Reverse Current Overload analysis (IEC 61730-2:2023 MST 26).
  */
 import { describe, it, expect } from 'vitest';
 import { computeRcoKpis, RCO_CONSTANTS, type RcoConfig } from './rcoAnalysis';

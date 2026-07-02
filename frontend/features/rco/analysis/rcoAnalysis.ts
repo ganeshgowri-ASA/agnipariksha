@@ -1,5 +1,5 @@
 /**
- * Reverse Current Overload analysis — IEC 61730-2 MST 26.
+ * Reverse Current Overload analysis — IEC 61730-2:2023 MST 26.
  *
  * MST 26 applies a reverse current equal to 1.35× the rated max series
  * fuse current through the module for a configured duration (typically
