@@ -16,6 +16,11 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // Next 15.5 blocks cross-origin requests to the dev server unless the
+  // origin is allow-listed. When the app is shared through a tunnel
+  // (cloudflared / ngrok), the browser's origin is the tunnel domain — allow
+  // those so `npm run dev` serves the shared link instead of refusing it.
+  allowedDevOrigins: ['*.trycloudflare.com', '*.ngrok-free.app', '*.ngrok.io', '*.loca.lt'],
   // Legacy /lid path renamed to /letid per IEC TS 63342. 308 keeps old links working.
   async redirects() {
     return [{ source: '/lid', destination: '/letid', permanent: true }];
