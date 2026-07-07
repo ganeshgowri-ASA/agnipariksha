@@ -21,18 +21,32 @@ function Fail($msg) { Write-Host "XX  $msg" -ForegroundColor Red; exit 1 }
 # --- Prerequisites ---------------------------------------------------------
 Step 'Checking prerequisites (git, python, node/npm)'
 
-function Have($names) {
-  foreach ($n in $names) { if (Get-Command $n -ErrorAction SilentlyContinue) { return $true } }
-  return $false
+function Resolve-RealPython {
+  # A working, non-Microsoft-Store-alias Python, or $null. The Store alias
+  # (…\WindowsApps\python.exe) is a stub that just opens the Store, so it is
+  # skipped; the `py` launcher is preferred because it never collides with it.
+  $cands = @()
+  $pl = Get-Command py -ErrorAction SilentlyContinue
+  if ($pl) { $cands += $pl.Source }
+  foreach ($c in (Get-Command python -All -ErrorAction SilentlyContinue)) { $cands += $c.Source }
+  foreach ($p in $cands) {
+    if ($p -match 'WindowsApps') { continue }
+    try { & $p --version 2>$null | Out-Null; if ($LASTEXITCODE -eq 0) { return $p } } catch {}
+  }
+  return $null
 }
 
-# Figure out what's missing and auto-install via winget. PATH does not
-# refresh inside a running session, so if anything is installed the script
-# stops and asks for a fresh window rather than failing halfway.
+# Detect what's genuinely usable and auto-install the rest via winget. PATH
+# does not refresh inside a running session, so if anything is installed the
+# script stops and asks for a fresh window rather than failing halfway.
+$gitCmd = Get-Command git -ErrorAction SilentlyContinue
+$pyExe  = Resolve-RealPython
+$npmCmd = Get-Command npm.cmd -ErrorAction SilentlyContinue
+
 $need = @()
-if (-not (Have @('git')))           { $need += 'Git.Git' }
-if (-not (Have @('python', 'py')))  { $need += 'Python.Python.3.12' }
-if (-not (Have @('npm', 'npm.cmd'))) { $need += 'OpenJS.NodeJS.LTS' }
+if (-not $gitCmd) { $need += 'Git.Git' }
+if (-not $pyExe)  { $need += 'Python.Python.3.12' }
+if (-not $npmCmd) { $need += 'OpenJS.NodeJS.LTS' }
 
 if ($need.Count -gt 0) {
   if (Get-Command winget -ErrorAction SilentlyContinue) {
@@ -42,18 +56,17 @@ if ($need.Count -gt 0) {
     }
     Write-Host ""
     Write-Host "Prerequisites installed. Windows PATH only updates in a NEW shell." -ForegroundColor Yellow
+    if ($need -contains 'Python.Python.3.12') {
+      Write-Host "If Python still isn't found next run, disable its Store alias:" -ForegroundColor Yellow
+      Write-Host "  Settings > Apps > Advanced app settings > App execution aliases > turn OFF python.exe/python3.exe" -ForegroundColor Yellow
+    }
     Write-Host "==> Close this window, open a NEW PowerShell, and run the one-paste again." -ForegroundColor Yellow
     exit 0
   }
   Fail ("Missing: " + ($need -join ', ') + ". Install these, open a new PowerShell, then re-run.")
 }
 
-$git = Get-Command git -ErrorAction SilentlyContinue
-$py  = Get-Command python -ErrorAction SilentlyContinue
-if (-not $py) { $py = Get-Command py -ErrorAction SilentlyContinue }
-$npm = Get-Command npm.cmd -ErrorAction SilentlyContinue
-if (-not $npm) { $npm = Get-Command npm -ErrorAction SilentlyContinue }
-Write-Host ("    git={0}  python={1}  npm={2}" -f $git.Source, $py.Source, $npm.Source)
+Write-Host ("    git={0}  python={1}  npm={2}" -f $gitCmd.Source, $pyExe, $npmCmd.Source)
 
 # --- Clone or update -------------------------------------------------------
 if (Test-Path (Join-Path $Root '.git')) {
@@ -72,7 +85,7 @@ $Venv    = Join-Path $Backend '.venv'
 $VenvPy  = Join-Path $Venv 'Scripts\python.exe'
 if (-not (Test-Path $VenvPy)) {
   Step 'Creating backend virtualenv (avoids the bare-uvicorn Permission denied issue)'
-  & $py.Source -m venv $Venv
+  & $pyExe -m venv $Venv
 }
 Step 'Installing backend requirements'
 & $VenvPy -m pip install --quiet --upgrade pip
@@ -82,20 +95,22 @@ Step 'Installing backend requirements'
 Step 'Installing frontend dependencies (first run takes a few minutes)'
 $Frontend = Join-Path $Root 'frontend'
 Push-Location $Frontend
-& $npm.Source install --no-audit --no-fund
+& $npmCmd.Source install --no-audit --no-fund
 Pop-Location
 
 # --- Start both in their own windows --------------------------------------
 Step 'Starting backend (DEMO mode) in its own window on :8000'
 Start-Process powershell -WorkingDirectory $Backend -ArgumentList @(
-  '-NoExit', '-Command',
+  '-NoExit', '-ExecutionPolicy', 'Bypass', '-Command',
   "`$env:DEMO_MODE='true'; & '$VenvPy' -m uvicorn main:app --host 127.0.0.1 --port 8000"
 )
 
+# Frontend: -ExecutionPolicy Bypass + npm.cmd so a Restricted machine policy
+# (which blocks npm.ps1) does not stop `npm run dev`.
 Step 'Starting frontend in its own window on :3000'
 Start-Process powershell -WorkingDirectory $Frontend -ArgumentList @(
-  '-NoExit', '-Command',
-  "npm run dev"
+  '-NoExit', '-ExecutionPolicy', 'Bypass', '-Command',
+  "npm.cmd run dev"
 )
 
 # --- Wait for health, then open the PSU console ---------------------------
