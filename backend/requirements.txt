@@ -11,6 +11,9 @@ loguru>=0.7.2
 pyserial>=3.5
 pyvisa-py>=0.7.2
 
+# OPC UA server (DC-PSU northbound interface for SCADA/MES)
+asyncua>=1.1.0
+
 # Device registry manifests
 PyYAML>=6.0
 

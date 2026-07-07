@@ -89,6 +89,16 @@ class ReportContext:
     setpoints: dict[str, Any] = field(default_factory=dict)
     kpis: dict[str, Any] = field(default_factory=dict)
     csv_path: Optional[str] = None
+    # ISO/IEC 17025 §7.8 declarations (optional payload extras; defaults keep
+    # existing callers working while flagging what the lab must fill in).
+    env_conditions: str = "not recorded"
+    uncertainty: str = (
+        "Measurement uncertainty per the station calibration records; "
+        "stated on request where relevant to conformity."
+    )
+    deviations: str = "none"
+    approved_by: str = ""
+    approver_role: str = ""
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> "ReportContext":
@@ -100,9 +110,9 @@ class ReportContext:
             "pid":             "IEC TS 62804-1 — PID",
             "letid":           "IEC TS 63342:2022 — LeTID",
             "bdt":             "IEC 62979:2017 — Bypass Diode Thermal",
-            "rco":             "IEC 61730-2 MST 26 — Reverse Current Overload",
-            "gct":             "IEC 61730-2 MST 13 — Ground Continuity",
-            "eb":              "IEC 61730-2 MST 11 — Equipotential Bonding",
+            "rco":             "IEC 61730-2:2023 MST 26 — Reverse Current Overload",
+            "gct":             "IEC 61730-2:2023 MST 13 — Ground Continuity",
+            "eb":              "IEC 61730-2:2023 MST 11 — Equipotential Bonding",
             "ir":              "IEC TS 60904-12 — Forward-Bias IR",
         }
         tt = str(payload.get("testType", "")).lower()
@@ -127,6 +137,11 @@ class ReportContext:
             setpoints=dict(payload.get("setpoints", {})),
             kpis=dict(payload.get("kpis", {})),
             csv_path=payload.get("csvPath") or payload.get("rawDataPath"),
+            env_conditions=str(payload.get("envConditions") or "not recorded"),
+            uncertainty=str(payload.get("uncertainty") or cls.uncertainty),
+            deviations=str(payload.get("deviations") or "none"),
+            approved_by=str(payload.get("approvedBy") or ""),
+            approver_role=str(payload.get("approverRole") or ""),
         )
 
 
@@ -246,6 +261,32 @@ def build_iec_report(payload: dict[str, Any]) -> bytes:
             story.append(Paragraph(f"CSV SHA-256: <font face='Courier'>{digest}</font>", small))
         except OSError:
             story.append(Paragraph("CSV file not readable at report time.", small))
+
+    # --- Section 5: ISO/IEC 17025 §7.8 declarations ---
+    story.append(Spacer(1, 14))
+    story.append(Paragraph("5. ISO/IEC 17025 declarations", h2))
+    approver = (
+        f"{ctx.approved_by} ({ctx.approver_role})"
+        if ctx.approved_by
+        else "________________________  (name, function, signature)"
+    )
+    iso_rows = [
+        ["Method (incl. edition)",    ctx.standard],
+        ["Environmental conditions",  ctx.env_conditions],
+        ["Measurement uncertainty",   ctx.uncertainty],
+        ["Deviations from method",    ctx.deviations],
+        ["Report issue date (UTC)",   datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")],
+        ["Authorised by",             approver],
+    ]
+    iso_table = Table(iso_rows, colWidths=[45 * mm, 120 * mm])
+    iso_table.setStyle(_table_style())
+    story.append(iso_table)
+    story.append(Spacer(1, 6))
+    story.append(Paragraph(
+        "The results reported herein relate only to the item(s) tested. "
+        "This report shall not be reproduced except in full without the "
+        "written approval of the laboratory.", small,
+    ))
 
     story.append(Spacer(1, 12))
     story.append(Paragraph(

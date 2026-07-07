@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Activity, Flame, Cpu, PowerOff, Wifi, WifiOff, Ticket as TicketIcon, LifeBuoy } from 'lucide-react';
+import { Activity, Flame, Cpu, Home as HomeIcon, PowerOff, Wifi, WifiOff, Ticket as TicketIcon, LifeBuoy } from 'lucide-react';
 import { NotificationsBell } from './notifications/NotificationsDrawer';
 import Breadcrumbs from './Breadcrumbs';
 import ThemeToggle from './theme/ThemeToggle';
@@ -41,19 +41,26 @@ export default function AppHeader({
     <header className="bg-gradient-to-r from-gray-950 via-gray-900 to-gray-950 border-b border-gray-800">
       <a href="#main" className="skip-link">Skip to content</a>
       <div className="px-6 py-3 flex items-center justify-between">
-      {/* Brand lockup */}
+      {/* Brand lockup — links Home so every screen has a way back */}
       <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2.5">
+        <Link href="/overview" className="flex items-center gap-2.5 group" title="Back to 360° Overview" data-testid="dashboard-home-link">
           <div className="w-9 h-9 bg-gradient-to-br from-orange-500 to-red-600 rounded-md flex items-center justify-center shadow-lg shadow-orange-500/20">
             <Flame className="w-5 h-5 text-white" aria-hidden />
           </div>
           <div className="leading-tight">
-            <h1 className="text-base font-bold text-white tracking-tight">Agnipariksha</h1>
+            <h1 className="text-base font-bold text-white tracking-tight group-hover:text-orange-200">Agnipariksha</h1>
             <p className="text-[10px] uppercase tracking-[0.18em] text-gray-400">
               Shreshtata Power Supplies · PV Reliability Test Station
             </p>
           </div>
-        </div>
+        </Link>
+        <Link
+          href="/overview"
+          className="hidden md:inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-medium text-gray-300 hover:text-white hover:bg-gray-800 border border-gray-700"
+          data-testid="dashboard-home-button"
+        >
+          <HomeIcon className="w-3.5 h-3.5" aria-hidden /> Home
+        </Link>
 
         {/* ITECH connection pill */}
         <div

@@ -12,8 +12,8 @@ const TEST_LABELS: Record<string, { name: string; std: string; color: string }> 
   hf:    { name: 'Humidity Freeze',        std: 'IEC 61215 MQT12', color: 'border-blue-500' },
   letid: { name: 'LeTID',                  std: 'IEC TS 63342',    color: 'border-purple-500' },
   bdt:   { name: 'Bypass Diode Thermal',   std: 'IEC 62979',       color: 'border-yellow-500' },
-  rco:   { name: 'Reverse Current Overload', std: 'IEC 61730 MST26', color: 'border-red-500' },
-  gct:   { name: 'Ground Continuity',      std: 'IEC 61730 MST13', color: 'border-green-500' },
+  rco:   { name: 'Reverse Current Overload', std: 'IEC 61730-2:2023 MST 26', color: 'border-red-500' },
+  gct:   { name: 'Ground Continuity',      std: 'IEC 61730-2:2023 MST 13', color: 'border-green-500' },
   dh:    { name: 'Damp Heat',              std: 'IEC 61215-2 MQT 13', color: 'border-cyan-500' },
 };
 

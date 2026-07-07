@@ -22,7 +22,7 @@ export default function GroundContinuityTab({
 }: Props) {
   const [testCurrent, setTestCurrent] = useState(25); // A — informational, sourced by DMM
   const [duration, setDuration] = useState(120); // s — hold time at ≥ 2.5× rated bonding current
-  const [maxResistance, setMaxResistance] = useState(0.1); // Ω per IEC 61730-2 MST 13
+  const [maxResistance, setMaxResistance] = useState(0.1); // Ω per IEC 61730-2:2023 MST 13
   const [bonding, setBonding] = useState(''); // operator bonding-point label (e.g. frame-corner-A)
 
   // GCT live feed (DMM 4-wire R + pass/fail). Stays connected the whole time
@@ -77,7 +77,7 @@ export default function GroundContinuityTab({
     const newSession: TestSession = stampOperatorContext(draft);
     onSessionUpdate(newSession);
     // Belt-and-braces: PSU output stays OFF for the entire GCT. Per
-    // IEC 61730-2 MST 13 the test current is sourced by the DMM, not
+    // IEC 61730-2:2023 MST 13 the test current is sourced by the DMM, not
     // the PV6000. We never send OUTP ON from this tab.
     sendCommand('OUTP OFF');
     sendCommand(`SYST:LOG "GCT start; max R = ${maxResistance} Ohm${bonding ? `; bonding=${bonding}` : ''}"`);
@@ -110,7 +110,7 @@ export default function GroundContinuityTab({
   const setupPanel = (
     <div className="space-y-4">
       <div className="bg-gray-900 rounded-lg border border-gray-700 p-4">
-        <h3 className="text-sm font-bold text-green-400 mb-3">IEC 61730-2 MST 13 — Ground Continuity</h3>
+        <h3 className="text-sm font-bold text-green-400 mb-3">IEC 61730-2:2023 MST 13 — Ground Continuity</h3>
         <p className="text-xs text-gray-400 mb-2">
           Apply 25 A between the grounding point and frame. Resistance must be &lt; 0.1 Ω.
           Measurement is 4-wire via the Keysight 34465A — the PV6000 output stays OFF
@@ -189,7 +189,7 @@ export default function GroundContinuityTab({
       </div>
       <div className="flex-1 min-h-0">
         <TestTabLayout
-          testKey="gct" testName="Ground Continuity" standard="IEC 61730-2 MST 13"
+          testKey="gct" testName="Ground Continuity" standard="IEC 61730-2:2023 MST 13"
           color="text-green-400" readings={liveReadings} session={session}
           onSessionUpdate={onSessionUpdate} sendCommand={sendCommand} demoMode={demoMode}
           limits={{ maxVoltage: 5, maxCurrent: 30, maxPower: 150, maxTemp: 40 }}
@@ -222,7 +222,7 @@ const DEMO_PATHS: Array<{ id: string; from: string; to: string; r: number }> = [
 ];
 
 /**
- * GCT Analysis — IEC 61730-2 MST 13 single-point ground continuity.
+ * GCT Analysis — IEC 61730-2:2023 MST 13 single-point ground continuity.
  *
  * Replaces the generic degradation template (Pmax / ΔPmax / Gate-2) that the
  * default AnalysisPanel renders — that template is wrong for a resistance
@@ -247,7 +247,7 @@ function GctAnalysisPanel({ maxResistance }: { maxResistance: number }) {
   }));
 
   const summary =
-    `Ground Continuity (IEC 61730-2 MST 13): ${passCount}/${paths.length} paths ≤${maxResistance}Ω. ` +
+    `Ground Continuity (IEC 61730-2:2023 MST 13): ${passCount}/${paths.length} paths ≤${maxResistance}Ω. ` +
     `Worst: ${worst.id} at ${worst.r.toFixed(3)}Ω. Verdict: ${allPass ? 'PASS' : 'FAIL'}.`;
 
   const stats: Array<[string, number]> = [['R_min', rMin], ['R_mean', rMean], ['R_max', rMax]];
@@ -263,7 +263,7 @@ function GctAnalysisPanel({ maxResistance }: { maxResistance: number }) {
           {allPass ? 'PASS' : 'FAIL'}
         </p>
         <p className="text-xs text-gray-400 mt-1">
-          {passCount}/{paths.length} grounding paths ≤ {maxResistance} Ω per IEC 61730-2 MST 13.
+          {passCount}/{paths.length} grounding paths ≤ {maxResistance} Ω per IEC 61730-2:2023 MST 13.
           {allPass ? '' : ' One or more paths exceed the limit.'}
         </p>
       </div>

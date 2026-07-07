@@ -23,7 +23,7 @@ export default function EquipotentialBondingTab({
 }: Props) {
   const [testCurrent, setTestCurrent] = useState(25);            // A — sourced by DMM
   const [durationPerPair, setDurationPerPair] = useState(120);   // s per measured pair
-  const [threshold, setThreshold] = useState(0.1);               // Ω per IEC 61730-2 MST 13
+  const [threshold, setThreshold] = useState(0.1);               // Ω per IEC 61730-2:2023 MST 13
   const [bondingPoints, setBondingPoints] = useState<string[]>(DEFAULT_POINTS);
   const [newPoint, setNewPoint] = useState('');
 
@@ -137,7 +137,7 @@ export default function EquipotentialBondingTab({
   const setupPanel = (
     <div className="space-y-4">
       <div className="bg-gray-900 rounded-lg border border-gray-700 p-4">
-        <h3 className="text-sm font-bold text-emerald-400 mb-3">IEC 61730-2 MST 13 — Equipotential Bonding</h3>
+        <h3 className="text-sm font-bold text-emerald-400 mb-3">IEC 61730-2:2023 MST 13 — Equipotential Bonding</h3>
         <p className="text-xs text-gray-400 mb-2">
           Companion to Ground Continuity: verify exposed conductive parts are bonded
           to each other so they share one potential. Every unique pair of points
@@ -295,7 +295,7 @@ export default function EquipotentialBondingTab({
       </div>
       <div className="flex-1 min-h-0">
         <TestTabLayout
-          testKey="eb" testName="Equipotential Bonding" standard="IEC 61730-2 MST 13"
+          testKey="eb" testName="Equipotential Bonding" standard="IEC 61730-2:2023 MST 13"
           color="text-emerald-400" readings={liveReadings} session={session}
           onSessionUpdate={onSessionUpdate} sendCommand={sendCommand} demoMode={demoMode}
           limits={{ maxVoltage: 5, maxCurrent: 30, maxPower: 150, maxTemp: 40 }}

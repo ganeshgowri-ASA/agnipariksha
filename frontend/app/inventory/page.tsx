@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import AppShell from '@/components/AppShell';
+import { API_BASE, fetchErrorMessage } from '@/lib/apiBase';
 
 type SparePart = {
   id: string;
@@ -12,9 +14,6 @@ type SparePart = {
   location: string;
   updated_at: string;
 };
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE ?? 'http://localhost:8000';
 
 const blankForm = {
   sku: '',
@@ -36,14 +35,19 @@ export default function InventoryPage() {
       const r = await fetch(`${API_BASE}/api/reliability/parts`);
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       setParts(await r.json());
+      setErr(null);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'load failed');
+      setErr(fetchErrorMessage(e));
     }
   }, []);
 
+  // Retry every 5 s while errored so the page self-heals once the backend
+  // window is up (same pattern as /equipment and the PSU console).
   useEffect(() => {
     void load();
-  }, [load]);
+    const id = setInterval(() => { if (err) void load(); }, 5_000);
+    return () => clearInterval(id);
+  }, [load, err]);
 
   const submit = useCallback(
     async (ev: React.FormEvent) => {
@@ -102,37 +106,39 @@ export default function InventoryPage() {
   const lowStock = (p: SparePart) => p.quantity <= p.reorder_level;
 
   return (
-    <main className="p-6 space-y-6">
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Spare Parts Inventory</h1>
-        <span className="text-sm text-slate-500">
+    <AppShell
+      title="Spare Parts Inventory"
+      subtitle="Stock levels · reorder points"
+      actions={
+        <span className="text-[11px] text-muted">
           {parts.filter(lowStock).length} low-stock
         </span>
-      </header>
-
+      }
+    >
+    <main className="p-6 space-y-6">
       {err && (
-        <div className="rounded border border-red-400 bg-red-50 p-3 text-red-700">
+        <div className="rounded border border-red-400 bg-red-500/10 p-3 text-red-500 text-sm">
           {err}
         </div>
       )}
 
       <form
         onSubmit={submit}
-        className="grid grid-cols-1 md:grid-cols-6 gap-2 rounded border bg-white p-4"
+        className="grid grid-cols-1 md:grid-cols-6 gap-2 rounded border border-app bg-surface p-4"
       >
         <input
           required
           placeholder="SKU"
           value={form.sku}
           onChange={(e) => setForm({ ...form, sku: e.target.value })}
-          className="border rounded px-2 py-1"
+          className="border border-app bg-surface-2 text-app rounded px-2 py-1"
         />
         <input
           required
           placeholder="Name"
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
-          className="border rounded px-2 py-1 md:col-span-2"
+          className="border border-app bg-surface-2 text-app rounded px-2 py-1 md:col-span-2"
         />
         <input
           type="number"
@@ -142,7 +148,7 @@ export default function InventoryPage() {
           onChange={(e) =>
             setForm({ ...form, quantity: Number(e.target.value) })
           }
-          className="border rounded px-2 py-1"
+          className="border border-app bg-surface-2 text-app rounded px-2 py-1"
         />
         <input
           type="number"
@@ -152,7 +158,7 @@ export default function InventoryPage() {
           onChange={(e) =>
             setForm({ ...form, reorder_level: Number(e.target.value) })
           }
-          className="border rounded px-2 py-1"
+          className="border border-app bg-surface-2 text-app rounded px-2 py-1"
         />
         <button
           disabled={busy}
@@ -162,9 +168,9 @@ export default function InventoryPage() {
         </button>
       </form>
 
-      <table className="w-full text-sm border-collapse">
+      <table className="w-full text-sm border-collapse text-app">
         <thead>
-          <tr className="text-left bg-slate-100">
+          <tr className="text-left bg-surface-2 text-app">
             <th className="p-2">SKU</th>
             <th className="p-2">Name</th>
             <th className="p-2 text-right">Qty</th>
@@ -179,8 +185,8 @@ export default function InventoryPage() {
               key={p.id}
               className={
                 lowStock(p)
-                  ? 'bg-red-50 border-b border-red-200'
-                  : 'border-b'
+                  ? 'bg-red-500/10 border-b border-red-500/40'
+                  : 'border-b border-app'
               }
             >
               <td className="p-2 font-mono">{p.sku}</td>
@@ -198,13 +204,13 @@ export default function InventoryPage() {
               <td className="p-2 space-x-2">
                 <button
                   onClick={() => void consume(p.id, 1)}
-                  className="rounded bg-slate-200 px-2 py-0.5 hover:bg-slate-300"
+                  className="rounded bg-surface-2 text-app border border-app px-2 py-0.5 hover:bg-surface"
                 >
                   −1
                 </button>
                 <button
                   onClick={() => void remove(p.id)}
-                  className="rounded bg-red-200 px-2 py-0.5 hover:bg-red-300"
+                  className="rounded bg-red-600/80 text-white px-2 py-0.5 hover:bg-red-600"
                 >
                   Delete
                 </button>
@@ -213,7 +219,7 @@ export default function InventoryPage() {
           ))}
           {parts.length === 0 && (
             <tr>
-              <td colSpan={6} className="p-4 text-center text-slate-500">
+              <td colSpan={6} className="p-4 text-center text-muted">
                 No parts. Add one above.
               </td>
             </tr>
@@ -221,5 +227,6 @@ export default function InventoryPage() {
         </tbody>
       </table>
     </main>
+    </AppShell>
   );
 }

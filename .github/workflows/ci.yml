@@ -96,3 +96,17 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Smoke test
         run: bash scripts/smoke.sh
+
+  matlab-model:
+    # Verifies the MATLAB/Simulink DC-PSU model still matches the Python
+    # plant (reference_trace.csv) using GNU Octave — no MATLAB license needed.
+    # Guards the cross-language parity that backend/tests/test_psu_trace.py
+    # pins from the Python side.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Octave
+        run: sudo apt-get update && sudo apt-get install -y octave
+      - name: MATLAB model parity (plant + Simulink design vs Python reference)
+        run: bash matlab/tests/run_octave_checks.sh

@@ -136,3 +136,32 @@ def test_route_rejects_invalid_payload() -> None:
 def test_builder_covers_multiple_test_types(tt: str) -> None:
     pdf = build_iec_report(_sample_payload(tt))
     assert pdf.startswith(b"%PDF-")
+
+
+def test_builder_includes_iso17025_declarations() -> None:
+    """The §7.8 block must land in the PDF: method+edition, environmental
+    conditions, uncertainty, deviations, authorisation, and the
+    results-relate-only statement."""
+    pypdf = pytest.importorskip("pypdf")
+    payload = _sample_payload("gct")
+    payload["envConditions"] = "23 degC / 45 %RH ambient"
+    payload["approvedBy"] = "quality.mgr"
+    payload["approverRole"] = "Quality Manager"
+    pdf = build_iec_report(payload)
+    reader = pypdf.PdfReader(BytesIO(pdf))
+    text = "".join(page.extract_text() or "" for page in reader.pages)
+    assert "ISO/IEC 17025 declarations" in text
+    assert "61730-2:2023" in text  # method cites the current edition
+    assert "23 degC / 45 %RH ambient" in text
+    assert "uncertainty" in text.lower()
+    assert "Deviations" in text
+    assert "quality.mgr" in text and "Quality Manager" in text
+    assert "relate only to the item" in text
+
+
+def test_builder_iso17025_signature_line_when_unapproved() -> None:
+    pypdf = pytest.importorskip("pypdf")
+    pdf = build_iec_report(_sample_payload())  # no approvedBy
+    reader = pypdf.PdfReader(BytesIO(pdf))
+    text = "".join(page.extract_text() or "" for page in reader.pages)
+    assert "name, function, signature" in text

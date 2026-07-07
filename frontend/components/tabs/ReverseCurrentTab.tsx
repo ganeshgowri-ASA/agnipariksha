@@ -21,7 +21,7 @@ export default function ReverseCurrentTab({ readings, session, onSessionUpdate, 
   const [duration, setDuration] = useState(2); // hours
   const [voltageLimit, setVoltageLimit] = useState(1.0); // V drop limit
 
-  // IEC 61730-2 MST 26: test at 135% of max series fuse rating
+  // IEC 61730-2:2023 MST 26: test at 135% of max series fuse rating
   const testCurrent = +(fuseRating * 1.35).toFixed(3);
   const latest = readings[readings.length - 1];
   const currentOk = latest ? latest.current <= testCurrent * 1.05 : true;
@@ -58,7 +58,7 @@ export default function ReverseCurrentTab({ readings, session, onSessionUpdate, 
   const setupPanel = (
     <div className="space-y-4">
       <div className="bg-gray-900 rounded-lg border border-gray-700 p-4">
-        <h3 className="text-sm font-bold text-red-400 mb-3">IEC 61730-2 MST 26 — Reverse Current Overload</h3>
+        <h3 className="text-sm font-bold text-red-400 mb-3">IEC 61730-2:2023 MST 26 — Reverse Current Overload</h3>
         <p className="text-xs text-gray-400 mb-4">
           Apply 135% of max series fuse current rating in reverse direction.
           Monitor for fire, melting, or module failure.
@@ -105,7 +105,7 @@ export default function ReverseCurrentTab({ readings, session, onSessionUpdate, 
 
   return (
     <TestTabLayout
-      testKey="rco" testName="Reverse Current Overload" standard="IEC 61730-2 MST 26"
+      testKey="rco" testName="Reverse Current Overload" standard="IEC 61730-2:2023 MST 26"
       color="text-red-400" readings={readings} session={session}
       onSessionUpdate={onSessionUpdate} sendCommand={sendCommand} demoMode={demoMode}
       limits={{ maxVoltage: 10, maxCurrent: testCurrent * 1.1, maxPower: 100, maxTemp: 60 }}

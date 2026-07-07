@@ -39,6 +39,7 @@ try:
     from .api.scpi_routes import router as scpi_router
     from .api.reports_routes import router as reports_router
     from .app.devices_api import router as devices_router
+    from .app.opcua_api import router as opcua_router
     from .app.health import start_background_health, stop_background_health
     from .db.backfill import backfill_csv_runs
     from .db.session import init_db
@@ -52,6 +53,7 @@ except ImportError:  # pragma: no cover - script-mode fallback
     from api.scpi_routes import router as scpi_router  # type: ignore[no-redef]
     from api.reports_routes import router as reports_router  # type: ignore[no-redef]
     from app.devices_api import router as devices_router  # type: ignore[no-redef]
+    from app.opcua_api import router as opcua_router  # type: ignore[no-redef]
     from app.health import start_background_health, stop_background_health  # type: ignore[no-redef]
     from db.backfill import backfill_csv_runs  # type: ignore[no-redef]
     from db.session import init_db  # type: ignore[no-redef]
@@ -156,6 +158,7 @@ app.add_middleware(
 )
 
 app.include_router(tickets_router)
+app.include_router(opcua_router)
 
 try:
     from .app.reliability import reliability_router
