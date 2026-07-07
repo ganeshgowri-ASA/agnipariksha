@@ -58,3 +58,40 @@ def test_setpoint_validation_rejects_negative_current() -> None:
             json={"voltage_v": 12.0, "current_a": -1.0, "output_enabled": True},
         )
         assert r.status_code == 422
+
+
+def test_default_source_is_psu_and_state_reports_it() -> None:
+    with TestClient(app) as c:
+        body = c.get("/api/opcua/psu").json()
+        assert body["source"] == "psu"
+
+
+def test_pv_mode_current_follows_the_iv_curve() -> None:
+    with TestClient(app) as c:
+        assert c.post("/api/opcua/psu/source", json={"mode": "pv"}).status_code == 200
+        # Operate at the module Vmp; current should ride the curve toward Imp.
+        iv = c.get("/api/opcua/psu/iv").json()
+        vmp = iv["vmp"]
+        c.post("/api/opcua/psu/setpoints", json={"voltage_v": vmp, "current_a": 0, "output_enabled": True})
+        last = {}
+        for _ in range(40):
+            last = c.get("/api/opcua/psu").json()
+        assert last["source"] == "pv"
+        assert last["voltage_v"] == pytest.approx(vmp, abs=0.5)
+        # At Vmp the PV current is ~Imp, not 0 (curve behaviour, not a bench PSU).
+        assert last["current_a"] == pytest.approx(iv["imp"], rel=0.1)
+        assert last["power_w"] > 0
+
+
+def test_iv_curve_endpoint_shape() -> None:
+    with TestClient(app) as c:
+        c.post("/api/opcua/psu/source", json={"mode": "pv"})
+        iv = c.get("/api/opcua/psu/iv").json()
+        assert iv["curve"][0]["i"] == pytest.approx(iv["isc"])
+        assert iv["curve"][-1]["i"] == pytest.approx(0.0, abs=1e-6)
+        assert iv["mpp"]["p"] == pytest.approx(iv["vmp"] * iv["imp"], rel=0.05)
+
+
+def test_source_toggle_rejects_bad_mode() -> None:
+    with TestClient(app) as c:
+        assert c.post("/api/opcua/psu/source", json={"mode": "nope"}).status_code == 422

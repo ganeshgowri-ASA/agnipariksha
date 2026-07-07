@@ -61,6 +61,54 @@ class DemoPsuSource:
         )
 
 
+@dataclass
+class PvArraySource:
+    """DEMO PV *array-simulator* source. The commanded voltage is the chosen
+    operating point on the module's I-V curve; the current follows the curve
+    (clamped by any operator current limit). This is what the PV6000 does in
+    hardware — sources current along a programmed module curve — emulated so
+    the "PSU connected to a PV module" workflow is testable without hardware.
+    """
+
+    module: "PvModule" = field(default_factory=lambda: _default_module())
+    response: float = 0.5
+    thermal_gain: float = 0.02
+    cooling: float = 0.05
+    v: float = 0.0
+    temp_c: float = AMBIENT_C
+    _sp: PsuSetpoints = field(default_factory=PsuSetpoints)
+
+    def apply(self, sp: PsuSetpoints) -> None:
+        self._sp = sp
+
+    def read(self) -> PsuReadings:
+        from .pv_iv import pv_current
+
+        target_v = self._sp.voltage_v if self._sp.output_enabled else 0.0
+        self.v += (target_v - self.v) * self.response
+        if self._sp.output_enabled:
+            i = pv_current(self.v, self.module)
+            # An operator current limit (>0) caps the curve current.
+            if self._sp.current_a > 0:
+                i = min(i, self._sp.current_a)
+        else:
+            i = 0.0
+        power = self.v * i
+        self.temp_c += self.thermal_gain * power - self.cooling * (self.temp_c - AMBIENT_C)
+        return PsuReadings(
+            voltage_v=round(self.v, 4),
+            current_a=round(i, 4),
+            power_w=round(power, 4),
+            temperature_c=round(self.temp_c, 3),
+        )
+
+
+def _default_module() -> "PvModule":
+    from .pv_iv import PvModule
+
+    return PvModule()
+
+
 class LivePsuSource:
     """Binds the bridge to the real PV6000 over an SCPIDriver-like object."""
 

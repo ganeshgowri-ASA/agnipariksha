@@ -1,5 +1,6 @@
 import AppShell from '@/components/AppShell';
 import OpcuaPsuPanel from '@/components/OpcuaPsuPanel';
+import PvCurvePanel from '@/components/PvCurvePanel';
 
 // DC Power Supply surface — mirrors the PSU over the backend OPC UA REST
 // proxy (GET/POST /api/opcua/psu). The panel is a client component; this
@@ -10,8 +11,9 @@ export default function PsuPage() {
       title="DC Power Supply"
       subtitle="OPC UA mirror · live telemetry + setpoints"
     >
-      <div className="p-6 max-w-3xl" data-testid="psu-page">
+      <div className="p-6 max-w-3xl space-y-4" data-testid="psu-page">
         <OpcuaPsuPanel />
+        <PvCurvePanel />
         <p className="mt-4 text-[11px] text-muted">
           Live readings poll <code>GET /api/opcua/psu</code>; the Write button
           posts to <code>/api/opcua/psu/setpoints</code>. Start the backend
