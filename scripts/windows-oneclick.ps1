@@ -20,14 +20,39 @@ function Fail($msg) { Write-Host "XX  $msg" -ForegroundColor Red; exit 1 }
 
 # --- Prerequisites ---------------------------------------------------------
 Step 'Checking prerequisites (git, python, node/npm)'
+
+function Have($names) {
+  foreach ($n in $names) { if (Get-Command $n -ErrorAction SilentlyContinue) { return $true } }
+  return $false
+}
+
+# Figure out what's missing and auto-install via winget. PATH does not
+# refresh inside a running session, so if anything is installed the script
+# stops and asks for a fresh window rather than failing halfway.
+$need = @()
+if (-not (Have @('git')))           { $need += 'Git.Git' }
+if (-not (Have @('python', 'py')))  { $need += 'Python.Python.3.12' }
+if (-not (Have @('npm', 'npm.cmd'))) { $need += 'OpenJS.NodeJS.LTS' }
+
+if ($need.Count -gt 0) {
+  if (Get-Command winget -ErrorAction SilentlyContinue) {
+    Step ("Installing missing prerequisites via winget: " + ($need -join ', '))
+    foreach ($pkg in $need) {
+      winget install --id $pkg -e --source winget --accept-package-agreements --accept-source-agreements
+    }
+    Write-Host ""
+    Write-Host "Prerequisites installed. Windows PATH only updates in a NEW shell." -ForegroundColor Yellow
+    Write-Host "==> Close this window, open a NEW PowerShell, and run the one-paste again." -ForegroundColor Yellow
+    exit 0
+  }
+  Fail ("Missing: " + ($need -join ', ') + ". Install these, open a new PowerShell, then re-run.")
+}
+
 $git = Get-Command git -ErrorAction SilentlyContinue
-if (-not $git) { Fail 'git not found. Install: winget install Git.Git' }
-$py = Get-Command python -ErrorAction SilentlyContinue
+$py  = Get-Command python -ErrorAction SilentlyContinue
 if (-not $py) { $py = Get-Command py -ErrorAction SilentlyContinue }
-if (-not $py) { Fail 'Python not found. Install: winget install Python.Python.3.12' }
 $npm = Get-Command npm.cmd -ErrorAction SilentlyContinue
 if (-not $npm) { $npm = Get-Command npm -ErrorAction SilentlyContinue }
-if (-not $npm) { Fail 'npm not found. Install: winget install OpenJS.NodeJS.LTS' }
 Write-Host ("    git={0}  python={1}  npm={2}" -f $git.Source, $py.Source, $npm.Source)
 
 # --- Clone or update -------------------------------------------------------
