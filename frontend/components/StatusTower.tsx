@@ -28,11 +28,20 @@ export interface StatusTowerProps {
 }
 
 export default function StatusTower({ lamps }: StatusTowerProps) {
+  // The grid tracks the number of lamps so 4/5/6 all render cleanly. The
+  // 6-lamp layout (3 devices + backend/frontend/cloud-ai) is the canonical
+  // one after the /api/scpi/smoke wiring landed.
+  const n = lamps.length;
+  const cols =
+    n >= 6 ? 'lg:grid-cols-6 md:grid-cols-3' :
+    n === 5 ? 'lg:grid-cols-5 md:grid-cols-3' :
+              'lg:grid-cols-4 md:grid-cols-2';
   return (
     <section
       data-testid="status-tower"
+      data-lamp-count={n}
       aria-label="System readiness lamps"
-      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"
+      className={`grid grid-cols-1 sm:grid-cols-2 ${cols} gap-3`}
     >
       {lamps.map(l => (
         <StatusLamp
@@ -48,8 +57,11 @@ export default function StatusTower({ lamps }: StatusTowerProps) {
 }
 
 /**
- * Convenience: the 4 canonical lamps the operator UX spec requires.
- * Callers fill in state + detail at runtime.
+ * Canonical lamp keys after /api/scpi/smoke wiring:
+ * 3 devices (scpi/chamber/dmm) + 3 stack lamps (backend/frontend/cloud-ai).
+ * Older 4-lamp callers still work — the tower is just a dumb renderer.
  */
-export const DEFAULT_TOWER_KEYS = ['power-supply', 'backend', 'frontend', 'cloud-ai'] as const;
+export const DEFAULT_TOWER_KEYS = [
+  'scpi', 'chamber', 'dmm', 'backend', 'frontend', 'cloud-ai',
+] as const;
 export type DefaultTowerKey = typeof DEFAULT_TOWER_KEYS[number];
